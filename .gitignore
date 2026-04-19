@@ -1,0 +1,8 @@
+# Explicitly ignored assets
+/HLD/
+/Lancet/
+/UN/
+/full_simulation_results7.rds
+/full_simulation_results8.rds
+/Methodology document.docx
+/Worldbank_incomes_cleaned.xlsx
