@@ -581,7 +581,8 @@ all_results <- bind_rows(results_max_uptake, results_mod_uptake)
 
 
 # Save results
-saveRDS(all_results, "full_simulation_results8.rds")
+# saveRDS(all_results, "full_simulation_results8.rds")
+saveRDS(all_results, "test/full_simulation_results8.rds")
  
 
 ##### VARIOUS CHECKS #####
