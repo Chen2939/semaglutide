@@ -23,17 +23,9 @@ library(forcats)
 library(mixtools)
 library(KernSmooth)
 
-setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data")
-
-
-
 #Clear workspace and run garbage collection
 rm(list = ls())
 gc()
-
-
-
-
 
 #Load simulated population
 #using naming convention to match Data Cleaning

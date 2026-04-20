@@ -36,11 +36,8 @@ clean_theme <- function() {
 ############ DATA LOADING ###############
 ##########################################
 
-
-setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis")
-
 #Load simulated population
-full_results <- readRDS("full_simulation_results6.rds")
+full_results <- readRDS("full_simulation_results8.rds")
 
 
 
@@ -53,7 +50,7 @@ str(full_results)
 
 
 # Set the working directory to the folder containing the files
-path <- "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/HLD/Mx_1x1"
+path <- "HLD/Mx_1x1"
 
 # Get list of all Mx_1x1.txt files
 files <- list.files(path = path, 
@@ -397,7 +394,7 @@ final_df_imputed$mortality_rate[final_df_imputed$mortality_rate == 0] <- 0.00001
 
 
 
-#Save results
+#Save results (to project directory)
 saveRDS(final_df_imputed, "final_df_imputed.rds")
 
 str(final_df_imputed)
@@ -825,7 +822,9 @@ print(paste("Median age:", round(median_age, 1)))
 #Add UN population data
 
 # Import population data
-population <- read_excel("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/UN/WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx", 
+# NOTE: This file may need to be downloaded separately if not present.
+# Available from: https://population.un.org/wpp/downloads
+population <- read_excel("UN/WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx", 
                          sheet = 1,
                          skip = 16,
                          na = "")  # This tells R to only treat empty cells as NA

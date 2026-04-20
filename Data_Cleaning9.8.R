@@ -46,8 +46,8 @@ clean_theme <- function() {
 ##########################################
 
 #Load Lancet BMI data
-bmi_female <- read_csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2024_BMI_female_age_specific_country.csv")
-bmi_male <- read_csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2024_BMI_male_age_specific_country.csv")
+bmi_female <- read_csv("Lancet/NCD_RisC_Lancet_2024_BMI_female_age_specific_country.csv")
+bmi_male <- read_csv("Lancet/NCD_RisC_Lancet_2024_BMI_male_age_specific_country.csv")
 
 #bind two dfs
 bmi <- rbind(bmi_female, bmi_male)
@@ -56,7 +56,7 @@ bmi <- rbind(bmi_female, bmi_male)
 bmi_small <- bmi %>% filter(Year > 2021) 
 
 #New column names
-lancet_col_names <- xl.read.file("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/lancet_column_names.xlsx")
+lancet_col_names <- xl.read.file("Lancet/lancet_column_names.xlsx")
 
 # Create a named vector for renaming
 dict <- lancet_col_names %>% deframe()
@@ -73,7 +73,7 @@ bmi_clean <- bmi_small %>%
 #########   ADD HEIGHT  ############
 ####################################
 
-height<-read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2020_height_child_adolescent_country.csv")
+height<-read.csv("Lancet/NCD_RisC_Lancet_2020_height_child_adolescent_country.csv")
 
 #Clean height data
 height_clean <- height %>% 
@@ -94,7 +94,7 @@ bmi_join <- left_join(bmi_clean, height_clean)
 ####################################
 
 #Load WorldBank data
-worldbank <- xl.read.file("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Worldbank_incomes_cleaned.xlsx")
+worldbank <- xl.read.file("Worldbank_incomes_cleaned.xlsx")
 
 worldbank_high <- worldbank %>% 
   select(ISO, '2022') %>% 
@@ -111,13 +111,13 @@ lancet_high <- left_join(worldbank_high, bmi_join, by = "ISO") %>%
 #https://population.un.org/wpp/downloads?folder=Standard%20Projections&group=Population
 
 # Import population data
-pop_male <- read_excel("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/UN/WPP2024_POP_F01_2_POPULATION_SINGLE_AGE_MALE.xlsx",
+pop_male <- read_excel("UN/WPP2024_POP_F01_2_POPULATION_SINGLE_AGE_MALE.xlsx",
                          sheet = 1,
                          skip = 16,
                          na = "")  # This tells R to only treat empty cells as NA
 
 # Import population data
-pop_female <- read_excel("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/UN/WPP2024_POP_F01_3_POPULATION_SINGLE_AGE_FEMALE.xlsx",
+pop_female <- read_excel("UN/WPP2024_POP_F01_3_POPULATION_SINGLE_AGE_FEMALE.xlsx",
                        sheet = 1,
                        skip = 16,
                        na = "")  # This tells R to only treat empty cells as NA
@@ -214,7 +214,7 @@ lancet_pop <- lancet_high %>%
 #diabetes_women <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD-RisC_Lancet_2016_Diabetes_Women_Agespecific_Prevalence_by_Country.csv")
 
 #Add new diabetes prevalence data
-diabetes_new <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2024_Diabetes_age_specific_countries.csv")
+diabetes_new <- read.csv("Lancet/NCD_RisC_Lancet_2024_Diabetes_age_specific_countries.csv")
 
 
 #Clean and combine diabetes data
@@ -581,10 +581,6 @@ all_results <- bind_rows(results_max_uptake, results_mod_uptake)
 
 
 # Save results
-
-
-setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis")
-
 saveRDS(all_results, "full_simulation_results8.rds")
  
 
@@ -635,9 +631,6 @@ cat("- Moderate scenario:",
 ####################################
 #########   VISUALIZATION  #########
 ####################################
-
-setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis")
-
 
 #Load simulated population
 full_results <- readRDS("full_simulation_results8.rds")
