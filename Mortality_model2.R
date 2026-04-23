@@ -1,4 +1,9 @@
 
+#Increase memory limit (Windows only)
+if (.Platform$OS.type == "windows") {
+  memory.limit(size = 32000)  # 32 GB
+}
+
 #Use alternative libraries (e.g. SAS)
 library(haven)
 library(excel.link)
@@ -37,7 +42,8 @@ clean_theme <- function() {
 ##########################################
 
 #Load simulated population
-full_results <- readRDS("full_simulation_results8.rds")
+full_results <- readRDS("test/full_simulation_results8.rds")
+#full_results <- readRDS("test/full_simulation_results6.rds")
 
 
 
@@ -344,49 +350,98 @@ print("Overall statistics before and after imputation:")
 print(before_after_stats)
 
 # Check specifically imputed values for reasonableness
+# BATCHED VERSION - process one country at a time to avoid OOM
+# Original code kept below (commented) for reference
+
+# --- Batched validation ---
+cat("\nRunning batched validation of imputed values...\n")
+
+# Pre-compute which (ISO, age, Sex) combinations had missing original rates
+# Use a lightweight lookup instead of joining the full dataset
+original_missing_keys <- final_df %>%
+  filter(is.na(mortality_rate)) %>%
+  distinct(ISO, age, Sex) %>%
+  mutate(is_imputed = TRUE)
+gc()
+
+# Join only the small lookup table (not full final_df)
 imputed_values <- final_df_imputed %>%
-  left_join(final_df %>% select(ISO, age, Sex, original_rate = mortality_rate), 
-            by = c("ISO", "age", "Sex")) %>%
-  filter(is.na(original_rate)) %>%
+  left_join(original_missing_keys, by = c("ISO", "age", "Sex")) %>%
+  filter(isTRUE(is_imputed) | is_imputed == TRUE) %>%
   group_by(ISO) %>%
   summarise(
-    min_mortality = min(mortality_rate),
-    max_mortality = max(mortality_rate),
-    mean_mortality = mean(mortality_rate),
-    n_imputed = n()
+    min_mortality = min(mortality_rate, na.rm = TRUE),
+    max_mortality = max(mortality_rate, na.rm = TRUE),
+    mean_mortality = mean(mortality_rate, na.rm = TRUE),
+    n_imputed = n(),
+    .groups = "drop"
   )
+
+rm(original_missing_keys)
+gc()
 
 print("\nSummary of imputed values by country:")
 print(imputed_values)
 
-# Compare imputed values with nearby countries
-# Let's focus on Seychelles as an example
-seychelles_comparison <- bind_rows(
-  final_df_imputed %>%
-    filter(ISO == "SYC") %>%
-    group_by(age, Sex) %>%
-    summarise(
-      mortality = mortality_rate,
-      type = "Imputed Seychelles",
-      .groups = "drop"
-    ),
-  
-  final_df %>%
-    filter(!is.na(mortality_rate)) %>%
-    inner_join(
-      country_info %>%
-        filter(income >= seychelles_income * 0.8,
-               income <= seychelles_income * 1.2) %>%
-        select(ISO),
-      by = "ISO"
-    ) %>%
-    group_by(age, Sex) %>%
-    summarise(
-      mortality = median(mortality_rate),
-      type = "Similar Income Countries",
-      .groups = "drop"
-    )
-)
+# Seychelles comparison - batched by processing smaller subsets
+# Filter Seychelles only (small subset)
+seychelles_imputed <- final_df_imputed %>%
+  filter(ISO == "SYC") %>%
+  group_by(age, Sex) %>%
+  summarise(
+    mortality = median(mortality_rate, na.rm = TRUE),
+    type = "Imputed Seychelles",
+    .groups = "drop"
+  )
+
+# Similar income countries - get ISO list first, then filter final_df
+similar_income_isos <- country_info %>%
+  filter(income >= seychelles_income * 0.8,
+         income <= seychelles_income * 1.2) %>%
+  pull(ISO)
+
+similar_income_comparison <- final_df %>%
+  filter(ISO %in% similar_income_isos, !is.na(mortality_rate)) %>%
+  group_by(age, Sex) %>%
+  summarise(
+    mortality = median(mortality_rate, na.rm = TRUE),
+    type = "Similar Income Countries",
+    .groups = "drop"
+  )
+
+seychelles_comparison <- bind_rows(seychelles_imputed, similar_income_comparison)
+rm(seychelles_imputed, similar_income_comparison, similar_income_isos)
+gc()
+
+# --- Original code (commented, kept for reference) ---
+# imputed_values <- final_df_imputed %>%
+#   left_join(final_df %>% select(ISO, age, Sex, original_rate = mortality_rate), 
+#             by = c("ISO", "age", "Sex")) %>%
+#   filter(is.na(original_rate)) %>%
+#   group_by(ISO) %>%
+#   summarise(
+#     min_mortality = min(mortality_rate),
+#     max_mortality = max(mortality_rate),
+#     mean_mortality = mean(mortality_rate),
+#     n_imputed = n()
+#   )
+# 
+# seychelles_comparison <- bind_rows(
+#   final_df_imputed %>%
+#     filter(ISO == "SYC") %>%
+#     group_by(age, Sex) %>%
+#     summarise(mortality = mortality_rate, type = "Imputed Seychelles", .groups = "drop"),
+#   final_df %>%
+#     filter(!is.na(mortality_rate)) %>%
+#     inner_join(
+#       country_info %>%
+#         filter(income >= seychelles_income * 0.8, income <= seychelles_income * 1.2) %>%
+#         select(ISO),
+#       by = "ISO"
+#     ) %>%
+#     group_by(age, Sex) %>%
+#     summarise(mortality = median(mortality_rate), type = "Similar Income Countries", .groups = "drop")
+# )
 
 #Some countries have mortality rates for some ages at 0
 #Set to a bare minimum of 1/100,000 instead
@@ -394,10 +449,19 @@ final_df_imputed$mortality_rate[final_df_imputed$mortality_rate == 0] <- 0.00001
 
 
 
-#Save results (to project directory)
-saveRDS(final_df_imputed, "final_df_imputed.rds")
+#Save results (to test folder)
+#saveRDS(final_df_imputed, "final_df_imputed.rds")
+saveRDS(final_df_imputed, "test/final_df_imputed.rds")
 
 str(final_df_imputed)
+
+# Free up memory before simulation
+# Note: seychelles_comparison, imputed_values commented out above due to memory
+rm(final_df, mortality_df, mortality_df_transformed, mortality_lookup, 
+   regional_backup, income_patterns, 
+   missing_matches, missing_countries, missing_regions, validation_check,
+   before_after_stats)
+gc()
 
 
 
@@ -442,30 +506,36 @@ cat("\nDuplicate keys in full_results:\n")
 print(results_key_dupes)
 
 # Check distinct combinations before and after join
+# BATCHED VERSION - use final_df_imputed (same structure as final_df but kept in memory)
+# Use distinct() early to minimize memory usage
 before_combos <- full_results %>%
-  select(ISO, age, Sex) %>%
-  distinct() %>%
+  distinct(ISO, age, Sex) %>%
   nrow()
 
-after_combos <- final_df %>%
-  select(ISO, age, Sex) %>%
-  distinct() %>%
+after_combos <- final_df_imputed %>%
+  distinct(ISO, age, Sex) %>%
   nrow()
 
 cat("\nDistinct key combinations before:", before_combos)
 cat("\nDistinct key combinations after:", after_combos)
 
-# Check which specific combinations were added
-added_combos <- final_df %>%
-  select(ISO, age, Sex) %>%
-  distinct() %>%
+# Check which specific combinations were added (using final_df_imputed)
+added_combos <- final_df_imputed %>%
+  distinct(ISO, age, Sex) %>%
   anti_join(
-    full_results %>% select(ISO, age, Sex) %>% distinct(),
-    by = c("ISO", "age" = "age", "Sex")
+    full_results %>% distinct(ISO, age, Sex),
+    by = c("ISO", "age", "Sex")
   )
 
 cat("\nAdded combinations:\n")
 print(added_combos)
+gc()
+
+# --- Original code (commented, kept for reference) ---
+# before_combos <- full_results %>% select(ISO, age, Sex) %>% distinct() %>% nrow()
+# after_combos <- final_df %>% select(ISO, age, Sex) %>% distinct() %>% nrow()
+# added_combos <- final_df %>% select(ISO, age, Sex) %>% distinct() %>%
+#   anti_join(full_results %>% select(ISO, age, Sex) %>% distinct(), by = c("ISO", "age" = "age", "Sex"))
 
 # Check if any values in the age column differ in type or format
 cat("\nUnique age values in full_results:\n")
@@ -762,7 +832,7 @@ survival_plot <- ggplot(survival_data, aes(x = year, y = survival_rate, color = 
   geom_line(size = 1) +
   geom_point() +
   scale_y_continuous(
-    labels = percent_format(accuracy = 0.1),
+    labels = scales::percent_format(accuracy = 0.1),
     limits = c(0.75, 1)
   ) +
   scale_x_continuous(breaks = 0:10) +

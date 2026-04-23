@@ -11,3 +11,8 @@
 /Data_Cleaning_Documentation.md
 /Semaglutide_Analysis_Documentation.md
 /Mortality_Model_Documentation.md
+/Pipeline_Overview.md
+
+# R workspace/session files
+.RData
+.Rhistory
