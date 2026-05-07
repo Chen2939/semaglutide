@@ -548,6 +548,12 @@ print(unique(mortality2$Age))
 #https://www.thelancet.com/journals/lancet/article/PIIS0140-6736(16)30175-1/fulltext?post=bl103252020a
 
 
+#########
+# Saving all the necessary variables for downstream notebooks (Mortality Model.ipynb, Price rebound model.ipynb)
+saveRDS(final_df_imputed, "test/final_df_imputed.rds")
+saveRDS(mortality2, "test/mortality2.rds")
+saveRDS(population_with_iso, "test/population_with_iso.rds")
+#########
 
 
 ###########################################

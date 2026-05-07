@@ -1,18 +1,39 @@
-# Explicitly ignored assets
+# Explicitly ignored data/result folders
 /HLD/
 /Lancet/
 /UN/
 /test/
-/full_simulation_results7.rds
-/full_simulation_results8.rds
+/latest/
+/Food data/
+
+# Explicitly ignored documentation/notes
 /Methodology document.docx
-/Worldbank_incomes_cleaned.xlsx
+/Methodology document_latest.docx
 /note.md
 /Data_Cleaning_Documentation.md
 /Semaglutide_Analysis_Documentation.md
 /Mortality_Model_Documentation.md
 /Pipeline_Overview.md
 
+# Data files (any location)
+*.rds
+*.csv
+*.xls
+*.xlsx
+*.docx
+*.pdf
+
 # R workspace/session files
 .RData
+.RDataTmp
 .Rhistory
+.Rapp.history
+
+# IDE/editor files
+.idea/
+.ipynb_checkpoints/
+.DS_Store
+
+# Python virtual environments
+venv/
+__pycache__/
