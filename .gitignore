@@ -4,16 +4,16 @@
 /UN/
 /test/
 /latest/
+/legacy/
 /Food data/
+/recategorize/
 
 # Explicitly ignored documentation/notes
-/Methodology document.docx
-/Methodology document_latest.docx
-/note.md
 /Data_Cleaning_Documentation.md
 /Semaglutide_Analysis_Documentation.md
 /Mortality_Model_Documentation.md
 /Pipeline_Overview.md
+/Carbon_Intensity_Documentation.md
 
 # Data files (any location)
 *.rds
@@ -22,6 +22,7 @@
 *.xlsx
 *.docx
 *.pdf
+*.pkl
 
 # R workspace/session files
 .RData
