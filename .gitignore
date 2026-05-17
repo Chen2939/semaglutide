@@ -8,12 +8,9 @@
 /Food data/
 /recategorize/
 
-# Explicitly ignored documentation/notes
-/Data_Cleaning_Documentation.md
-/Semaglutide_Analysis_Documentation.md
-/Mortality_Model_Documentation.md
+# Documentation (auto-generated, not tracked)
+*_Documentation.md
 /Pipeline_Overview.md
-/Carbon_Intensity_Documentation.md
 
 # Data files (any location)
 *.rds

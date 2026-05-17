@@ -5,6 +5,11 @@ Generates country-specific carbon intensity (kg CO2eq/kg) per food group
 by mapping Poore & Nemecek (2018) GHG values onto FAOSTAT country-level
 food consumption weights.
 
+Supports three scenarios via --scenario flag:
+  mean  (default) — central estimate
+  p10   — 10th percentile (low-emission bound)
+  p90   — 90th percentile (high-emission bound)
+
 Sources:
   - Poore & Nemecek (2018) Science 360, 987-992: GHG per kg at retail
     via recategorize/aaq0216_datas2.xls "Results - Retail Weight"
@@ -12,18 +17,97 @@ Sources:
   - Food data/FBS_Group_Mapping.csv: 115 FAOSTAT items -> 9 food groups
 """
 
+import argparse
 import pandas as pd
 import numpy as np
 
 # ============================================================
-# P&N GHG values (kg CO2eq per kg retail weight, Mean, IPCC 2013)
+# P&N GHG values (kg CO2eq per kg retail weight, IPCC 2013)
 # From aaq0216_datas2.xls "Results - Retail Weight" sheet
+#
+# Each product has three values: (p10, mean, p90)
+# Composite bovine/dairy/sugar values use the same production
+# weights from "Results - Global Totals" across all scenarios.
 # ============================================================
 
-# Composite values from P&N "Results - Global Totals" production volumes
-_BOVINE_GHG = (40571 * 99.48 + 31425 * 33.30) / (40571 + 31425)  # ~70.6
-_DAIRY_GHG = (470267 * 3.15 + 21191 * 23.88) / (470267 + 21191)  # ~4.04
-_SUGAR_RAW_GHG = (141702 * 3.20 + 34038 * 1.81) / (141702 + 34038)  # ~2.93
+_PROD_BEEF_HERD = 40571
+_PROD_DAIRY_HERD = 31425
+_PROD_MILK = 470267
+_PROD_CHEESE = 21191
+_PROD_CANE = 141702
+_PROD_BEET = 34038
+
+def _composite(prod_a, val_a, prod_b, val_b):
+    return (prod_a * val_a + prod_b * val_b) / (prod_a + prod_b)
+
+GHG_SCENARIOS = {
+    "mean": {
+        "bovine":    _composite(_PROD_BEEF_HERD, 99.48, _PROD_DAIRY_HERD, 33.30),
+        "dairy":     _composite(_PROD_MILK, 3.15, _PROD_CHEESE, 23.88),
+        "sugar_raw": _composite(_PROD_CANE, 3.20, _PROD_BEET, 1.81),
+        "beef_herd": 99.48, "dairy_herd": 33.30,
+        "lamb": 39.72, "pig": 12.31, "poultry": 9.87,
+        "eggs": 4.67, "milk": 3.15, "cheese": 23.88,
+        "fish": 13.63, "shrimp": 26.87,
+        "wheat": 1.57, "maize": 1.70, "barley": 1.18,
+        "oat": 2.48, "rice": 4.45,
+        "potato": 0.46, "cassava": 1.32, "root_veg": 0.43,
+        "tomato": 2.09, "onion": 0.50, "other_veg": 0.53,
+        "citrus": 0.39, "banana": 0.86, "apple": 0.43,
+        "berry_grape": 1.53, "other_fruit": 1.05,
+        "groundnut": 3.23, "nut": 0.43, "tofu": 3.16,
+        "soybean_oil": 6.32, "palm_oil": 7.32,
+        "sunflower_oil": 3.60, "rapeseed_oil": 3.77, "olive_oil": 5.42,
+        "coffee": 28.53, "chocolate": 46.65,
+        "wine": 1.79, "other_pulse": 1.79, "pea": 0.98,
+        "cane_sugar": 3.20, "beet_sugar": 1.81,
+        "soymilk": 0.98,
+    },
+    "p10": {
+        "bovine":    _composite(_PROD_BEEF_HERD, 40.37, _PROD_DAIRY_HERD, 17.94),
+        "dairy":     _composite(_PROD_MILK, 1.70, _PROD_CHEESE, 10.92),
+        "sugar_raw": _composite(_PROD_CANE, 0.92, _PROD_BEET, 1.21),
+        "beef_herd": 40.37, "dairy_herd": 17.94,
+        "lamb": 24.52, "pig": 7.41, "poultry": 4.18,
+        "eggs": 2.93, "milk": 1.70, "cheese": 10.92,
+        "fish": 5.65, "shrimp": 8.04,
+        "wheat": 0.79, "maize": 0.73, "barley": 0.70,
+        "oat": 0.85, "rice": 1.46,
+        "potato": 0.16, "cassava": 0.35, "root_veg": 0.24,
+        "tomato": 0.39, "onion": 0.30, "other_veg": 0.23,
+        "citrus": 0.08, "banana": 0.61, "apple": 0.29,
+        "berry_grape": 0.77, "other_fruit": 0.35,
+        "groundnut": 1.63, "nut": -3.65, "tofu": 1.60,
+        "soybean_oil": 2.43, "palm_oil": 3.61,
+        "sunflower_oil": 2.46, "rapeseed_oil": 2.50, "olive_oil": 2.86,
+        "coffee": 5.20, "chocolate": -0.10,
+        "wine": 0.91, "other_pulse": 0.98, "pea": 0.56,
+        "cane_sugar": 0.92, "beet_sugar": 1.21,
+        "soymilk": 0.58,
+    },
+    "p90": {
+        "bovine":    _composite(_PROD_BEEF_HERD, 209.85, _PROD_DAIRY_HERD, 50.90),
+        "dairy":     _composite(_PROD_MILK, 4.83, _PROD_CHEESE, 39.32),
+        "sugar_raw": _composite(_PROD_CANE, 5.10, _PROD_BEET, 2.42),
+        "beef_herd": 209.85, "dairy_herd": 50.90,
+        "lamb": 54.44, "pig": 22.26, "poultry": 20.12,
+        "eggs": 8.39, "milk": 4.83, "cheese": 39.32,
+        "fish": 26.51, "shrimp": 52.12,
+        "wheat": 2.31, "maize": 2.31, "barley": 1.64,
+        "oat": 4.08, "rice": 8.77,
+        "potato": 0.63, "cassava": 2.11, "root_veg": 0.56,
+        "tomato": 5.95, "onion": 0.79, "other_veg": 0.97,
+        "citrus": 0.56, "banana": 1.18, "apple": 0.57,
+        "berry_grape": 2.67, "other_fruit": 2.93,
+        "groundnut": 5.81, "nut": 3.84, "tofu": 5.55,
+        "soybean_oil": 13.44, "palm_oil": 12.04,
+        "sunflower_oil": 4.58, "rapeseed_oil": 4.64, "olive_oil": 7.63,
+        "coffee": 84.85, "chocolate": 134.70,
+        "wine": 2.65, "other_pulse": 3.75, "pea": 1.67,
+        "cane_sugar": 5.10, "beet_sugar": 2.42,
+        "soymilk": 1.47,
+    },
+}
 
 # ============================================================
 # FAOSTAT aggregate items to EXCLUDE from weighted averages
@@ -53,180 +137,183 @@ AGGREGATE_ITEMS = {
     "Miscellaneous",
 }
 
-# ============================================================
-# Complete mapping: 115 FAOSTAT items -> GHG (kg CO2eq/kg)
-#
-# Three tiers:
-#   Direct match:  FAOSTAT item has a clear P&N counterpart
-#   Close proxy:   No exact match; assigned nearest P&N product
-#   Group fallback: Aggregate items (excluded from calculation)
-# ============================================================
+def build_faostat_ghg_map(scenario="mean"):
+    """Build FAOSTAT item -> GHG mapping for the given scenario."""
+    g = GHG_SCENARIOS[scenario]
 
-FAOSTAT_TO_GHG = {
-    # --- Cereals (includes starchy roots per FAOSTAT grouping) ---
-    "Wheat and products":       1.57,   # P&N: Wheat & Rye
-    "Rice and products":        4.45,   # P&N: Rice
-    "Barley and products":      1.18,   # P&N: Barley
-    "Maize and products":       1.70,   # P&N: Maize
-    "Rye and products":         1.57,   # P&N: Wheat & Rye
-    "Oats":                     2.48,   # P&N: Oatmeal
-    "Sorghum and products":     1.70,   # Proxy: Maize (similar grain)
-    "Cereals, other":           1.70,   # Proxy: Maize (generic cereal)
-    "Millet and products":      1.70,   # Proxy: Maize (similar grain)
-    "Cassava and products":     1.32,   # P&N: Cassava
-    "Potatoes and products":    0.46,   # P&N: Potatoes
-    "Sweet potatoes":           1.32,   # Proxy: Cassava (tropical tuber)
-    "Roots, Other":             0.43,   # P&N: Root Vegetables
-    "Yams":                     1.32,   # Proxy: Cassava (tropical tuber)
+    # Proxy values that don't have a direct P&N product
+    tea = 1.50 if scenario == "mean" else (0.75 if scenario == "p10" else 2.50)
+    honey = 1.00 if scenario == "mean" else (0.50 if scenario == "p10" else 2.00)
+    infant = 3.00 if scenario == "mean" else (1.50 if scenario == "p10" else 5.00)
+    oilcrops_avg = (g["soybean_oil"] + g["palm_oil"] + g["sunflower_oil"]
+                    + g["rapeseed_oil"] + g["olive_oil"]) / 5
 
-    # --- Dairy ---
-    "Milk - Excluding Butter":  _DAIRY_GHG,  # Production-weighted Milk + Cheese
+    return {
+        # --- Cereals ---
+        "Wheat and products":       g["wheat"],
+        "Rice and products":        g["rice"],
+        "Barley and products":      g["barley"],
+        "Maize and products":       g["maize"],
+        "Rye and products":         g["wheat"],
+        "Oats":                     g["oat"],
+        "Sorghum and products":     g["maize"],
+        "Cereals, other":           g["maize"],
+        "Millet and products":      g["maize"],
+        "Cassava and products":     g["cassava"],
+        "Potatoes and products":    g["potato"],
+        "Sweet potatoes":           g["cassava"],
+        "Roots, Other":             g["root_veg"],
+        "Yams":                     g["cassava"],
 
-    # --- Eggs ---
-    "Eggs":                     4.67,   # P&N: Eggs
+        # --- Dairy ---
+        "Milk - Excluding Butter":  g["dairy"],
 
-    # --- Fats and oils ---
-    "Soyabeans":                3.16,   # P&N: Tofu (soy product)
-    "Groundnuts":               3.23,   # P&N: Groundnuts
-    "Sunflower seed":           3.60,   # P&N: Sunflower Oil
-    "Coconuts - Incl Copra":    5.42,   # Proxy: Olive Oil (tree crop)
-    "Rape and Mustardseed":     3.77,   # P&N: Rapeseed Oil
-    "Sesame seed":              3.60,   # Proxy: Sunflower Oil (seed crop)
-    "Oilcrops, Other":          3.60,   # Proxy: mid-range seed crop
-    "Olives (including preserved)": 5.42, # P&N: Olive Oil
-    "Cottonseed":               3.60,   # Proxy: mid-range seed crop
-    "Palm kernels":             7.32,   # P&N: Palm Oil
-    "Soyabean Oil":             6.32,   # P&N: Soybean Oil
-    "Groundnut Oil":            3.23,   # Proxy: Groundnuts
-    "Rape and Mustard Oil":     3.77,   # P&N: Rapeseed Oil
-    "Palm Oil":                 7.32,   # P&N: Palm Oil
-    "Coconut Oil":              5.42,   # Proxy: tree-crop oil
-    "Sunflowerseed Oil":        3.60,   # P&N: Sunflower Oil
-    "Sesameseed Oil":           3.60,   # Proxy: Sunflower Oil
-    "Olive Oil":                5.42,   # P&N: Olive Oil
-    "Oilcrops Oil, Other":      4.50,   # Proxy: avg across oils
-    "Cottonseed Oil":           3.60,   # Proxy: seed-based oil
-    "Maize Germ Oil":           1.70,   # Proxy: Maize-derived
-    "Palmkernel Oil":           7.32,   # P&N: Palm Oil
-    "Ricebran Oil":             4.45,   # Proxy: Rice-derived
-    "Butter, Ghee":             _DAIRY_GHG, # Dairy fat byproduct
-    "Cream":                    _DAIRY_GHG, # Dairy product
-    "Fats, Animals, Raw":       12.31,  # Proxy: Pig Meat (animal fat source)
-    "Fish, Body Oil":           13.63,  # P&N: Fish (farmed)
-    "Fish, Liver Oil":          13.63,  # P&N: Fish (farmed)
+        # --- Eggs ---
+        "Eggs":                     g["eggs"],
 
-    # --- Fish ---
-    "Freshwater Fish":          13.63,  # P&N: Fish (farmed)
-    "Demersal Fish":            13.63,  # P&N: Fish (farmed)
-    "Pelagic Fish":             13.63,  # P&N: Fish (farmed)
-    "Marine Fish, Other":       13.63,  # P&N: Fish (farmed)
-    "Crustaceans":              26.87,  # P&N: Prawns (farmed)
-    "Cephalopods":              13.63,  # P&N: Fish (farmed)
-    "Molluscs, Other":          13.63,  # P&N: Fish (farmed)
-    "Aquatic Animals, Others":  13.63,  # P&N: Fish (farmed)
-    "Aquatic Plants":           0.53,   # Proxy: Other Vegetables (aquatic plant)
+        # --- Fats and oils ---
+        "Soyabeans":                g["tofu"],
+        "Groundnuts":               g["groundnut"],
+        "Sunflower seed":           g["sunflower_oil"],
+        "Coconuts - Incl Copra":    g["olive_oil"],
+        "Rape and Mustardseed":     g["rapeseed_oil"],
+        "Sesame seed":              g["sunflower_oil"],
+        "Oilcrops, Other":          g["sunflower_oil"],
+        "Olives (including preserved)": g["olive_oil"],
+        "Cottonseed":               g["sunflower_oil"],
+        "Palm kernels":             g["palm_oil"],
+        "Soyabean Oil":             g["soybean_oil"],
+        "Groundnut Oil":            g["groundnut"],
+        "Rape and Mustard Oil":     g["rapeseed_oil"],
+        "Palm Oil":                 g["palm_oil"],
+        "Coconut Oil":              g["olive_oil"],
+        "Sunflowerseed Oil":        g["sunflower_oil"],
+        "Sesameseed Oil":           g["sunflower_oil"],
+        "Olive Oil":                g["olive_oil"],
+        "Oilcrops Oil, Other":      oilcrops_avg,
+        "Cottonseed Oil":           g["sunflower_oil"],
+        "Maize Germ Oil":           g["maize"],
+        "Palmkernel Oil":           g["palm_oil"],
+        "Ricebran Oil":             g["rice"],
+        "Butter, Ghee":             g["dairy"],
+        "Cream":                    g["dairy"],
+        "Fats, Animals, Raw":       g["pig"],
+        "Fish, Body Oil":           g["fish"],
+        "Fish, Liver Oil":          g["fish"],
 
-    # --- Fruit and vegetables ---
-    "Oranges, Mandarines":      0.39,   # P&N: Citrus Fruit
-    "Lemons, Limes and products": 0.39, # P&N: Citrus Fruit
-    "Citrus, Other":            0.39,   # P&N: Citrus Fruit
-    "Bananas":                  0.86,   # P&N: Bananas
-    "Plantains":                0.86,   # Proxy: Bananas
-    "Apples and products":      0.43,   # P&N: Apples
-    "Pineapples and products":  1.05,   # Proxy: Other Fruit
-    "Grapefruit and products":  0.39,   # P&N: Citrus Fruit
-    "Grapes and products (excl wine)": 1.53, # P&N: Berries & Grapes
-    "Fruits, other":            1.05,   # P&N: Other Fruit
-    "Dates":                    1.05,   # Proxy: Other Fruit
-    "Tomatoes and products":    2.09,   # P&N: Tomatoes
-    "Vegetables, other":        0.53,   # P&N: Other Vegetables
-    "Onions":                   0.50,   # P&N: Onions & Leeks
+        # --- Fish ---
+        "Freshwater Fish":          g["fish"],
+        "Demersal Fish":            g["fish"],
+        "Pelagic Fish":             g["fish"],
+        "Marine Fish, Other":       g["fish"],
+        "Crustaceans":              g["shrimp"],
+        "Cephalopods":              g["fish"],
+        "Molluscs, Other":          g["fish"],
+        "Aquatic Animals, Others":  g["fish"],
+        "Aquatic Plants":           g["other_veg"],
 
-    # --- Meat ---
-    "Bovine Meat":              _BOVINE_GHG, # Weighted beef herd + dairy herd
-    "Mutton & Goat Meat":       39.72,  # P&N: Lamb & Mutton
-    "Pigmeat":                  12.31,  # P&N: Pig Meat
-    "Poultry Meat":             9.87,   # P&N: Poultry Meat
-    "Meat, Other":              9.87,   # Proxy: Poultry (conservative)
-    "Offals, Edible":           9.87,   # Proxy: Poultry (byproduct, low-value cut)
+        # --- Fruit and vegetables ---
+        "Oranges, Mandarines":      g["citrus"],
+        "Lemons, Limes and products": g["citrus"],
+        "Citrus, Other":            g["citrus"],
+        "Bananas":                  g["banana"],
+        "Plantains":                g["banana"],
+        "Apples and products":      g["apple"],
+        "Pineapples and products":  g["other_fruit"],
+        "Grapefruit and products":  g["citrus"],
+        "Grapes and products (excl wine)": g["berry_grape"],
+        "Fruits, other":            g["other_fruit"],
+        "Dates":                    g["other_fruit"],
+        "Tomatoes and products":    g["tomato"],
+        "Vegetables, other":        g["other_veg"],
+        "Onions":                   g["onion"],
 
-    # --- Other ---
-    "Wine":                     1.79,   # P&N: Wine
-    "Beer":                     1.18,   # P&N: Barley (Beer)
-    "Beverages, Fermented":     1.18,   # Proxy: Beer
-    "Beverages, Alcoholic":     1.18,   # Proxy: Beer
-    "Alcohol, Non-Food":        1.18,   # Proxy: Beer
-    "Coffee and products":      28.53,  # P&N: Coffee
-    "Cocoa Beans and products": 46.65,  # P&N: Dark Chocolate
-    "Tea (including mate)":     1.50,   # Proxy: low-emission beverage crop
-    "Beans":                    1.79,   # P&N: Other Pulses
-    "Peas":                     0.98,   # P&N: Peas
-    "Pulses, Other and products": 1.79, # P&N: Other Pulses
-    "Pepper":                   1.50,   # Proxy: low-emission crop
-    "Pimento":                  1.50,   # Proxy: low-emission crop
-    "Spices, Other":            1.50,   # Proxy: low-emission crop
-    "Cloves":                   1.50,   # Proxy: low-emission crop
-    "Nuts and products":        0.43,   # P&N: Nuts
-    "Infant food":              3.00,   # Proxy: processed food blend
+        # --- Meat ---
+        "Bovine Meat":              g["bovine"],
+        "Mutton & Goat Meat":       g["lamb"],
+        "Pigmeat":                  g["pig"],
+        "Poultry Meat":             g["poultry"],
+        "Meat, Other":              g["poultry"],
+        "Offals, Edible":           g["poultry"],
 
-    # --- Sweets, confectionery, and sweetened beverages ---
-    "Sugar (Raw Equivalent)":   _SUGAR_RAW_GHG,  # Weighted cane + beet
-    "Sweeteners, Other":        _SUGAR_RAW_GHG,  # Proxy: sugar avg
-    "Honey":                    1.00,   # Low-emission natural product
-    "Sugar non-centrifugal":    3.20,   # P&N: Cane Sugar
-    "Sugar cane":               3.20,   # P&N: Cane Sugar
-    "Sugar beet":               1.81,   # P&N: Beet Sugar
-}
+        # --- Other ---
+        "Wine":                     g["wine"],
+        "Beer":                     g["barley"],
+        "Beverages, Fermented":     g["barley"],
+        "Beverages, Alcoholic":     g["barley"],
+        "Alcohol, Non-Food":        g["barley"],
+        "Coffee and products":      g["coffee"],
+        "Cocoa Beans and products": g["chocolate"],
+        "Tea (including mate)":     tea,
+        "Beans":                    g["other_pulse"],
+        "Peas":                     g["pea"],
+        "Pulses, Other and products": g["other_pulse"],
+        "Pepper":                   tea,
+        "Pimento":                  tea,
+        "Spices, Other":            tea,
+        "Cloves":                   tea,
+        "Nuts and products":        g["nut"],
+        "Infant food":              infant,
+
+        # --- Sweets ---
+        "Sugar (Raw Equivalent)":   g["sugar_raw"],
+        "Sweeteners, Other":        g["sugar_raw"],
+        "Honey":                    honey,
+        "Sugar non-centrifugal":    g["cane_sugar"],
+        "Sugar cane":               g["cane_sugar"],
+        "Sugar beet":               g["beet_sugar"],
+    }
 
 # ============================================================
 # Global fallback: production-weighted group averages from P&N
 # Used when a country has no leaf-item data for a food group
 # ============================================================
 
-def compute_global_group_averages():
-    """Compute production-weighted P&N average per food group."""
+def compute_global_group_averages(scenario="mean"):
+    """Compute production-weighted P&N average per food group for a scenario."""
+    g = GHG_SCENARIOS[scenario]
     group_products = {
         "Cereals": [
-            ("Wheat & Rye", 482152, 1.57), ("Maize", 194554, 1.70),
-            ("Barley", 206523, 1.18), ("Rice", 397780, 4.45),
-            ("Oatmeal", 4463, 2.48), ("Cassava", 173814, 1.32),
-            ("Potatoes", 332343, 0.46),
+            (482152, g["wheat"]), (194554, g["maize"]),
+            (206523, g["barley"]), (397780, g["rice"]),
+            (4463, g["oat"]), (173814, g["cassava"]),
+            (332343, g["potato"]),
         ],
-        "Dairy": [("Milk", 470267, 3.15), ("Cheese", 21191, 23.88)],
-        "Eggs": [("Eggs", 63489, 4.67)],
+        "Dairy": [(470267, g["milk"]), (21191, g["cheese"])],
+        "Eggs": [(63489, g["eggs"])],
         "Fats and oils": [
-            ("Groundnuts", 11827, 3.23), ("Nuts", 15296, 0.43),
-            ("Tofu", 11853, 3.16), ("Soybean Oil", 24148, 6.32),
-            ("Palm Oil", 16691, 7.32), ("Sunflower Oil", 9554, 3.60),
-            ("Rapeseed Oil", 10311, 3.77), ("Olive Oil", 2997, 5.42),
+            (11827, g["groundnut"]), (15296, g["nut"]),
+            (11853, g["tofu"]), (24148, g["soybean_oil"]),
+            (16691, g["palm_oil"]), (9554, g["sunflower_oil"]),
+            (10311, g["rapeseed_oil"]), (2997, g["olive_oil"]),
         ],
-        "Fish": [("Fish (farmed)", 45223, 13.63), ("Crustaceans (farmed)", 10633, 26.87)],
+        "Fish": [(45223, g["fish"]), (10633, g["shrimp"])],
         "Fruit and vegetables": [
-            ("Tomatoes", 148957, 2.09), ("Brassicas", 77045, 0.51),
-            ("Onions & Leeks", 77927, 0.50), ("Root Veg", 35154, 0.43),
-            ("Other Veg", 654375, 0.53), ("Citrus", 127923, 0.39),
-            ("Bananas", 128971, 0.86), ("Apples", 75781, 0.43),
-            ("Berries & Grapes", 67079, 1.53), ("Other Fruit", 210650, 1.05),
+            (148957, g["tomato"]), (77045, 0.51 if scenario == "mean" else (0.23 if scenario == "p10" else 0.97)),
+            (77927, g["onion"]), (35154, g["root_veg"]),
+            (654375, g["other_veg"]), (127923, g["citrus"]),
+            (128971, g["banana"]), (75781, g["apple"]),
+            (67079, g["berry_grape"]), (210650, g["other_fruit"]),
         ],
         "Meat": [
-            ("Beef (beef)", 40571, 99.48), ("Beef (dairy)", 31425, 33.30),
-            ("Lamb & Mutton", 14195, 39.72), ("Pig Meat", 112892, 12.31),
-            ("Poultry", 96439, 9.87),
+            (_PROD_BEEF_HERD, g["beef_herd"]), (_PROD_DAIRY_HERD, g["dairy_herd"]),
+            (14195, g["lamb"]), (112892, g["pig"]),
+            (96439, g["poultry"]),
         ],
         "Other": [
-            ("Coffee", 7778, 28.53), ("Dark Chocolate", 4416, 46.65),
-            ("Wine", 26013, 1.79), ("Other Pulses", 42765, 1.79),
-            ("Peas", 6026, 0.98),
+            (7778, g["coffee"]), (4416, g["chocolate"]),
+            (26013, g["wine"]), (42765, g["other_pulse"]),
+            (6026, g["pea"]),
         ],
         "Sweets, confectionery, and sweetened beverages": [
-            ("Cane Sugar", 141702, 3.20), ("Beet Sugar", 34038, 1.81),
-            ("Dark Chocolate", 4416, 46.65),
+            (_PROD_CANE, g["cane_sugar"]), (_PROD_BEET, g["beet_sugar"]),
+            (4416, g["chocolate"]),
         ],
     }
     averages = {}
     for group, products in group_products.items():
-        total_prod = sum(p[1] for p in products)
-        weighted = sum(p[1] * p[2] for p in products)
+        total_prod = sum(p[0] for p in products)
+        weighted = sum(p[0] * p[1] for p in products)
         averages[group] = weighted / total_prod if total_prod > 0 else 1.0
     return averages
 
@@ -235,7 +322,13 @@ def compute_global_group_averages():
 # MAIN: Build country-specific carbon intensity
 # ============================================================
 
-def main():
+def build_ci(scenario="mean"):
+    """Build country-specific carbon intensity for a given scenario.
+
+    Returns the result DataFrame and also writes to CSV.
+    """
+    faostat_ghg = build_faostat_ghg_map(scenario)
+
     mapping = pd.read_csv("Food data/FBS_Group_Mapping.csv")
     norm = pd.read_csv(
         "Food data/FoodBalanceSheets_E_All_Data_(Normalized)/"
@@ -244,14 +337,13 @@ def main():
     iso_map = pd.read_csv("Food data/faostat_country_mapping.csv")
     old_ci = pd.read_csv("Food data/carbon_intensity.csv")
 
-    global_avg = compute_global_group_averages()
+    global_avg = compute_global_group_averages(scenario)
     food_groups = [
         "Cereals", "Dairy", "Eggs", "Fats and oils", "Fish",
         "Fruit and vegetables", "Meat", "Other",
         "Sweets, confectionery, and sweetened beverages",
     ]
 
-    # Filter FAOSTAT to 2022 food supply and merge mappings
     food = norm[(norm["Year"] == 2022) & (norm["Element"] == "Food")].copy()
     food = pd.merge(food, iso_map, on="Area", how="left")
     food = pd.merge(
@@ -260,35 +352,28 @@ def main():
         left_on="Item", right_index=True, how="left",
     )
 
-    # Assign GHG values and flag aggregates
-    food["ghg_per_kg"] = food["Item"].map(FAOSTAT_TO_GHG)
+    food["ghg_per_kg"] = food["Item"].map(faostat_ghg)
     food["is_aggregate"] = food["Item"].isin(AGGREGATE_ITEMS)
 
-    # Use only leaf items (non-aggregate) with positive consumption
     leaves = food[(~food["is_aggregate"]) & (food["Value"] > 0)].copy()
     leaves["weighted_ghg"] = leaves["Value"] * leaves["ghg_per_kg"]
 
-    # Weighted average per country x food group
     grouped = leaves.groupby(["ISO", "final_food_group"]).agg(
         total_consumption=("Value", "sum"),
         total_weighted_ghg=("weighted_ghg", "sum"),
     ).reset_index()
     grouped["ci"] = grouped["total_weighted_ghg"] / grouped["total_consumption"]
 
-    # Pivot to wide format
     ci_wide = grouped.pivot(
         index="ISO", columns="final_food_group", values="ci"
     ).reindex(columns=food_groups)
 
-    # Countries in scope (from old carbon_intensity.csv)
     scope = old_ci[["ISO", "Country", "Region"]].copy()
     result = pd.merge(scope, ci_wide, on="ISO", how="left")
 
-    # Fill missing food groups with global P&N average
     for fg in food_groups:
         result[fg] = result[fg].fillna(global_avg.get(fg, 1.0))
 
-    # For 7 countries with no FAOSTAT data, use regional average
     has_data = set(grouped["ISO"].unique())
     for idx, row in result.iterrows():
         if row["ISO"] not in has_data:
@@ -300,40 +385,61 @@ def main():
                 for fg in food_groups:
                     result.at[idx, fg] = region_rows[fg].mean()
 
-    # Round to 6 decimal places
     for fg in food_groups:
         result[fg] = result[fg].round(6)
 
-    # Back up old file and write new one
-    old_ci.to_csv("Food data/carbon_intensity_old.csv", index=False)
-    result.to_csv("Food data/carbon_intensity.csv", index=False)
+    # Determine output filename
+    if scenario == "mean":
+        out_path = "Food data/carbon_intensity.csv"
+    else:
+        out_path = f"Food data/carbon_intensity_{scenario}.csv"
 
-    # Print validation summary
-    print("=== Carbon Intensity Summary (kg CO2eq/kg) ===\n")
+    result.to_csv(out_path, index=False)
+
+    # Print summary
+    label = {"mean": "Mean (central)", "p10": "10th Percentile (low)", "p90": "90th Percentile (high)"}
+    print(f"\n=== {label[scenario]} Carbon Intensity ===\n")
+    print(f"Output: {out_path}")
     print(f"Countries: {len(result)}")
-    print(f"Countries with FAOSTAT data: {len(has_data & set(scope['ISO']))}")
-    print(f"Countries using regional avg: {len(scope) - len(has_data & set(scope['ISO']))}")
-    print()
+    print(f"Countries with FAOSTAT data: {len(has_data & set(scope['ISO']))}\n")
 
     for fg in food_groups:
         vals = result[fg]
-        print(f"  {fg:50s} min={vals.min():.2f}  mean={vals.mean():.2f}  max={vals.max():.2f}")
+        print(f"  {fg:50s} min={vals.min():7.2f}  mean={vals.mean():7.2f}  max={vals.max():7.2f}")
 
-    print("\n=== Spot Checks ===\n")
-    for iso in ["JPN", "USA", "AUS", "BRA", "GBR", "SAU"]:
-        row = result[result["ISO"] == iso]
-        if len(row) > 0:
-            row = row.iloc[0]
-            print(f"  {iso} ({row['Country']}):")
-            print(f"    Cereals={row['Cereals']:.2f}  Dairy={row['Dairy']:.2f}  "
-                  f"Meat={row['Meat']:.2f}  Fruit&Veg={row['Fruit and vegetables']:.2f}")
+    print("\n  Spot checks (USA):")
+    row = result[result["ISO"] == "USA"]
+    if len(row) > 0:
+        row = row.iloc[0]
+        print(f"    Cereals={row['Cereals']:.2f}  Dairy={row['Dairy']:.2f}  "
+              f"Meat={row['Meat']:.2f}  Fish={row['Fish']:.2f}")
 
-    # Warn about items without GHG assignment
     unmapped = leaves[leaves["ghg_per_kg"].isna()]["Item"].unique()
     if len(unmapped) > 0:
-        print(f"\nWARNING: {len(unmapped)} FAOSTAT items without GHG values:")
-        for item in unmapped:
-            print(f"  - {item}")
+        print(f"\n  WARNING: {len(unmapped)} items without GHG values")
+
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Build carbon intensity CSVs")
+    parser.add_argument(
+        "--scenario", choices=["mean", "p10", "p90", "all"],
+        default="all",
+        help="Which GHG scenario to build (default: all)"
+    )
+    args = parser.parse_args()
+
+    if args.scenario == "all":
+        for s in ["mean", "p10", "p90"]:
+            build_ci(s)
+        print("\n" + "=" * 60)
+        print("All three scenario files written to Food data/")
+        print("  carbon_intensity.csv      (mean — central estimate)")
+        print("  carbon_intensity_p10.csv  (10th percentile — low bound)")
+        print("  carbon_intensity_p90.csv  (90th percentile — high bound)")
+    else:
+        build_ci(args.scenario)
 
 
 if __name__ == "__main__":
