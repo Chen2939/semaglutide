@@ -227,13 +227,18 @@ ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
 ax.grid(axis="x", alpha=0.25, linewidth=0.5)
 ax.set_axisbelow(True)
 
-# Annotate top 5
-for i in range(len(sort_order) - 1, max(len(sort_order) - 6, -1), -1):
+# Annotate top 10 with numbers for both scenarios
+offset = max(max_vals) * 0.01
+for i in range(len(sort_order) - 1, max(len(sort_order) - 11, -1), -1):
     ax.text(
-        max_vals[i] + max(max_vals) * 0.01,
-        y[i] + bar_height / 2,
+        max_vals[i] + offset, y[i] + bar_height / 2,
         f"{max_vals[i]:,.0f}",
         va="center", fontsize=6.5, color="#2166ac", fontweight="bold",
+    )
+    ax.text(
+        mod_vals[i] + offset, y[i] - bar_height / 2,
+        f"{mod_vals[i]:,.0f}",
+        va="center", fontsize=6.5, color="#5a9ec4", fontweight="bold",
     )
 
 plt.tight_layout()
