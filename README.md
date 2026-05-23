@@ -20,6 +20,8 @@ semaglutide/
 ├── Mortality Model.ipynb          # Mortality impact: Monte Carlo survival, person-years saved, emissions from survivors
 ├── Price rebound model.ipynb      # Price rebound economics: equilibrium solver, carbon savings by country & food group
 ├── build_carbon_intensity.py      # Builds country-specific carbon intensity from Poore & Nemecek (2018) + FAOSTAT
+├── breakeven_analysis.py          # Break-even: food-emission savings vs. survivor emissions over 10-year horizon
+├── generate_emissions_figure.py   # Country-level carbon emissions saved figure (mod & max uptake)
 ├── requirements.txt               # Python dependencies
 ├── requirements_lock.txt          # Pinned dependency versions
 │
@@ -54,21 +56,24 @@ python build_carbon_intensity.py
 ```
 
 Constructs country × food-group carbon intensity values (kg CO₂eq / kg food) by:
-- Mapping 43 products from Poore & Nemecek (2018) to 9 `final_food_group` categories
-- Weighting by each country's actual FAOSTAT consumption volumes
-- Falling back to global averages where country data is missing
+- Mapping 43 products from Poore & Nemecek (2018) to 115 FAOSTAT items → 9 `final_food_group` categories
+- Computing country-specific weighted averages based on each nation's FAOSTAT consumption mix
+- Excluding 18 FAOSTAT aggregate items to prevent double-counting
+- Falling back to regional or global averages where country data is missing
+- Generating three scenarios: mean (central), P10 (10th percentile), P90 (90th percentile)
 
 **Input:** `recategorize/aaq0216_datas2.xls`, `Food data/FBS_Group_Mapping.csv`, FAOSTAT normalized food balance sheets, `Food data/faostat_country_mapping.csv`
 
-**Output:** `Food data/carbon_intensity.csv`
+**Output:** `Food data/carbon_intensity.csv` (mean), `Food data/carbon_intensity_p10.csv`, `Food data/carbon_intensity_p90.csv`
 
-### Step 3 — Mortality Model
+### Step 3 — Mortality Model (with population weighting)
 
 Run all cells in `Mortality Model.ipynb`:
 - Loads `full_simulation_results8.rds`, `mortality2.rds`, and `HLD/Mx_1x1/` life tables
-- Runs 10-year Monte Carlo survival simulation with BMI-based hazard ratios
+- Runs 10-year Monte Carlo survival simulation (`run_multi_simulation()`) with BMI-based hazard ratios
+- `population_weighted=True` (default) multiplies individual survival diffs by their population weight before aggregation, producing output at the national population level; set to `False` for the original sample-level output
 - Computes person-years saved under both uptake scenarios
-- Links survivors to per-capita CO₂ emissions (`API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls`)
+- Links survivors to per-capita CO₂ emissions from the **World Bank** (`API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls`, indicator EN.GHG.CO2.PC.CE.AR5), projected to decline at 1% per year over the 10-year horizon
 - **Outputs:** `final_df_imputed.pkl`, `mortality model total emissions.csv`
 
 ### Step 4 — Price Rebound Model
@@ -77,7 +82,35 @@ Run all cells in `Price rebound model.ipynb`:
 - Loads `full_simulation_results8.rds` and all `Food data/` files
 - Implements constant-elasticity supply/demand equilibrium (Hegwood et al., 2023)
 - Computes rebound effect, net food reduction, and carbon savings per country × food group
+- Includes sensitivity analysis (cells 15–17): re-runs the model with P10/Mean/P90 carbon intensity files and generates comparison figures
 - Generates summary tables and visualisations
+
+### Step 5 — Break-Even Analysis
+
+```bash
+python breakeven_analysis.py
+```
+
+Compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon:
+- **Food side:** re-runs the Price Rebound Model equilibrium to compute annual CO₂eq savings per country (static, based on 2022 FAOSTAT data)
+- **Survivor side:** loads year-by-year emissions from `mortality model total emissions.csv` (requires population-weighted output from Step 3)
+- Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario
+
+**Input:** `full_simulation_results8.rds`, `mortality model total emissions.csv`, all `Food data/` files
+
+**Output:** `test/breakeven_by_country.png`, `test/breakeven_curves.png`
+
+### Step 6 — Emissions Saved Figure
+
+```bash
+python generate_emissions_figure.py
+```
+
+Produces a horizontal bar chart of carbon emissions saved from food reduction by country, for both moderate and maximum uptake scenarios. Re-runs the full Price Rebound Model pipeline internally.
+
+**Input:** `full_simulation_results8.rds`, all `Food data/` files
+
+**Output:** `test/emissions_saved_by_country.png`
 
 ## Setup
 
@@ -125,7 +158,9 @@ World Bank per-capita greenhouse gas emissions (CO₂ equivalent, AR5 methodolog
 | `faostat_country_mapping.csv` | Project-specific | Maps FAOSTAT area names to ISO3 country codes |
 | `elasticity_supply.csv` | Hegwood et al. (2023) | Supply elasticity estimates by food group |
 | `elasticity_demand.csv` | Hegwood et al. (2023) | Demand elasticity estimates by food group and country |
-| `carbon_intensity.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity (kg CO₂eq/kg) |
+| `carbon_intensity.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — mean (kg CO₂eq/kg) |
+| `carbon_intensity_p10.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — 10th percentile |
+| `carbon_intensity_p90.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — 90th percentile |
 
 ### `HLD/Mx_1x1/`
 > **Location:** `HLD/Mx_1x1/`
