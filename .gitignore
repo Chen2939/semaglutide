@@ -4,7 +4,6 @@
 /UN/
 /test/
 /latest/
-/legacy/
 /Food data/
 /recategorize/
 
@@ -12,7 +11,7 @@
 *_Documentation.md
 /Pipeline_Overview.md
 
-# Data files (any location)
+# Data files (any location) — overridden below for specific tracked files
 *.rds
 *.csv
 *.xls
@@ -21,11 +20,27 @@
 *.pdf
 *.pkl
 
-# R workspace/session files
+# R workspace/session files (never track these)
 .RData
 .RDataTmp
 .Rhistory
 .Rapp.history
+
+# === Legacy R code & docs (tracked for reproducibility) ===
+!legacy/
+!legacy/**
+
+# Re-ignore legacy R session artifacts
+legacy/data/.RData
+legacy/data/.RDataTmp
+legacy/data/.Rhistory
+
+# === Root-level pipeline data files (tracked via LFS) ===
+!full_simulation_results8.rds
+!mortality2.rds
+!final_df_imputed.pkl
+!mortality model total emissions.csv
+!API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls
 
 # IDE/editor files
 .idea/
