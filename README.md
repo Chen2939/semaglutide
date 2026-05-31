@@ -207,12 +207,6 @@ UN World Population Prospects 2024 — population by single year of age and sex.
 
 Download from the [Science supplementary materials](https://www.science.org/doi/10.1126/science.aaq0216) for Poore & Nemecek (2018).
 
-## Key References
-
-- **Hegwood, M. et al. (2023).** Simulating the food-system impacts of anti-obesity medications. *Nature Food*, 4, 828–836. [doi:10.1038/s43016-023-00792-z](https://doi.org/10.1038/s43016-023-00792-z)
-- **Poore, J. & Nemecek, T. (2018).** Reducing food's environmental impacts through producers and consumers. *Science*, 360(6392), 987–992. [doi:10.1126/science.aaq0216](https://doi.org/10.1126/science.aaq0216)
-- **NCD Risk Factor Collaboration (2024).** Worldwide trends in underweight and obesity. *The Lancet*.
-
 ## Legacy Code
 
 The original R-based pipeline (simulation, analysis, and mortality scripts) has been archived in `legacy/`. See `legacy/docs/legacy_README.md` for the original documentation. The `.rds` outputs from those scripts are still required as inputs to the Python notebooks.
@@ -237,3 +231,13 @@ git clone <repo-url>
 ```
 
 If you cloned before LFS was configured, run `git lfs pull` to download the large files.
+
+## References
+
+- **Hegwood, M. et al. (2023).** Simulating the food-system impacts of anti-obesity medications. *Nature Food*, 4, 828–836. [doi:10.1038/s43016-023-00792-z](https://doi.org/10.1038/s43016-023-00792-z)
+- **Poore, J. & Nemecek, T. (2018).** Reducing food's environmental impacts through producers and consumers. *Science*, 360(6392), 987–992. [doi:10.1126/science.aaq0216](https://doi.org/10.1126/science.aaq0216)
+- **NCD Risk Factor Collaboration (2024).** Worldwide trends in underweight and obesity. *The Lancet*.
+- **World Bank.** Total greenhouse gas emissions per capita (kt of CO₂ equivalent). Indicator: EN.GHG.CO2.PC.CE.AR5. [World Bank Open Data](https://data.worldbank.org/)
+- **UN Population Division (2024).** World Population Prospects 2024. [population.un.org/wpp](https://population.un.org/wpp/)
+- **Human Life-Table Database.** Max Planck Institute for Demographic Research & University of California, Berkeley. [lifetable.de](https://www.lifetable.de/)
+- **FAOSTAT.** Food Balance Sheets, Consumer Price Indices. Food and Agriculture Organization of the United Nations. [fao.org/faostat](https://www.fao.org/faostat/)
