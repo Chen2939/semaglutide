@@ -27,8 +27,11 @@ semaglutide/
 │   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
 │   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
 │   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
-│   └── generate_dashboard_figure.py   # Combined multi-panel country dashboard + food-group breakdown
+│   ├── generate_dashboard_figure.py   # Combined multi-panel country dashboard + food-group breakdown
+│   ├── generate_rebound_figure.py     # Rebound decomposition by food group (analog to Hegwood Fig. 3)
+│   └── generate_rebound_validation.py # Rebound % by food type & income group (analog to Hegwood Fig. 4a)
 │
+├── figures/                       # Paper-ready figures (tracked in Git)
 ├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
 ├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
 ├── Lancet/                        # NCD-RisC BMI & diabetes distributions (not tracked)
@@ -102,6 +105,12 @@ python -m data_visualization.generate_emissions_figure
 
 # Combined country dashboard + food-group breakdown
 python -m data_visualization.generate_dashboard_figure
+
+# Rebound decomposition by food group & country (analog to Hegwood Fig. 3)
+python -m data_visualization.generate_rebound_figure
+
+# Rebound % by food type & income group (analog to Hegwood Fig. 4a)
+python -m data_visualization.generate_rebound_validation
 ```
 
 **Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
@@ -112,6 +121,14 @@ python -m data_visualization.generate_dashboard_figure
 
 **Country dashboard** — combined multi-panel figure for the paper showing the top 15 countries across three dimensions: (A) food-emission savings, (B) person-years saved, and (C) break-even ratio. Also generates a stacked bar chart breaking down savings by food group.
 - **Output:** `test/country_dashboard.png`, `test/food_group_breakdown.png`
+
+**Rebound decomposition** — 3×3 grid showing expected demand reduction, actual demand reduction (after price rebound), and resulting carbon emissions saved for the top countries across Meat, Dairy, and Cereals. Analogous to Hegwood et al. (2023) Figure 3.
+- **Output:** `test/rebound_decomposition.png`
+
+**Rebound validation** — horizontal bar chart of rebound percentages by food type, grouped by World Bank income classification. Validates model consistency against Hegwood et al.'s reported range (53–71% for high-income countries).
+- **Output:** `test/rebound_by_income.png`
+
+All scripts also copy their outputs to `figures/` for easy access.
 
 **All scripts share inputs:** `full_simulation_results8.rds`, `mortality model total emissions.csv`, all `Food data/` files
 
@@ -200,4 +217,23 @@ Download from the [Science supplementary materials](https://www.science.org/doi/
 
 The original R-based pipeline (simulation, analysis, and mortality scripts) has been archived in `legacy/`. See `legacy/docs/legacy_README.md` for the original documentation. The `.rds` outputs from those scripts are still required as inputs to the Python notebooks.
 
-Legacy R scripts and documentation are tracked via regular Git. Large binary data files (`.rds`, `.pkl`) are tracked via **Git LFS** — run `git lfs install` before cloning to pull them automatically.
+Legacy R scripts and documentation are tracked via regular Git. Large binary data files (`.rds`, `.pkl`) are tracked via **Git LFS**.
+
+### Git LFS
+
+This repository uses [Git Large File Storage](https://git-lfs.com/) for binary data files. LFS-tracked patterns (defined in `.gitattributes`):
+
+- `*.rds` — R data files (`full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
+- `*.pkl` — Python pickle files (`final_df_imputed.pkl`)
+
+**For collaborators cloning the repo:**
+
+```bash
+# Install Git LFS (one-time setup)
+git lfs install
+
+# Clone as usual — LFS files are downloaded automatically
+git clone <repo-url>
+```
+
+If you cloned before LFS was configured, run `git lfs pull` to download the large files.
