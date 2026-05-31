@@ -1,0 +1,327 @@
+"""
+Break-even analysis: when do cumulative food-emission savings from
+semaglutide equal cumulative emissions from additional survivors?
+
+Food side:  Annual CO2eq savings from reduced food consumption
+            (Price Rebound Model — static equilibrium, 2022 baseline)
+Mortality:  Year-by-year emissions from additional survivors
+            (Mortality Model — 10-year Monte Carlo simulation)
+
+Outputs:
+    test/breakeven_by_country.png   — break-even ratios by country
+    test/breakeven_curves.png       — cumulative curves for top countries
+
+Usage:
+    python -m data_visualization.breakeven_analysis
+"""
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+
+from .pipeline import compute_food_savings, load_mortality_emissions, output_path
+
+
+def compute_breakeven(food_savings, mort):
+    """For each (ISO, scenario), find the year where cumulative food savings
+    exceed cumulative survivor emissions."""
+
+    merged = pd.merge(food_savings, mort, on=["ISO", "scenario"], how="inner")
+
+    records = []
+    for _, row in merged.iterrows():
+        annual_food = row["annual_food_savings_t"]
+
+        cum_food = 0.0
+        cum_mort = 0.0
+
+        yearly_food = []
+        yearly_mort = []
+
+        for y in range(1, 11):
+            cum_food += annual_food
+            cum_mort += row[f"emissions_Y{y}"]
+            yearly_food.append(cum_food)
+            yearly_mort.append(cum_mort)
+
+        breakeven_year = None
+        for y in range(10):
+            if yearly_food[y] >= yearly_mort[y]:
+                if y == 0:
+                    breakeven_year = 1.0
+                else:
+                    if yearly_food[y - 1] < yearly_mort[y - 1]:
+                        gap_prev = yearly_mort[y - 1] - yearly_food[y - 1]
+                        gap_curr = yearly_food[y] - yearly_mort[y]
+                        frac = gap_prev / (gap_prev + gap_curr)
+                        breakeven_year = y + frac
+                    else:
+                        breakeven_year = 1.0
+                break
+
+        if breakeven_year is None:
+            breakeven_year = float("inf")
+
+        food_dominates_all = all(
+            yearly_food[y] >= yearly_mort[y] for y in range(10)
+        )
+
+        records.append({
+            "ISO": row["ISO"],
+            "Country": row["Country"],
+            "scenario": row["scenario"],
+            "annual_food_savings_t": annual_food,
+            "total_survivor_emissions_10yr": cum_mort,
+            "total_food_savings_10yr": cum_food,
+            "ratio_food_to_mort": (
+                cum_food / cum_mort if cum_mort > 0 else float("inf")
+            ),
+            "breakeven_year": breakeven_year,
+            "food_dominates_all_years": food_dominates_all,
+            **{f"cum_food_Y{y+1}": yearly_food[y] for y in range(10)},
+            **{f"cum_mort_Y{y+1}": yearly_mort[y] for y in range(10)},
+        })
+
+    return pd.DataFrame(records)
+
+
+def plot_breakeven_bars(be_df):
+    max_up = be_df[be_df["scenario"] == "max_uptake"].copy()
+    mod_up = be_df[be_df["scenario"] == "mod_uptake"].copy()
+
+    max_up = max_up.sort_values("ratio_food_to_mort", ascending=True)
+    country_order = max_up["Country"].tolist()
+
+    fig, ax = plt.subplots(figsize=(12, max(8, len(country_order) * 0.28)))
+
+    y = np.arange(len(country_order))
+    bar_height = 0.35
+
+    max_ratios, mod_ratios = [], []
+    for country in country_order:
+        mr = max_up[max_up["Country"] == country]["ratio_food_to_mort"].values
+        max_ratios.append(mr[0] if len(mr) > 0 else 0)
+        mr2 = mod_up[mod_up["Country"] == country]["ratio_food_to_mort"].values
+        mod_ratios.append(mr2[0] if len(mr2) > 0 else 0)
+
+    ax.barh(
+        y + bar_height / 2, max_ratios, bar_height,
+        label="Maximum uptake (95%)", color="#2166ac",
+        edgecolor="white", linewidth=0.5,
+    )
+    ax.barh(
+        y - bar_height / 2, mod_ratios, bar_height,
+        label="Moderate uptake (50%)", color="#92c5de",
+        edgecolor="white", linewidth=0.5,
+    )
+
+    ax.set_yticks(y)
+    ax.set_yticklabels(country_order, fontsize=7)
+    ax.set_xlabel(
+        "Ratio: Cumulative Food Savings / Cumulative Survivor Emissions (10-year)",
+        fontsize=10,
+    )
+    ax.set_title(
+        "Break-Even Analysis: Food Emission Savings vs. Survivor Emissions\n"
+        "All countries break even in Year 1 — bars show 10-year "
+        "savings-to-emissions ratio",
+        fontsize=12, fontweight="bold", pad=15,
+    )
+    ax.axvline(
+        x=1, color="red", linestyle="--", linewidth=1,
+        label="Break-even line (ratio = 1)",
+    )
+    ax.set_xscale("log")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(axis="x", alpha=0.25)
+    ax.set_axisbelow(True)
+
+    for i in range(
+        len(country_order) - 1, max(len(country_order) - 6, -1), -1
+    ):
+        ax.text(
+            max_ratios[i] * 1.1, y[i] + bar_height / 2,
+            f"{max_ratios[i]:,.0f}x",
+            va="center", fontsize=6, color="#2166ac", fontweight="bold",
+        )
+
+    plt.tight_layout()
+    out = output_path("breakeven_by_country.png")
+    plt.savefig(str(out), dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {out}")
+
+
+def plot_breakeven_curves(be_df):
+    max_up = be_df[be_df["scenario"] == "max_uptake"].copy()
+    top = max_up.nlargest(8, "annual_food_savings_t")
+
+    fig, axes = plt.subplots(2, 4, figsize=(18, 9))
+    axes = axes.flatten()
+    years = np.arange(1, 11)
+
+    for idx, (_, row) in enumerate(top.iterrows()):
+        ax = axes[idx]
+
+        cum_food_kt = [row[f"cum_food_Y{y}"] / 1e3 for y in range(1, 11)]
+        cum_mort_kt = [row[f"cum_mort_Y{y}"] / 1e3 for y in range(1, 11)]
+
+        ax.plot(
+            years, cum_food_kt, "b-o", markersize=4, linewidth=2,
+            label="Food savings (cumulative)",
+        )
+        ax.plot(
+            years, cum_mort_kt, "r-s", markersize=4, linewidth=2,
+            label="Survivor emissions (cumulative)",
+        )
+        ax.fill_between(years, cum_mort_kt, cum_food_kt, alpha=0.15, color="blue")
+
+        ax.set_title(f"{row['Country']}", fontsize=10, fontweight="bold")
+        ax.set_xlabel("Year", fontsize=8)
+        ax.set_ylabel("kt CO₂eq", fontsize=8)
+        ax.tick_params(labelsize=7)
+        ax.yaxis.set_major_formatter(
+            mticker.FuncFormatter(lambda x, _: f"{x:,.0f}")
+        )
+
+        ratio = row["ratio_food_to_mort"]
+        ax.text(
+            0.97, 0.05, f"Ratio: {ratio:,.0f}x",
+            transform=ax.transAxes, fontsize=8, ha="right",
+            bbox=dict(
+                boxstyle="round,pad=0.3",
+                facecolor="lightyellow", edgecolor="gray",
+            ),
+        )
+
+        if idx == 0:
+            ax.legend(fontsize=7, loc="upper left")
+
+    fig.suptitle(
+        "Cumulative Food-Emission Savings vs. Survivor Emissions (Max Uptake)\n"
+        "Blue shading = net emission reduction from semaglutide",
+        fontsize=13, fontweight="bold", y=1.02,
+    )
+    plt.tight_layout()
+    out = output_path("breakeven_curves.png")
+    plt.savefig(str(out), dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved: {out}")
+
+
+def main():
+    print("=" * 65)
+    print("BREAK-EVEN ANALYSIS")
+    print("Food-emission savings vs. survivor emissions from semaglutide")
+    print("=" * 65)
+
+    print("\n[1/4] Computing annual food-emission savings...")
+    food_savings, _ = compute_food_savings()
+
+    print("[2/4] Loading mortality-model emissions...")
+    mort = load_mortality_emissions()
+
+    print("[3/4] Computing break-even...")
+    be_df = compute_breakeven(food_savings, mort)
+
+    print("\n" + "=" * 65)
+    print("RESULTS")
+    print("=" * 65)
+
+    for scenario in ["max_uptake", "mod_uptake"]:
+        sub = be_df[be_df["scenario"] == scenario].copy()
+        label = (
+            "Maximum uptake (95%)" if scenario == "max_uptake"
+            else "Moderate uptake (50%)"
+        )
+        print(f"\n--- {label} ---\n")
+
+        all_break_y1 = sub["food_dominates_all_years"].all()
+        print(f"  All countries break even in Year 1: "
+              f"{'YES' if all_break_y1 else 'NO'}")
+
+        if not all_break_y1:
+            late = sub[~sub["food_dominates_all_years"]].sort_values(
+                "breakeven_year"
+            )
+            print("  Countries NOT breaking even in Year 1:")
+            for _, r in late.iterrows():
+                be = r["breakeven_year"]
+                be_str = f"Year {be:.1f}" if be <= 10 else ">10 years"
+                print(f"    {r['Country']:40s}  break-even: {be_str}")
+
+        sub_sorted = sub.sort_values("ratio_food_to_mort", ascending=False)
+        print(
+            f"\n  {'Country':40s}  {'Food (kt/yr)':>12s}  "
+            f"{'Mort 10yr (kt)':>14s}  {'Ratio':>10s}"
+        )
+        print("  " + "-" * 80)
+        for _, r in sub_sorted.iterrows():
+            ratio_str = (
+                f"{r['ratio_food_to_mort']:10,.1f}x"
+                if np.isfinite(r["ratio_food_to_mort"])
+                else "       inf"
+            )
+            print(
+                f"  {r['Country']:40s}  "
+                f"{r['annual_food_savings_t']/1e3:12,.0f}  "
+                f"{r['total_survivor_emissions_10yr']/1e3:14,.1f}  "
+                f"{ratio_str}"
+            )
+
+        total_food = sub["annual_food_savings_t"].sum()
+        total_mort = sub["total_survivor_emissions_10yr"].sum()
+        print("  " + "-" * 80)
+        print(
+            f"  {'TOTAL':40s}  "
+            f"{total_food/1e3:12,.0f}  "
+            f"{total_mort/1e3:14,.1f}  "
+            f"{total_food * 10 / total_mort:10,.1f}x"
+        )
+
+    print(f"\n[4/4] Generating figures...")
+    plot_breakeven_bars(be_df)
+    plot_breakeven_curves(be_df)
+
+    max_sub = be_df[be_df["scenario"] == "max_uptake"]
+    valid = max_sub[
+        (max_sub["annual_food_savings_t"] > 0)
+        & (max_sub["total_survivor_emissions_10yr"] > 0)
+        & np.isfinite(max_sub["ratio_food_to_mort"])
+    ]
+    min_ratio = valid["ratio_food_to_mort"].min()
+    min_country = valid.loc[valid["ratio_food_to_mort"].idxmin(), "Country"]
+    global_food = valid["annual_food_savings_t"].sum()
+    global_mort = valid["total_survivor_emissions_10yr"].sum()
+    n_no_data = len(max_sub) - len(valid)
+    mort_units = (
+        f"{global_mort/1e6:.1f} Mt"
+        if global_mort >= 1e6
+        else f"{global_mort/1e3:.1f} kt"
+    )
+
+    print("\n" + "=" * 65)
+    print("KEY FINDING")
+    print("=" * 65)
+    print(f"\n  ({n_no_data} countries excluded due to missing data)")
+    print(f"\n  Global (max uptake, {len(valid)} countries):")
+    print(f"    Annual food savings:          {global_food/1e6:.1f} Mt CO2eq/year")
+    print(f"    10-year food savings:         {global_food*10/1e6:.1f} Mt CO2eq")
+    print(f"    10-year survivor emissions:   {mort_units} CO2eq")
+    print(f"    10-year ratio:                {global_food*10/global_mort:,.1f}x")
+    print(f"\n  Smallest margin: {min_country} ({min_ratio:,.1f}x over 10 years)")
+
+    all_y1 = valid["food_dominates_all_years"].all()
+    if all_y1:
+        print("\n  All countries with data break even in Year 1.")
+    else:
+        n_late = (~valid["food_dominates_all_years"]).sum()
+        print(
+            f"\n  {len(valid) - n_late}/{len(valid)} countries "
+            "break even in Year 1."
+        )
+
+
+if __name__ == "__main__":
+    main()

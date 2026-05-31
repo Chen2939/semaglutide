@@ -20,10 +20,14 @@ semaglutide/
 ├── Mortality Model.ipynb          # Mortality impact: Monte Carlo survival, person-years saved, emissions from survivors
 ├── Price rebound model.ipynb      # Price rebound economics: equilibrium solver, carbon savings by country & food group
 ├── build_carbon_intensity.py      # Builds country-specific carbon intensity from Poore & Nemecek (2018) + FAOSTAT
-├── breakeven_analysis.py          # Break-even: food-emission savings vs. survivor emissions over 10-year horizon
-├── generate_emissions_figure.py   # Country-level carbon emissions saved figure (mod & max uptake)
 ├── requirements.txt               # Python dependencies
 ├── requirements_lock.txt          # Pinned dependency versions
+│
+├── data_visualization/            # Visualization scripts (Python package)
+│   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
+│   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
+│   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
+│   └── generate_dashboard_figure.py   # Combined multi-panel country dashboard + food-group breakdown
 │
 ├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
 ├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
@@ -31,7 +35,7 @@ semaglutide/
 ├── UN/                            # UN World Population Prospects 2024 (not tracked)
 ├── recategorize/                  # Poore & Nemecek (2018) paper + supplementary data (not tracked)
 ├── test/                          # Pipeline outputs and cached results (not tracked)
-├── legacy/                        # Archived R scripts, old data, and docs (not tracked)
+├── legacy/                        # Archived R scripts, old data, and docs (tracked via Git LFS for large files)
 └── venv/                          # Python virtual environment (not tracked)
 ```
 
@@ -85,32 +89,31 @@ Run all cells in `Price rebound model.ipynb`:
 - Includes sensitivity analysis (cells 15–17): re-runs the model with P10/Mean/P90 carbon intensity files and generates comparison figures
 - Generates summary tables and visualisations
 
-### Step 5 — Break-Even Analysis
+### Step 5 — Visualization Scripts
+
+All visualization scripts live in the `data_visualization/` package. They share a common pipeline module (`pipeline.py`) that handles data loading and equilibrium solving, eliminating code duplication.
 
 ```bash
-python breakeven_analysis.py
+# Break-even analysis: food savings vs. survivor emissions
+python -m data_visualization.breakeven_analysis
+
+# Emissions saved by country (horizontal bar chart)
+python -m data_visualization.generate_emissions_figure
+
+# Combined country dashboard + food-group breakdown
+python -m data_visualization.generate_dashboard_figure
 ```
 
-Compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon:
-- **Food side:** re-runs the Price Rebound Model equilibrium to compute annual CO₂eq savings per country (static, based on 2022 FAOSTAT data)
-- **Survivor side:** loads year-by-year emissions from `mortality model total emissions.csv` (requires population-weighted output from Step 3)
-- Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario
+**Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
+- **Output:** `test/breakeven_by_country.png`, `test/breakeven_curves.png`
 
-**Input:** `full_simulation_results8.rds`, `mortality model total emissions.csv`, all `Food data/` files
+**Emissions saved figure** — horizontal bar chart of carbon emissions saved from food reduction by country, for both moderate and maximum uptake scenarios.
+- **Output:** `test/emissions_saved_by_country.png`
 
-**Output:** `test/breakeven_by_country.png`, `test/breakeven_curves.png`
+**Country dashboard** — combined multi-panel figure for the paper showing the top 15 countries across three dimensions: (A) food-emission savings, (B) person-years saved, and (C) break-even ratio. Also generates a stacked bar chart breaking down savings by food group.
+- **Output:** `test/country_dashboard.png`, `test/food_group_breakdown.png`
 
-### Step 6 — Emissions Saved Figure
-
-```bash
-python generate_emissions_figure.py
-```
-
-Produces a horizontal bar chart of carbon emissions saved from food reduction by country, for both moderate and maximum uptake scenarios. Re-runs the full Price Rebound Model pipeline internally.
-
-**Input:** `full_simulation_results8.rds`, all `Food data/` files
-
-**Output:** `test/emissions_saved_by_country.png`
+**All scripts share inputs:** `full_simulation_results8.rds`, `mortality model total emissions.csv`, all `Food data/` files
 
 ## Setup
 
@@ -196,3 +199,5 @@ Download from the [Science supplementary materials](https://www.science.org/doi/
 ## Legacy Code
 
 The original R-based pipeline (simulation, analysis, and mortality scripts) has been archived in `legacy/`. See `legacy/docs/legacy_README.md` for the original documentation. The `.rds` outputs from those scripts are still required as inputs to the Python notebooks.
+
+Legacy R scripts and documentation are tracked via regular Git. Large binary data files (`.rds`, `.pkl`) are tracked via **Git LFS** — run `git lfs install` before cloning to pull them automatically.
