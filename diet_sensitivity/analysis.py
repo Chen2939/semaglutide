@@ -16,12 +16,16 @@ Outputs
 -------
   test/diet_sensitivity_results.csv          — full results, one row per country
   test/diet_sensitivity_ratio_comparison.csv — wide table: scenario columns, country rows
+  test/diet_sensitivity_global_comparison.png
+  test/diet_sensitivity_lowest_ratio_countries.png
 
 Usage
 -----
     python -m diet_sensitivity.analysis
 """
 
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
@@ -30,6 +34,19 @@ from data_visualization.pipeline import load_mortality_emissions, output_path
 
 from .pipeline import compute_food_savings_diet
 from .scenarios import SCENARIOS
+
+
+SCENARIO_LABELS = {
+    "baseline_uniform": "Uniform baseline",
+    "fatty_food_down": "Fatty foods down",
+    "cereal_sweets_up": "Cereals/sweets down",
+}
+
+SCENARIO_COLORS = {
+    "baseline_uniform": "#4c78a8",
+    "fatty_food_down": "#2ca02c",
+    "cereal_sweets_up": "#d62728",
+}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -270,6 +287,199 @@ def validate_calorie_preservation(results: pd.DataFrame):
     print(pivot[["diet_scenario", "Mt_per_yr"]].to_string(index=False))
 
 
+# ── Figures ───────────────────────────────────────────────────────────────────
+
+def save_figure_to_test_and_figures(filename: str, dpi: int = 220):
+    """Save the current Matplotlib figure to both test/ and figures/."""
+    test_out = output_path(filename)
+    figures_out = test_out.parent.parent / "figures" / filename
+    figures_out.parent.mkdir(exist_ok=True)
+    plt.savefig(str(test_out), dpi=dpi, bbox_inches="tight")
+    plt.savefig(str(figures_out), dpi=dpi, bbox_inches="tight")
+    return test_out, figures_out
+
+
+def plot_global_scenario_comparison(results: pd.DataFrame):
+    """
+    Save a compact global comparison of food-emission savings and mortality
+    ratio across diet scenarios.
+    """
+    rows = []
+    for diet_s in SCENARIOS:
+        for uptake_s in ["max_uptake", "mod_uptake"]:
+            sub = results[
+                (results["diet_scenario"] == diet_s)
+                & (results["scenario"] == uptake_s)
+            ]
+            valid = sub[
+                np.isfinite(sub["ratio_food_to_mort"])
+                & (sub["annual_food_savings_t"] > 0)
+                & (sub["total_survivor_emissions_10yr"] > 0)
+            ]
+            if valid.empty:
+                continue
+            annual_food = valid["annual_food_savings_t"].sum()
+            survivor_10yr = valid["total_survivor_emissions_10yr"].sum()
+            rows.append({
+                "diet_scenario": diet_s,
+                "scenario": uptake_s,
+                "annual_food_savings_Mt": annual_food / 1e6,
+                "ratio_food_to_mort": annual_food * 10 / survivor_10yr,
+            })
+
+    summary = pd.DataFrame(rows)
+    scenario_order = list(SCENARIOS.keys())
+    x = np.arange(len(scenario_order))
+    width = 0.36
+
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    uptake_offsets = {"max_uptake": -width / 2, "mod_uptake": width / 2}
+    uptake_labels = {
+        "max_uptake": "Max uptake (95%)",
+        "mod_uptake": "Moderate uptake (50%)",
+    }
+    uptake_alpha = {"max_uptake": 1.0, "mod_uptake": 0.55}
+
+    for uptake_s, offset in uptake_offsets.items():
+        sub = summary[summary["scenario"] == uptake_s].set_index("diet_scenario")
+        colors = [SCENARIO_COLORS[s] for s in scenario_order]
+        food_vals = [sub.loc[s, "annual_food_savings_Mt"] for s in scenario_order]
+        ratio_vals = [sub.loc[s, "ratio_food_to_mort"] for s in scenario_order]
+
+        food_bars = axes[0].bar(
+            x + offset, food_vals, width,
+            color=colors, alpha=uptake_alpha[uptake_s],
+            edgecolor="white", linewidth=0.7,
+            label=uptake_labels[uptake_s],
+        )
+        ratio_bars = axes[1].bar(
+            x + offset, ratio_vals, width,
+            color=colors, alpha=uptake_alpha[uptake_s],
+            edgecolor="white", linewidth=0.7,
+        )
+        for bar, val in zip(food_bars, food_vals):
+            axes[0].text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 2.0,
+                f"{val:.1f}",
+                ha="center", va="bottom", fontsize=8, fontweight="bold",
+            )
+        for bar, val in zip(ratio_bars, ratio_vals):
+            axes[1].text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + 0.15,
+                f"{val:.1f}x",
+                ha="center", va="bottom", fontsize=8, fontweight="bold",
+            )
+
+    axes[0].set_title("A. Annual Food-Emission Savings", loc="left", fontweight="bold")
+    axes[0].set_ylabel("Mt CO2e / year")
+    axes[0].yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
+    axes[0].set_ylim(0, summary["annual_food_savings_Mt"].max() * 1.16)
+    axes[0].legend(fontsize=8, loc="upper right")
+
+    axes[1].set_title("B. 10-Year Food Savings / Survivor Emissions", loc="left", fontweight="bold")
+    axes[1].set_ylabel("Ratio")
+    axes[1].axhline(1, color="black", linestyle="--", linewidth=0.8, alpha=0.5)
+    axes[1].yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}x"))
+    axes[1].set_ylim(0, summary["ratio_food_to_mort"].max() * 1.18)
+
+    for ax in axes:
+        ax.set_xticks(x)
+        ax.set_xticklabels([SCENARIO_LABELS[s] for s in scenario_order], rotation=20, ha="right")
+        ax.grid(axis="y", alpha=0.2, linewidth=0.5)
+        ax.set_axisbelow(True)
+
+    fig.suptitle("Diet-Composition Sensitivity: Global Impact", fontweight="bold", y=1.02)
+    plt.tight_layout()
+    out, figures_out = save_figure_to_test_and_figures("diet_sensitivity_global_comparison.png")
+    plt.close()
+    print(f"Global comparison figure -> {out}")
+    print(f"Global comparison paper figure -> {figures_out}")
+    return out
+
+
+def plot_lowest_ratio_countries(results: pd.DataFrame, n_countries: int = 15):
+    """
+    Save a country-level figure showing the countries with the lowest
+    food-savings-to-survivor-emissions ratios under any diet scenario.
+    """
+    max_up = results[
+        (results["scenario"] == "max_uptake")
+        & (results["annual_food_savings_t"] > 0)
+        & (results["total_survivor_emissions_10yr"] > 0)
+        & np.isfinite(results["ratio_food_to_mort"])
+    ].copy()
+
+    lowest = (
+        max_up.groupby(["ISO", "Country"])["ratio_food_to_mort"]
+        .min()
+        .sort_values()
+        .head(n_countries)
+        .reset_index()
+    )
+    country_order = lowest["Country"].tolist()
+    plotted = max_up[max_up["Country"].isin(country_order)]
+    max_plot_ratio = plotted["ratio_food_to_mort"].max()
+    y = np.arange(len(country_order))
+    height = 0.25
+    offsets = {
+        "baseline_uniform": -height,
+        "fatty_food_down": 0.0,
+        "cereal_sweets_up": height,
+    }
+
+    fig, ax = plt.subplots(figsize=(10, max(6, len(country_order) * 0.38)))
+    for diet_s, offset in offsets.items():
+        sub = (
+            max_up[max_up["diet_scenario"] == diet_s]
+            .set_index("Country")
+            .reindex(country_order)
+        )
+        vals = sub["ratio_food_to_mort"].values
+        bars = ax.barh(
+            y + offset, vals, height,
+            color=SCENARIO_COLORS[diet_s],
+            edgecolor="white", linewidth=0.6,
+            label=SCENARIO_LABELS[diet_s],
+        )
+        for bar, val in zip(bars, vals):
+            if np.isfinite(val):
+                ax.text(
+                    bar.get_width() + 0.08,
+                    bar.get_y() + bar.get_height() / 2,
+                    f"{val:.1f}x",
+                    va="center", ha="left", fontsize=7,
+                    color=SCENARIO_COLORS[diet_s], fontweight="bold",
+                )
+
+    ax.axvline(1, color="black", linestyle="--", linewidth=0.8, alpha=0.65)
+    ax.text(
+        1.03, -0.75, "positive-emissions threshold",
+        fontsize=8, color="black", alpha=0.75,
+    )
+    ax.set_yticks(y)
+    ax.set_yticklabels(country_order, fontsize=8)
+    ax.invert_yaxis()
+    ax.set_xlabel("10-year food savings / survivor emissions")
+    ax.set_title(
+        "Diet-Composition Sensitivity: Countries Closest to Positive Emissions",
+        loc="left", fontweight="bold",
+    )
+    ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}x"))
+    ax.set_xlim(0, max_plot_ratio * 1.18)
+    ax.grid(axis="x", alpha=0.2, linewidth=0.5)
+    ax.set_axisbelow(True)
+    ax.legend(fontsize=8, loc="upper right", framealpha=0.9)
+
+    plt.tight_layout()
+    out, figures_out = save_figure_to_test_and_figures("diet_sensitivity_lowest_ratio_countries.png")
+    plt.close()
+    print(f"Lowest-ratio country figure -> {out}")
+    print(f"Lowest-ratio country paper figure -> {figures_out}")
+    return out
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -309,6 +519,9 @@ def main():
     out_wide = output_path("diet_sensitivity_ratio_comparison.csv")
     wide.to_csv(str(out_wide), index=False)
     print(f"Wide ratio comparison → {out_wide}")
+
+    plot_global_scenario_comparison(results)
+    plot_lowest_ratio_countries(results)
 
     # Highlight positive-emissions countries
     tipped = results[

@@ -42,6 +42,12 @@ legacy/data/.Rhistory
 !mortality model total emissions.csv
 !API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls
 
+# === Selected generated outputs tracked for paper results ===
+!/test/
+/test/*
+!/test/diet_sensitivity_results.csv
+!/test/diet_sensitivity_ratio_comparison.csv
+
 # IDE/editor files
 .idea/
 .ipynb_checkpoints/

@@ -31,13 +31,18 @@ semaglutide/
 │   ├── generate_rebound_figure.py     # Rebound decomposition by food group (analog to Hegwood Fig. 3)
 │   └── generate_rebound_validation.py # Rebound % by food type & income group (analog to Hegwood Fig. 4a)
 │
+├── diet_sensitivity/              # Diet-composition sensitivity analysis
+│   ├── scenarios.py               # Literature-motivated food-group shock assumptions
+│   ├── pipeline.py                # Calorie-preserving diet-shock calibration + rebound model
+│   └── analysis.py                # Runs sensitivity analysis, outputs CSVs and figures
+│
 ├── figures/                       # Paper-ready figures (tracked in Git)
 ├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
 ├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
 ├── Lancet/                        # NCD-RisC BMI & diabetes distributions (not tracked)
 ├── UN/                            # UN World Population Prospects 2024 (not tracked)
 ├── recategorize/                  # Poore & Nemecek (2018) paper + supplementary data (not tracked)
-├── test/                          # Pipeline outputs and cached results (not tracked)
+├── test/                          # Pipeline outputs (mostly ignored; selected result CSVs tracked via LFS)
 ├── legacy/                        # Archived R scripts, old data, and docs (tracked via Git LFS for large files)
 └── venv/                          # Python virtual environment (not tracked)
 ```
@@ -132,6 +137,28 @@ All scripts also copy their outputs to `figures/` for easy access.
 
 **All scripts share inputs:** `full_simulation_results8.rds`, `mortality model total emissions.csv`, all `Food data/` files
 
+### Step 6 — Diet-Composition Sensitivity Analysis
+
+```bash
+python -m diet_sensitivity.analysis
+```
+
+Runs the professor-requested diet-composition sensitivity analysis while keeping each country × uptake scenario's total calorie reduction fixed. The baseline model applies the EER-based demand reduction uniformly to every food group; this extension uses FAOSTAT `Food supply (kcal/capita/day)` shares to redistribute the same calorie reduction across food groups before running the existing Hegwood-style rebound equilibrium solver.
+
+Scenarios:
+- **`baseline_uniform`** — current model, all food groups reduce uniformly.
+- **`fatty_food_down`** — meat, dairy, and fats/oils reduce 1.5× more than the baseline shock; other foods are adjusted so total calories remain unchanged. Motivated by Blundell et al. (2017) and Gibbons et al. (2021), which report lower preference/intake for high-fat foods with semaglutide.
+- **`cereal_sweets_up`** — cereals and sweets reduce 1.5× more, while meat reduces 0.5× as much; other foods are adjusted to preserve total calories. Motivated by Hironaka et al. (2025), which reports stronger reductions in carbohydrate, sweet, chocolate, and starchy-food cravings, with animal protein not statistically significant.
+
+The mortality model is not rerun for these scenarios because total calorie reduction, BMI, and person-years saved are held fixed. The sensitivity changes the food-emission savings numerator and therefore the mortality-adjusted food-to-survivor-emissions ratio.
+
+Outputs:
+- **Datasets:** `test/diet_sensitivity_results.csv`, `test/diet_sensitivity_ratio_comparison.csv`
+- **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
+- **Working copies:** matching PNGs are also written to `test/`
+
+Current headline result: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio is 7.1× in the uniform baseline, 8.9× when fatty foods decrease more, and 4.6× when cereals/sweets decrease more and meat decreases less. Trinidad and Tobago is closest to tipping in the cereal/sweets scenario at approximately 1.5×.
+
 ## Setup
 
 ```bash
@@ -219,6 +246,7 @@ This repository uses [Git Large File Storage](https://git-lfs.com/) for binary d
 
 - `*.rds` — R data files (`full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
 - `*.pkl` — Python pickle files (`final_df_imputed.pkl`)
+- `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables
 
 **For collaborators cloning the repo:**
 
@@ -235,6 +263,9 @@ If you cloned before LFS was configured, run `git lfs pull` to download the larg
 ## References
 
 - **Hegwood, M. et al. (2023).** Simulating the food-system impacts of anti-obesity medications. *Nature Food*, 4, 828–836. [doi:10.1038/s43016-023-00792-z](https://doi.org/10.1038/s43016-023-00792-z)
+- **Blundell, J. et al. (2017).** Effects of once-weekly semaglutide on appetite, energy intake, control of eating, food preference and body weight in subjects with obesity. *Diabetes, Obesity and Metabolism*, 19, 1242–1251. [doi:10.1111/dom.12932](https://doi.org/10.1111/dom.12932)
+- **Gibbons, C. et al. (2021).** Effects of oral semaglutide on energy intake, food preference, appetite, control of eating and body weight in subjects with type 2 diabetes. *Diabetes, Obesity and Metabolism*, 23, 581–588. [doi:10.1111/dom.14255](https://doi.org/10.1111/dom.14255)
+- **Hironaka, J. et al. (2025).** Changes in food preferences after oral semaglutide administration in Japanese patients with type 2 diabetes: KAMOGAWA-DM cohort. *Diabetes & Vascular Disease Research*, 22. [doi:10.1177/14791641251318309](https://doi.org/10.1177/14791641251318309)
 - **Poore, J. & Nemecek, T. (2018).** Reducing food's environmental impacts through producers and consumers. *Science*, 360(6392), 987–992. [doi:10.1126/science.aaq0216](https://doi.org/10.1126/science.aaq0216)
 - **NCD Risk Factor Collaboration (2024).** Worldwide trends in underweight and obesity. *The Lancet*.
 - **World Bank.** Total greenhouse gas emissions per capita (kt of CO₂ equivalent). Indicator: EN.GHG.CO2.PC.CE.AR5. [World Bank Open Data](https://data.worldbank.org/)
