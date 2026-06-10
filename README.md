@@ -25,6 +25,7 @@ semaglutide/
 │
 ├── data_visualization/            # Visualization scripts (Python package)
 │   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
+│   ├── consumption_ghg.py         # OECD demand-based final-consumption GHG survivor-emissions rebuild
 │   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
 │   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
 │   ├── generate_dashboard_figure.py   # Combined multi-panel country dashboard + food-group breakdown
@@ -38,6 +39,7 @@ semaglutide/
 │
 ├── figures/                       # Paper-ready figures (tracked in Git)
 ├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
+├── oecd/                          # OECD GHG footprint input tracked via LFS
 ├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
 ├── Lancet/                        # NCD-RisC BMI & diabetes distributions (not tracked)
 ├── UN/                            # UN World Population Prospects 2024 (not tracked)
@@ -85,8 +87,17 @@ Run all cells in `Mortality Model.ipynb`:
 - Runs 10-year Monte Carlo survival simulation (`run_multi_simulation()`) with BMI-based hazard ratios
 - `population_weighted=True` (default) multiplies individual survival diffs by their population weight before aggregation, producing output at the national population level; set to `False` for the original sample-level output
 - Computes person-years saved under both uptake scenarios
-- Links survivors to per-capita CO₂ emissions from the **World Bank** (`API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls`, indicator EN.GHG.CO2.PC.CE.AR5), projected to decline at 1% per year over the 10-year horizon
 - **Outputs:** `final_df_imputed.pkl`, `mortality model total emissions.csv`
+
+Then rebuild survivor emissions with the OECD consumption-based GHG source:
+
+```bash
+python -m data_visualization.consumption_ghg
+```
+
+This replaces the old World Bank territorial CO2 per-capita factor with OECD demand-based final-consumption GHG, including direct household emissions and excluding gross capital formation. The script filters `oecd/consumption_ghg_2025.csv` to final consumption (`FINAL_DEMAND_CATEGORY == CONS`), all activities (`ACTIVITY == _T`), 2022, tonnes CO2e, and unit multiplier 6 (Mt CO2e). It divides national totals by UN WPP 2022 total population to produce t CO2e/person, validates the professor's USA check (`5892.9 Mt`, about `17.25 t/person`), and rewrites `mortality model total emissions.csv` while preserving the downstream schema.
+
+**OECD rebuild outputs:** `mortality model total emissions.csv`, `test/oecd_consumption_ghg_per_capita.csv`, `test/oecd_vs_worldbank_survivor_emissions.csv`
 
 ### Step 4 — Price Rebound Model
 
@@ -135,7 +146,7 @@ python -m data_visualization.generate_rebound_validation
 
 All scripts also copy their outputs to `figures/` for easy access.
 
-**All scripts share inputs:** `full_simulation_results8.rds`, `mortality model total emissions.csv`, all `Food data/` files
+**All scripts share inputs:** `full_simulation_results8.rds`, OECD-updated `mortality model total emissions.csv`, all `Food data/` files
 
 ### Step 6 — Diet-Composition Sensitivity Analysis
 
@@ -157,7 +168,7 @@ Outputs:
 - **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
 - **Working copies:** matching PNGs are also written to `test/`
 
-Current headline result: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio is 7.1× in the uniform baseline, 8.9× when fatty foods decrease more, and 4.6× when cereals/sweets decrease more and meat decreases less. Trinidad and Tobago is closest to tipping in the cereal/sweets scenario at approximately 1.5×.
+Current headline result with OECD consumption-based survivor emissions: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year food-savings-to-survivor-emissions ratio is 5.3× in the uniform baseline, 6.8× when fatty foods decrease more, and 3.5× when cereals/sweets decrease more and meat decreases less. Lithuania and Poland are closest to tipping in the cereal/sweets scenario at approximately 2.4×.
 
 ## Setup
 
@@ -188,10 +199,15 @@ Full synthetic population output from `Data_Cleaning9.8.R`. Contains ~945,000 si
 
 Pre-computed mortality model output from `Mortality_model2.R`. Contains country-level mortality rates and hazard ratio assignments. Required by `Mortality Model.ipynb`.
 
+### `oecd/consumption_ghg_2025.csv`
+> **Location:** `oecd/`
+
+OECD Greenhouse Gas Footprints data for demand-based final-consumption GHG emissions. The analysis uses final consumption, all activities, 2022, tonnes CO2e, and Mt units, then divides by UN WPP 2022 total population to estimate survivor emissions. This is the active emissions source for `mortality model total emissions.csv`.
+
 ### `API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls`
 > **Location:** project root
 
-World Bank per-capita greenhouse gas emissions (CO₂ equivalent, AR5 methodology). Used in `Mortality Model.ipynb` to estimate emissions from additional survivors. Download from the [World Bank Open Data](https://data.worldbank.org/) portal.
+Legacy World Bank territorial CO2 per-capita source used before the OECD replacement. Retained only for comparison/backups; it is no longer the preferred survivor-emissions source.
 
 ### `Food data/`
 > **Location:** `Food data/`
@@ -246,7 +262,7 @@ This repository uses [Git Large File Storage](https://git-lfs.com/) for binary d
 
 - `*.rds` — R data files (`full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
 - `*.pkl` — Python pickle files (`final_df_imputed.pkl`)
-- `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables
+- `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables and OECD validation/comparison tables
 
 **For collaborators cloning the repo:**
 
@@ -268,7 +284,8 @@ If you cloned before LFS was configured, run `git lfs pull` to download the larg
 - **Hironaka, J. et al. (2025).** Changes in food preferences after oral semaglutide administration in Japanese patients with type 2 diabetes: KAMOGAWA-DM cohort. *Diabetes & Vascular Disease Research*, 22. [doi:10.1177/14791641251318309](https://doi.org/10.1177/14791641251318309)
 - **Poore, J. & Nemecek, T. (2018).** Reducing food's environmental impacts through producers and consumers. *Science*, 360(6392), 987–992. [doi:10.1126/science.aaq0216](https://doi.org/10.1126/science.aaq0216)
 - **NCD Risk Factor Collaboration (2024).** Worldwide trends in underweight and obesity. *The Lancet*.
-- **World Bank.** Total greenhouse gas emissions per capita (kt of CO₂ equivalent). Indicator: EN.GHG.CO2.PC.CE.AR5. [World Bank Open Data](https://data.worldbank.org/)
+- **OECD.** Greenhouse Gas Footprints: demand-based final-consumption GHG emissions. Dataset: `DSD_ICIO_GHG_EXPD_2025@DF_ICIO_GHG_EXPD_2025`. [OECD Data Explorer](https://data-explorer.oecd.org/)
+- **World Bank.** Total greenhouse gas emissions per capita. Indicator: EN.GHG.CO2.PC.CE.AR5. Legacy comparison source. [World Bank Open Data](https://data.worldbank.org/)
 - **UN Population Division (2024).** World Population Prospects 2024. [population.un.org/wpp](https://population.un.org/wpp/)
 - **Human Life-Table Database.** Max Planck Institute for Demographic Research & University of California, Berkeley. [lifetable.de](https://www.lifetable.de/)
 - **FAOSTAT.** Food Balance Sheets, Consumer Price Indices. Food and Agriculture Organization of the United Nations. [fao.org/faostat](https://www.fao.org/faostat/)

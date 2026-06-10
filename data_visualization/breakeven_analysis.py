@@ -35,36 +35,43 @@ def compute_breakeven(food_savings, mort):
 
         cum_food = 0.0
         cum_mort = 0.0
+        has_survivor_emissions = True
 
         yearly_food = []
         yearly_mort = []
 
         for y in range(1, 11):
             cum_food += annual_food
-            cum_mort += row[f"emissions_Y{y}"]
+            emissions_y = row[f"emissions_Y{y}"]
+            if pd.isna(emissions_y):
+                has_survivor_emissions = False
+            else:
+                cum_mort += emissions_y
             yearly_food.append(cum_food)
-            yearly_mort.append(cum_mort)
+            yearly_mort.append(cum_mort if has_survivor_emissions else np.nan)
 
         breakeven_year = None
-        for y in range(10):
-            if yearly_food[y] >= yearly_mort[y]:
-                if y == 0:
-                    breakeven_year = 1.0
-                else:
-                    if yearly_food[y - 1] < yearly_mort[y - 1]:
-                        gap_prev = yearly_mort[y - 1] - yearly_food[y - 1]
-                        gap_curr = yearly_food[y] - yearly_mort[y]
-                        frac = gap_prev / (gap_prev + gap_curr)
-                        breakeven_year = y + frac
-                    else:
+        if has_survivor_emissions:
+            for y in range(10):
+                if yearly_food[y] >= yearly_mort[y]:
+                    if y == 0:
                         breakeven_year = 1.0
-                break
+                    else:
+                        if yearly_food[y - 1] < yearly_mort[y - 1]:
+                            gap_prev = yearly_mort[y - 1] - yearly_food[y - 1]
+                            gap_curr = yearly_food[y] - yearly_mort[y]
+                            frac = gap_prev / (gap_prev + gap_curr)
+                            breakeven_year = y + frac
+                        else:
+                            breakeven_year = 1.0
+                    break
 
         if breakeven_year is None:
             breakeven_year = float("inf")
 
-        food_dominates_all = all(
-            yearly_food[y] >= yearly_mort[y] for y in range(10)
+        food_dominates_all = (
+            has_survivor_emissions
+            and all(yearly_food[y] >= yearly_mort[y] for y in range(10))
         )
 
         records.append({
@@ -75,7 +82,7 @@ def compute_breakeven(food_savings, mort):
             "total_survivor_emissions_10yr": cum_mort,
             "total_food_savings_10yr": cum_food,
             "ratio_food_to_mort": (
-                cum_food / cum_mort if cum_mort > 0 else float("inf")
+                cum_food / cum_mort if has_survivor_emissions and cum_mort > 0 else np.nan
             ),
             "breakeven_year": breakeven_year,
             "food_dominates_all_years": food_dominates_all,
@@ -87,8 +94,13 @@ def compute_breakeven(food_savings, mort):
 
 
 def plot_breakeven_bars(be_df):
-    max_up = be_df[be_df["scenario"] == "max_uptake"].copy()
-    mod_up = be_df[be_df["scenario"] == "mod_uptake"].copy()
+    valid = be_df[
+        np.isfinite(be_df["ratio_food_to_mort"])
+        & (be_df["annual_food_savings_t"] > 0)
+        & (be_df["total_survivor_emissions_10yr"] > 0)
+    ].copy()
+    max_up = valid[valid["scenario"] == "max_uptake"].copy()
+    mod_up = valid[valid["scenario"] == "mod_uptake"].copy()
 
     max_up = max_up.sort_values("ratio_food_to_mort", ascending=True)
     country_order = max_up["Country"].tolist()
@@ -230,12 +242,19 @@ def main():
     print("=" * 65)
 
     for scenario in ["max_uptake", "mod_uptake"]:
-        sub = be_df[be_df["scenario"] == scenario].copy()
+        sub_all = be_df[be_df["scenario"] == scenario].copy()
+        sub = sub_all[
+            np.isfinite(sub_all["ratio_food_to_mort"])
+            & (sub_all["annual_food_savings_t"] > 0)
+            & (sub_all["total_survivor_emissions_10yr"] > 0)
+        ].copy()
         label = (
             "Maximum uptake (95%)" if scenario == "max_uptake"
             else "Moderate uptake (50%)"
         )
         print(f"\n--- {label} ---\n")
+        print(f"  Countries with complete food + survivor data: {len(sub)}")
+        print(f"  Countries excluded due to missing data: {len(sub_all) - len(sub)}")
 
         all_break_y1 = sub["food_dominates_all_years"].all()
         print(f"  All countries break even in Year 1: "

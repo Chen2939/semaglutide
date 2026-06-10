@@ -47,6 +47,12 @@ legacy/data/.Rhistory
 /test/*
 !/test/diet_sensitivity_results.csv
 !/test/diet_sensitivity_ratio_comparison.csv
+!/test/oecd_consumption_ghg_per_capita.csv
+!/test/oecd_vs_worldbank_survivor_emissions.csv
+
+# === OECD consumption-based GHG input tracked via LFS ===
+!/oecd/
+!/oecd/consumption_ghg_2025.csv
 
 # IDE/editor files
 .idea/
