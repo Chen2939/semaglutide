@@ -2,7 +2,7 @@
 Produces a figure showing carbon emissions saved from food reduction
 by country, for both moderate and maximum semaglutide uptake scenarios.
 
-Output: test/emissions_saved_by_country.png
+Output: figures/emissions_saved_by_country.png
 
 Usage:
     python -m data_visualization.generate_emissions_figure

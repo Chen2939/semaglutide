@@ -42,13 +42,17 @@ legacy/data/.Rhistory
 !mortality model total emissions.csv
 !API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls
 
-# === Selected generated outputs tracked for paper results ===
+# === Legacy generated outputs directory ===
 !/test/
 /test/*
-!/test/diet_sensitivity_results.csv
-!/test/diet_sensitivity_ratio_comparison.csv
-!/test/oecd_consumption_ghg_per_capita.csv
-!/test/oecd_vs_worldbank_survivor_emissions.csv
+
+# === Selected generated tabular outputs tracked for paper results ===
+!/data_result/
+/data_result/*
+!/data_result/diet_sensitivity_results.csv
+!/data_result/diet_sensitivity_ratio_comparison.csv
+!/data_result/oecd_consumption_ghg_per_capita.csv
+!/data_result/oecd_vs_worldbank_survivor_emissions.csv
 
 # === OECD consumption-based GHG input tracked via LFS ===
 !/oecd/

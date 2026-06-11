@@ -14,10 +14,10 @@ For each scenario × uptake combination the script:
 
 Outputs
 -------
-  test/diet_sensitivity_results.csv          — full results, one row per country
-  test/diet_sensitivity_ratio_comparison.csv — wide table: scenario columns, country rows
-  test/diet_sensitivity_global_comparison.png
-  test/diet_sensitivity_lowest_ratio_countries.png
+  data_result/diet_sensitivity_results.csv          — full results, one row per country
+  data_result/diet_sensitivity_ratio_comparison.csv — wide table: scenario columns, country rows
+  figures/diet_sensitivity_global_comparison.png
+  figures/diet_sensitivity_lowest_ratio_countries.png
 
 Usage
 -----
@@ -289,14 +289,11 @@ def validate_calorie_preservation(results: pd.DataFrame):
 
 # ── Figures ───────────────────────────────────────────────────────────────────
 
-def save_figure_to_test_and_figures(filename: str, dpi: int = 220):
-    """Save the current Matplotlib figure to both test/ and figures/."""
-    test_out = output_path(filename)
-    figures_out = test_out.parent.parent / "figures" / filename
-    figures_out.parent.mkdir(exist_ok=True)
-    plt.savefig(str(test_out), dpi=dpi, bbox_inches="tight")
-    plt.savefig(str(figures_out), dpi=dpi, bbox_inches="tight")
-    return test_out, figures_out
+def save_figure(filename: str, dpi: int = 220):
+    """Save the current Matplotlib figure to the standard figures directory."""
+    out = output_path(filename)
+    plt.savefig(str(out), dpi=dpi, bbox_inches="tight")
+    return out
 
 
 def plot_global_scenario_comparison(results: pd.DataFrame):
@@ -392,10 +389,9 @@ def plot_global_scenario_comparison(results: pd.DataFrame):
 
     fig.suptitle("Diet-Composition Sensitivity: Global Impact", fontweight="bold", y=1.02)
     plt.tight_layout()
-    out, figures_out = save_figure_to_test_and_figures("diet_sensitivity_global_comparison.png")
+    out = save_figure("diet_sensitivity_global_comparison.png")
     plt.close()
     print(f"Global comparison figure -> {out}")
-    print(f"Global comparison paper figure -> {figures_out}")
     return out
 
 
@@ -473,10 +469,9 @@ def plot_lowest_ratio_countries(results: pd.DataFrame, n_countries: int = 15):
     ax.legend(fontsize=8, loc="upper right", framealpha=0.9)
 
     plt.tight_layout()
-    out, figures_out = save_figure_to_test_and_figures("diet_sensitivity_lowest_ratio_countries.png")
+    out = save_figure("diet_sensitivity_lowest_ratio_countries.png")
     plt.close()
     print(f"Lowest-ratio country figure -> {out}")
-    print(f"Lowest-ratio country paper figure -> {figures_out}")
     return out
 
 

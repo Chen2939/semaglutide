@@ -8,8 +8,8 @@ Mortality:  Year-by-year emissions from additional survivors
             (Mortality Model — 10-year Monte Carlo simulation)
 
 Outputs:
-    test/breakeven_by_country.png   — break-even ratios by country
-    test/breakeven_curves.png       — cumulative curves for top countries
+    figures/breakeven_by_country.png   — break-even ratios by country
+    figures/breakeven_curves.png       — cumulative curves for top countries
 
 Usage:
     python -m data_visualization.breakeven_analysis

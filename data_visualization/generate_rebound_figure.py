@@ -9,7 +9,7 @@ Rebound decomposition figure — analog of Hegwood et al. (2023) Figure 3.
 Top countries shown per food group, ranked by max-uptake actual reduction.
 The gap between columns A and B is the rebound effect.
 
-Output: test/rebound_decomposition.png
+Output: figures/rebound_decomposition.png
 
 Usage:
     python -m data_visualization.generate_rebound_figure
@@ -168,13 +168,6 @@ def main():
         rebound_pct = (1 - actual / expected) * 100 if expected > 0 else 0
         print(f"{food_group:15s}  {expected:14,.0f}  {actual:12,.0f}  "
               f"{rebound_pct:9.1f}%")
-
-    # Copy to figures/
-    import shutil
-    fig_dest = output_path("rebound_decomposition.png").parent.parent / "figures"
-    if fig_dest.exists():
-        shutil.copy(str(out), str(fig_dest / "rebound_decomposition.png"))
-        print(f"Copied to: {fig_dest / 'rebound_decomposition.png'}")
 
 
 if __name__ == "__main__":

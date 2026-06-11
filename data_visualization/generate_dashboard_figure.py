@@ -10,7 +10,7 @@ Shows top countries side-by-side across three dimensions:
 All panels share a y-axis (country names) so readers can track each
 country across outcomes.
 
-Output: test/country_dashboard.png
+Output: figures/country_dashboard.png
 
 Usage:
     python -m data_visualization.generate_dashboard_figure

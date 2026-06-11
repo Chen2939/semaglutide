@@ -33,8 +33,8 @@ OECD_FILE = ROOT / "oecd" / "consumption_ghg_2025.csv"
 MORTALITY_EMISSIONS_FILE = ROOT / "mortality model total emissions.csv"
 BACKUP_FILE = ROOT / "mortality model total emissions_worldbank_backup.csv"
 NEW_FILE = ROOT / "mortality model total emissions.csv"
-COMPARISON_FILE = ROOT / "test" / "oecd_vs_worldbank_survivor_emissions.csv"
-PER_CAPITA_FILE = ROOT / "test" / "oecd_consumption_ghg_per_capita.csv"
+COMPARISON_FILE = ROOT / "data_result" / "oecd_vs_worldbank_survivor_emissions.csv"
+PER_CAPITA_FILE = ROOT / "data_result" / "oecd_consumption_ghg_per_capita.csv"
 
 
 def load_oecd_final_consumption_ghg(path: Path = OECD_FILE) -> pd.DataFrame:
@@ -213,6 +213,7 @@ def main() -> None:
         print(f"Saved World Bank backup: {BACKUP_FILE}")
 
     rebuilt.to_csv(NEW_FILE, index=False)
+    COMPARISON_FILE.parent.mkdir(exist_ok=True)
     comparison.to_csv(COMPARISON_FILE, index=False)
     build_oecd_per_capita_table().to_csv(PER_CAPITA_FILE, index=False)
 

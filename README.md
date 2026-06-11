@@ -38,13 +38,14 @@ semaglutide/
 │   └── analysis.py                # Runs sensitivity analysis, outputs CSVs and figures
 │
 ├── figures/                       # Paper-ready figures (tracked in Git)
+├── data_result/                   # Generated tabular analysis outputs (selected CSVs tracked via LFS)
 ├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
 ├── oecd/                          # OECD GHG footprint input tracked via LFS
 ├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
 ├── Lancet/                        # NCD-RisC BMI & diabetes distributions (not tracked)
 ├── UN/                            # UN World Population Prospects 2024 (not tracked)
 ├── recategorize/                  # Poore & Nemecek (2018) paper + supplementary data (not tracked)
-├── test/                          # Pipeline outputs (mostly ignored; selected result CSVs tracked via LFS)
+├── test/                          # Legacy/intermediate upstream outputs (mostly ignored)
 ├── legacy/                        # Archived R scripts, old data, and docs (tracked via Git LFS for large files)
 └── venv/                          # Python virtual environment (not tracked)
 ```
@@ -97,7 +98,7 @@ python -m data_visualization.consumption_ghg
 
 This replaces the old World Bank territorial CO2 per-capita factor with OECD demand-based final-consumption GHG, including direct household emissions and excluding gross capital formation. The script filters `oecd/consumption_ghg_2025.csv` to final consumption (`FINAL_DEMAND_CATEGORY == CONS`), all activities (`ACTIVITY == _T`), 2022, tonnes CO2e, and unit multiplier 6 (Mt CO2e). It divides national totals by UN WPP 2022 total population to produce t CO2e/person, validates the professor's USA check (`5892.9 Mt`, about `17.25 t/person`), and rewrites `mortality model total emissions.csv` while preserving the downstream schema.
 
-**OECD rebuild outputs:** `mortality model total emissions.csv`, `test/oecd_consumption_ghg_per_capita.csv`, `test/oecd_vs_worldbank_survivor_emissions.csv`
+**OECD rebuild outputs:** `mortality model total emissions.csv`, `data_result/oecd_consumption_ghg_per_capita.csv`, `data_result/oecd_vs_worldbank_survivor_emissions.csv`
 
 ### Step 4 — Price Rebound Model
 
@@ -130,21 +131,21 @@ python -m data_visualization.generate_rebound_validation
 ```
 
 **Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
-- **Output:** `test/breakeven_by_country.png`, `test/breakeven_curves.png`
+- **Output:** `figures/breakeven_by_country.png`, `figures/breakeven_curves.png`
 
 **Emissions saved figure** — horizontal bar chart of carbon emissions saved from food reduction by country, for both moderate and maximum uptake scenarios.
-- **Output:** `test/emissions_saved_by_country.png`
+- **Output:** `figures/emissions_saved_by_country.png`
 
 **Country dashboard** — combined multi-panel figure for the paper showing the top 15 countries across three dimensions: (A) food-emission savings, (B) person-years saved, and (C) break-even ratio. Also generates a stacked bar chart breaking down savings by food group.
-- **Output:** `test/country_dashboard.png`, `test/food_group_breakdown.png`
+- **Output:** `figures/country_dashboard.png`, `figures/food_group_breakdown.png`
 
 **Rebound decomposition** — 3×3 grid showing expected demand reduction, actual demand reduction (after price rebound), and resulting carbon emissions saved for the top countries across Meat, Dairy, and Cereals. Analogous to Hegwood et al. (2023) Figure 3.
-- **Output:** `test/rebound_decomposition.png`
+- **Output:** `figures/rebound_decomposition.png`
 
 **Rebound validation** — horizontal bar chart of rebound percentages by food type, grouped by World Bank income classification. Validates model consistency against Hegwood et al.'s reported range (53–71% for high-income countries).
-- **Output:** `test/rebound_by_income.png`
+- **Output:** `figures/rebound_by_income.png`
 
-All scripts also copy their outputs to `figures/` for easy access.
+Generated figures are written to `figures/`; generated tabular outputs are written to `data_result/`.
 
 **All scripts share inputs:** `full_simulation_results8.rds`, OECD-updated `mortality model total emissions.csv`, all `Food data/` files
 
@@ -164,9 +165,8 @@ Scenarios:
 The mortality model is not rerun for these scenarios because total calorie reduction, BMI, and person-years saved are held fixed. The sensitivity changes the food-emission savings numerator and therefore the mortality-adjusted food-to-survivor-emissions ratio.
 
 Outputs:
-- **Datasets:** `test/diet_sensitivity_results.csv`, `test/diet_sensitivity_ratio_comparison.csv`
+- **Datasets:** `data_result/diet_sensitivity_results.csv`, `data_result/diet_sensitivity_ratio_comparison.csv`
 - **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
-- **Working copies:** matching PNGs are also written to `test/`
 
 Current headline result with OECD consumption-based survivor emissions: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year food-savings-to-survivor-emissions ratio is 5.3× in the uniform baseline, 6.8× when fatty foods decrease more, and 3.5× when cereals/sweets decrease more and meat decreases less. Lithuania and Poland are closest to tipping in the cereal/sweets scenario at approximately 2.4×.
 

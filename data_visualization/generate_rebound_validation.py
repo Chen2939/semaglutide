@@ -6,7 +6,7 @@ by food type and World Bank income group, validating that our
 semaglutide demand-shock model produces rebound percentages
 consistent with Hegwood's FLW framework.
 
-Output: test/rebound_by_income.png
+Output: figures/rebound_by_income.png
 
 Usage:
     python -m data_visualization.generate_rebound_validation

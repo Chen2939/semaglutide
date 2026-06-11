@@ -227,7 +227,14 @@ def load_mortality_emissions():
 
 
 def output_path(filename: str) -> Path:
-    """Return a path inside the project-root ``test/`` directory."""
-    p = ROOT / "test"
+    """Return the standard output path for generated results.
+
+    Figures are written to ``figures/``. Tabular/data outputs are written to
+    ``data_result/``. This keeps the legacy ``test/`` directory from collecting
+    new analysis artifacts.
+    """
+    suffix = Path(filename).suffix.lower()
+    figure_suffixes = {".png", ".jpg", ".jpeg", ".svg", ".pdf"}
+    p = ROOT / ("figures" if suffix in figure_suffixes else "data_result")
     p.mkdir(exist_ok=True)
     return p / filename
