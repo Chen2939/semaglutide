@@ -51,6 +51,11 @@ legacy/data/.Rhistory
 /data_result/*
 !/data_result/diet_sensitivity_results.csv
 !/data_result/diet_sensitivity_ratio_comparison.csv
+!/data_result/combined_sensitivity_results.csv
+!/data_result/combined_sensitivity_ratio_comparison.csv
+!/data_result/carbon_intensity_meat_p10.csv
+!/data_result/all_sensitivity_overview_results.csv
+!/data_result/all_sensitivity_overview_country_ratios.csv
 !/data_result/oecd_consumption_ghg_per_capita.csv
 !/data_result/oecd_vs_worldbank_survivor_emissions.csv
 

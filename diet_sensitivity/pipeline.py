@@ -259,7 +259,10 @@ def compute_food_savings_diet(
     )
     elasticity_supply_raw = pd.read_csv(ROOT / "Food data" / "elasticity_supply.csv")
     elasticity_demand = pd.read_csv(ROOT / "Food data" / "elasticity_demand.csv")
-    carbon_intensity_raw = pd.read_csv(ROOT / "Food data" / ci_file)
+    ci_path = Path(ci_file)
+    if not ci_path.is_absolute():
+        ci_path = ROOT / "Food data" / ci_file
+    carbon_intensity_raw = pd.read_csv(ci_path)
 
     # ── FAOSTAT food quantities ────────────────────────────────────────────
     food_norm = pd.merge(norm, iso_mapping, on="Area", how="left")

@@ -23,6 +23,7 @@ Main execution/data flow:
 5. `data_visualization/breakeven_analysis.py` computes food-to-survivor ratios and break-even summaries.
 6. `data_visualization/generate_dashboard_figure.py` creates paper-style dashboard figures.
 7. `diet_sensitivity/analysis.py` runs the diet-composition sensitivity analysis.
+8. `diet_sensitivity/combined_analysis.py` runs the stacked conservative sensitivity analysis.
 
 ## Important Recent Methodology Change: OECD GHG Replacement
 
@@ -143,6 +144,81 @@ No valid country tips into net positive emissions under any diet scenario.
 
 Closest countries under conservative cereal/sweets scenario are around `2.4x` (Poland/Lithuania).
 
+## Combined Conservative Sensitivity Analysis
+
+The professor asked whether the conservative diet scenario should be combined with a low meat carbon-intensity assumption, because reviewers may ask if a shift toward cereals/sweets plus lower meat emissions intensity could tip low-margin countries.
+
+Implemented on branch:
+
+- `feature/combined_sensitivity`
+
+Main file:
+
+- `diet_sensitivity/combined_analysis.py`
+
+Supporting change:
+
+- `diet_sensitivity/pipeline.py` now accepts an absolute `ci_file` path, so derived carbon-intensity files in `data_result/` can be used directly.
+
+Method:
+
+- Compare three max/mod uptake scenarios:
+  - `baseline_uniform_mean_ci`
+  - `cereal_sweets_up_mean_ci`
+  - `cereal_sweets_up_meat_p10_ci`
+- The stacked conservative case uses the `cereal_sweets_up` diet-composition scenario and a derived carbon-intensity file where only `Meat` is replaced with P10 intensity from `Food data/carbon_intensity_p10.csv`; all other food groups remain at mean intensity from `Food data/carbon_intensity.csv`.
+
+Outputs:
+
+- `data_result/combined_sensitivity_results.csv`
+- `data_result/combined_sensitivity_ratio_comparison.csv`
+- `data_result/carbon_intensity_meat_p10.csv`
+- `figures/combined_sensitivity_lowest_ratio_countries.png`
+
+Validation from saved CSV:
+
+- Complete-data countries: `40`
+- Uniform baseline ratio: `5.324x`; closest country Lithuania at `3.527x`
+- Cereals/sweets shift with mean CI ratio: `3.472x`; closest country Poland at `2.393x`
+- Cereals/sweets shift with meat P10 CI ratio: `2.710x`; closest country Poland at `2.102x`
+- No complete-data country tips into net positive emissions (`ratio < 1`) in any combined scenario.
+
+## All Sensitivities Overview
+
+The user asked for a broader figure comparing all current sensitivity analyses against baseline, not just the combined conservative figure.
+
+Main file:
+
+- `diet_sensitivity/sensitivity_overview.py`
+
+It includes:
+
+- `Baseline`
+- `Fatty foods down`
+- `Cereals/sweets shift`
+- `All foods P10 CI`
+- `All foods P90 CI`
+- `Cereals/sweets + low-meat CI`
+
+It excludes drug-manufacturing emissions because those are not implemented yet.
+
+Outputs:
+
+- `data_result/all_sensitivity_overview_results.csv`
+- `data_result/all_sensitivity_overview_country_ratios.csv`
+- `figures/all_sensitivity_overview.png`
+
+Validation from run:
+
+- Baseline: global `5.32x`; closest Lithuania `3.53x`; tipped `0`
+- Fatty foods down: global `6.74x`; closest Lithuania `4.12x`; tipped `0`
+- Cereals/sweets shift: global `3.47x`; closest Poland `2.39x`; tipped `0`
+- All foods P10 CI: global `2.34x`; closest Lithuania `1.58x`; tipped `0`
+- All foods P90 CI: global `10.13x`; closest Poland `6.37x`; tipped `0`
+- Cereals/sweets + low-meat CI: global `2.71x`; closest Poland `2.10x`; tipped `0`
+
+Interpretation: across all current sensitivity analyses, no complete-data country tips into net positive emissions. The most conservative current margin is the full all-food P10 carbon-intensity sensitivity, not the combined low-meat scenario.
+
 ## Food-Side Model Status
 
 The OECD update did not change the food-emissions side.
@@ -168,12 +244,19 @@ Important files generated or updated during recent work:
 - `data_result/oecd_vs_worldbank_survivor_emissions.csv`
 - `data_result/diet_sensitivity_results.csv`
 - `data_result/diet_sensitivity_ratio_comparison.csv`
+- `data_result/combined_sensitivity_results.csv`
+- `data_result/combined_sensitivity_ratio_comparison.csv`
+- `data_result/carbon_intensity_meat_p10.csv`
+- `data_result/all_sensitivity_overview_results.csv`
+- `data_result/all_sensitivity_overview_country_ratios.csv`
 - `figures/breakeven_by_country.png`
 - `figures/breakeven_curves.png`
 - `figures/country_dashboard.png`
 - `figures/food_group_breakdown.png`
 - `figures/diet_sensitivity_global_comparison.png`
 - `figures/diet_sensitivity_lowest_ratio_countries.png`
+- `figures/combined_sensitivity_lowest_ratio_countries.png`
+- `figures/all_sensitivity_overview.png`
 - `oecd_methodology_changes_summary.docx`
 
 There was also an earlier `professor_oecd_methodology_update.docx` on the Desktop, but the user removed it and asked for a paragraph-only version in the repo. The current repo document is:
@@ -216,6 +299,22 @@ Downstream reruns:
 
 These completed successfully after missing-data handling was fixed.
 
+Combined sensitivity:
+
+```bash
+.\venv\Scripts\python.exe -m diet_sensitivity.combined_analysis
+```
+
+This completed successfully on `feature/combined_sensitivity`.
+
+All sensitivities overview:
+
+```bash
+.\venv\Scripts\python.exe -m diet_sensitivity.sensitivity_overview
+```
+
+This completed successfully on `feature/combined_sensitivity`.
+
 Linter checks for edited Python files reported no linter errors.
 
 ## User Communication Preferences / Current Context
@@ -238,16 +337,12 @@ Avoid saying "we made a mistake." Better phrasing:
 
 ## Likely Next Steps
 
-1. Review `oecd_methodology_changes_summary.docx` for wording and formatting.
-2. If requested, draft a final email to the professor summarizing:
-   - OECD replacement
-   - validation
-   - observed result changes
-   - diet sensitivity result changes
-   - caveat about OECD coverage
-3. Consider whether to commit changes. Do not commit unless the user explicitly asks.
-4. If committing, check LFS state first and ensure no large unintended files are included.
-5. If professor asks about missing OECD countries, explain that no imputation was done and ratio summaries use complete data only.
+1. Summarize the combined sensitivity result for the professor if requested: stacked conservative case lowers the ratio to `2.7x`, but no complete-data country tips into net positive emissions.
+2. Work on incorporating semaglutide/Ozempic drug carbon footprint into net accounting.
+3. Update Draft 2 with OECD, diet sensitivity, combined sensitivity, and drug-emissions results.
+4. Consider whether to commit changes. Do not commit unless the user explicitly asks.
+5. If committing, check LFS state first and ensure no large unintended files are included.
+6. If professor asks about missing OECD countries, explain that no imputation was done and ratio summaries use complete data only.
 
 ## Current Safety Notes
 

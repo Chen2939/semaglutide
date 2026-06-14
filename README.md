@@ -170,6 +170,35 @@ Outputs:
 
 Current headline result with OECD consumption-based survivor emissions: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year food-savings-to-survivor-emissions ratio is 5.3× in the uniform baseline, 6.8× when fatty foods decrease more, and 3.5× when cereals/sweets decrease more and meat decreases less. Lithuania and Poland are closest to tipping in the cereal/sweets scenario at approximately 2.4×.
 
+### Step 7 — Combined Conservative Sensitivity Analysis
+
+```bash
+python -m diet_sensitivity.combined_analysis
+```
+
+Runs the reviewer-style stacked conservative case: the `cereal_sweets_up` diet-composition scenario plus a meat-only low carbon-intensity assumption. The derived carbon-intensity file keeps all food groups at the mean Poore & Nemecek/FAOSTAT intensity except `Meat`, which is replaced with the P10 meat intensity from `Food data/carbon_intensity_p10.csv`.
+
+Outputs:
+- **Datasets:** `data_result/combined_sensitivity_results.csv`, `data_result/combined_sensitivity_ratio_comparison.csv`
+- **Derived input:** `data_result/carbon_intensity_meat_p10.csv`
+- **Figure:** `figures/combined_sensitivity_lowest_ratio_countries.png`
+
+Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio falls from 3.5× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.7× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.1×.
+
+### Step 8 — All Sensitivities Overview
+
+```bash
+python -m diet_sensitivity.sensitivity_overview
+```
+
+Generates a compact comparison of all current sensitivity analyses against the OECD-updated baseline. This includes the uniform baseline, both diet-composition scenarios, full food carbon-intensity P10/P90 scenarios, and the combined conservative cereals/sweets + low-meat-CI scenario. Drug-manufacturing emissions are not included yet.
+
+Outputs:
+- **Datasets:** `data_result/all_sensitivity_overview_results.csv`, `data_result/all_sensitivity_overview_country_ratios.csv`
+- **Figure:** `figures/all_sensitivity_overview.png`
+
+Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio ranges from 2.3× under the full all-food P10 carbon-intensity case to 10.1× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.6× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.7× globally, with Poland closest at approximately 2.1×.
+
 ## Setup
 
 ```bash
