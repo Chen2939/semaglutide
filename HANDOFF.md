@@ -24,6 +24,7 @@ Main execution/data flow:
 6. `data_visualization/generate_dashboard_figure.py` creates paper-style dashboard figures.
 7. `diet_sensitivity/analysis.py` runs the diet-composition sensitivity analysis.
 8. `diet_sensitivity/combined_analysis.py` runs the stacked conservative sensitivity analysis.
+9. `drug_effect/analysis.py` adds drug product carbon-footprint emissions to net accounting.
 
 ## Important Recent Methodology Change: OECD GHG Replacement
 
@@ -235,6 +236,70 @@ Main file:
 
 - `data_visualization/pipeline.py`
 
+## Drug Carbon Footprint Accounting
+
+The professor asked to subtract the climate impact of producing/administering semaglutide itself.
+
+Implemented on branch:
+
+- `feature/drug_effect`
+
+Main file:
+
+- `drug_effect/analysis.py`
+
+Source/assumption:
+
+- PDF: `C:\Users\Yimin Chen\Desktop\sema_theory\Ozempic carbon footprint.pdf`
+- Use Appendix A, Table 2, US market.
+- Ozempic 1.0 mg annual components:
+  - API: `1.2 kg CO2e/year`
+  - Device incl. cartridge: `2.1 kg CO2e/year`
+  - Needle: `0.4 kg CO2e/year`
+- Scale only API from 1.0 mg to 2.4 mg:
+  - `1.2 * 2.4 = 2.88 kg CO2e/year`
+- Hold device and needle constant:
+  - `2.88 + 2.1 + 0.4 = 5.38 kg CO2e/user-year`
+
+Treatment population:
+
+- Uses `full_simulation_results8.rds`
+- Treated users are calculated as `sum(weighting)` where `adheres_to_treatment == True`, grouped by `ISO` and `scenario`.
+- One-year drug emissions are calculated directly from treated users.
+- 10-year drug emissions use `initial_treated_users * 10` because the saved headline mortality output does not include treated-specific alive years. This is labeled as an approximation in the output (`drug_treated_year_method = initial_treated_users_x_10`).
+
+Formula:
+
+```text
+drug_emissions_t = treated_user_years * 5.38 / 1000
+net_savings = food_savings - survivor_emissions - drug_emissions
+```
+
+Outputs:
+
+- `data_result/drug_emissions_by_country.csv`
+- `data_result/net_emissions_with_drug.csv`
+- `data_result/drug_footprint_summary.csv`
+- `figures/drug_footprint_summary.png`
+
+Validation/results:
+
+- Max uptake:
+  - One-year drug emissions: `1,297 kt CO2e`
+  - 10-year drug emissions approximation: `12.97 Mt CO2e`
+  - Drug emissions are `1.13%` of annual food savings
+  - Ratio changes from `5.324x` to `5.021x`
+  - No country tips after adding drug emissions
+- Moderate uptake:
+  - One-year drug emissions: `678 kt CO2e`
+  - 10-year drug emissions approximation: `6.78 Mt CO2e`
+  - Drug emissions are `1.16%` of annual food savings
+  - Ratio changes from `5.395x` to `5.078x`
+  - No country tips after adding drug emissions
+- Lowest max-uptake country after adding drug emissions: Poland at about `3.35x`.
+
+Interpretation: drug emissions are small relative to food-emission savings and do not change the conclusion. No extra drug-footprint sensitivity was added because professor said it is unnecessary if the term is trivial.
+
 ## Generated/Updated Outputs
 
 Important files generated or updated during recent work:
@@ -249,6 +314,9 @@ Important files generated or updated during recent work:
 - `data_result/carbon_intensity_meat_p10.csv`
 - `data_result/all_sensitivity_overview_results.csv`
 - `data_result/all_sensitivity_overview_country_ratios.csv`
+- `data_result/drug_emissions_by_country.csv`
+- `data_result/net_emissions_with_drug.csv`
+- `data_result/drug_footprint_summary.csv`
 - `figures/breakeven_by_country.png`
 - `figures/breakeven_curves.png`
 - `figures/country_dashboard.png`
@@ -257,6 +325,7 @@ Important files generated or updated during recent work:
 - `figures/diet_sensitivity_lowest_ratio_countries.png`
 - `figures/combined_sensitivity_lowest_ratio_countries.png`
 - `figures/all_sensitivity_overview.png`
+- `figures/drug_footprint_summary.png`
 - `oecd_methodology_changes_summary.docx`
 
 There was also an earlier `professor_oecd_methodology_update.docx` on the Desktop, but the user removed it and asked for a paragraph-only version in the repo. The current repo document is:
@@ -315,6 +384,14 @@ All sensitivities overview:
 
 This completed successfully on `feature/combined_sensitivity`.
 
+Drug footprint:
+
+```bash
+.\venv\Scripts\python.exe -m drug_effect.analysis
+```
+
+This completed successfully on `feature/drug_effect`.
+
 Linter checks for edited Python files reported no linter errors.
 
 ## User Communication Preferences / Current Context
@@ -337,12 +414,11 @@ Avoid saying "we made a mistake." Better phrasing:
 
 ## Likely Next Steps
 
-1. Summarize the combined sensitivity result for the professor if requested: stacked conservative case lowers the ratio to `2.7x`, but no complete-data country tips into net positive emissions.
-2. Work on incorporating semaglutide/Ozempic drug carbon footprint into net accounting.
-3. Update Draft 2 with OECD, diet sensitivity, combined sensitivity, and drug-emissions results.
-4. Consider whether to commit changes. Do not commit unless the user explicitly asks.
-5. If committing, check LFS state first and ensure no large unintended files are included.
-6. If professor asks about missing OECD countries, explain that no imputation was done and ratio summaries use complete data only.
+1. Review drug-footprint outputs and wording with the user/professor if needed.
+2. Update Draft 2 with OECD, diet sensitivity, combined sensitivity, and drug-emissions results.
+3. Consider whether to commit changes. Do not commit unless the user explicitly asks.
+4. If committing, check LFS state first and ensure no large unintended files are included.
+5. If professor asks about missing OECD countries, explain that no imputation was done and ratio summaries use complete data only.
 
 ## Current Safety Notes
 

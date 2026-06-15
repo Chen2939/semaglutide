@@ -56,6 +56,9 @@ legacy/data/.Rhistory
 !/data_result/carbon_intensity_meat_p10.csv
 !/data_result/all_sensitivity_overview_results.csv
 !/data_result/all_sensitivity_overview_country_ratios.csv
+!/data_result/drug_emissions_by_country.csv
+!/data_result/net_emissions_with_drug.csv
+!/data_result/drug_footprint_summary.csv
 !/data_result/oecd_consumption_ghg_per_capita.csv
 !/data_result/oecd_vs_worldbank_survivor_emissions.csv
 
