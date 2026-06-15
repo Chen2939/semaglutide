@@ -189,21 +189,21 @@ def plot_summary(summary: pd.DataFrame) -> str:
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    axes[0].bar(
+    food_bars = axes[0].bar(
         x - width,
         summary["total_food_savings_10yr_t"] / 1e6,
         width,
         label="Food savings",
         color="#2ca25f",
     )
-    axes[0].bar(
+    survivor_bars = axes[0].bar(
         x,
         summary["survivor_emissions_10yr_t"] / 1e6,
         width,
         label="Survivor emissions",
         color="#3182bd",
     )
-    axes[0].bar(
+    drug_bars = axes[0].bar(
         x + width,
         summary["drug_emissions_10yr_t"] / 1e6,
         width,
@@ -217,6 +217,37 @@ def plot_summary(summary: pd.DataFrame) -> str:
     axes[0].legend(fontsize=8)
     axes[0].grid(axis="y", alpha=0.2)
     axes[0].set_axisbelow(True)
+    axes[0].set_ylim(
+        0,
+        (summary["total_food_savings_10yr_t"] / 1e6).max() * 1.16,
+    )
+
+    def label_component_bars(bars, values, small_decimals: bool = False) -> None:
+        for bar, value in zip(bars, values):
+            label = f"{value:,.1f} Mt" if small_decimals else f"{value:,.0f} Mt"
+            axes[0].text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height(),
+                label,
+                ha="center",
+                va="bottom",
+                fontsize=7,
+                fontweight="bold",
+            )
+
+    label_component_bars(
+        food_bars,
+        summary["total_food_savings_10yr_t"] / 1e6,
+    )
+    label_component_bars(
+        survivor_bars,
+        summary["survivor_emissions_10yr_t"] / 1e6,
+    )
+    label_component_bars(
+        drug_bars,
+        summary["drug_emissions_10yr_t"] / 1e6,
+        small_decimals=True,
+    )
 
     axes[1].bar(
         x,
@@ -237,7 +268,11 @@ def plot_summary(summary: pd.DataFrame) -> str:
     axes[1].set_xticklabels(labels, rotation=15, ha="right")
     axes[1].set_ylabel("Food savings / (survivor + drug emissions)")
     axes[1].set_title("B. Ratio Impact", loc="left", fontweight="bold")
-    axes[1].legend(fontsize=8)
+    axes[1].set_ylim(
+        0,
+        max(summary["ratio_without_drug"].max(), summary["ratio_with_drug"].max()) * 1.22,
+    )
+    axes[1].legend(fontsize=8, loc="upper right")
     axes[1].grid(axis="y", alpha=0.2)
     axes[1].set_axisbelow(True)
 
