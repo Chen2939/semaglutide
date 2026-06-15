@@ -36,6 +36,7 @@ semaglutide/
 │   ├── scenarios.py               # Literature-motivated food-group shock assumptions
 │   ├── pipeline.py                # Calorie-preserving diet-shock calibration + rebound model
 │   └── analysis.py                # Runs sensitivity analysis, outputs CSVs and figures
+├── drug_effect/                   # Drug product carbon-footprint accounting
 │
 ├── figures/                       # Paper-ready figures (tracked in Git)
 ├── data_result/                   # Generated tabular analysis outputs (selected CSVs tracked via LFS)
@@ -198,6 +199,24 @@ Outputs:
 - **Figure:** `figures/all_sensitivity_overview.png`
 
 Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio ranges from 2.3× under the full all-food P10 carbon-intensity case to 10.1× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.6× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.7× globally, with Poland closest at approximately 2.1×.
+
+### Step 9 — Drug Carbon Footprint Accounting
+
+```bash
+python -m drug_effect.analysis
+```
+
+Adds emissions from producing/administering semaglutide treatment itself to the net climate accounting. The implementation follows the professor-specified assumption using the Novo Nordisk Ozempic FlexTouch product-carbon-footprint document, Appendix A Table 2, US market. Ozempic 1.0 mg has annual components of 1.2 kg CO2e for API, 2.1 kg CO2e for device/cartridge, and 0.4 kg CO2e for needle. The API component is scaled to the modeled 2.4 mg dose while device and needle are held constant:
+
+```text
+annual drug footprint = 1.2 * 2.4 + 2.1 + 0.4 = 5.38 kg CO2e/user-year
+```
+
+The script calculates one-year drug emissions for comparison with annual food savings, and a 10-year treated-user approximation (`initial_treated_users * 10`) for net accounting. The approximation is used because the saved headline mortality output does not contain treated-specific alive years.
+
+Outputs:
+- **Datasets:** `data_result/drug_emissions_by_country.csv`, `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv`
+- **Figure:** `figures/drug_footprint_summary.png`
 
 ## Setup
 
