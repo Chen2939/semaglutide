@@ -17,7 +17,7 @@ Two uptake scenarios: **maximum (95%)** and **moderate (50%)** of eligible popul
 
 ```
 semaglutide/
-├── Mortality Model.ipynb          # Mortality impact: Monte Carlo survival, person-years saved, emissions from survivors
+├── Mortality Model.ipynb          # Mortality data prep and legacy exploratory diagnostics
 ├── Price rebound model.ipynb      # Price rebound economics: equilibrium solver, carbon savings by country & food group
 ├── build_carbon_intensity.py      # Builds country-specific carbon intensity from Poore & Nemecek (2018) + FAOSTAT
 ├── requirements.txt               # Python dependencies
@@ -26,6 +26,7 @@ semaglutide/
 ├── data_visualization/            # Visualization scripts (Python package)
 │   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
 │   ├── deterministic_mortality.py # Deterministic expected-value survivor person-years
+│   ├── survivor_manuscript_numbers.py # Manuscript X/Y survivor numbers
 │   ├── consumption_ghg.py         # OECD demand-based final-consumption GHG survivor-emissions rebuild
 │   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
 │   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
@@ -98,6 +99,19 @@ python -m data_visualization.deterministic_mortality
 - **Output:** `mortality model total emissions.csv`
 
 `Mortality Model.ipynb` remains as the exploratory notebook for mortality data preparation and legacy diagnostics, but the deterministic script is the reproducible headline path.
+
+For manuscript text that needs starting treated users (`Y`), average BMI-driven hazard-ratio reduction, and extra survivors alive at year 10 (`X`), run:
+
+```bash
+python -m data_visualization.survivor_manuscript_numbers
+```
+
+This helper uses the same deterministic mortality function and `mortality2.rds` lookup as the headline mortality output. It writes `data_result/survivor_manuscript_numbers.csv` and `data_result/survivor_manuscript_top_countries.csv`.
+
+Current reconciled manuscript numbers:
+
+- Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `2.94 million`, cumulative 10-year person-years saved `15.75 million`
+- Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.55 million`, cumulative 10-year person-years saved `8.32 million`
 
 The legacy notebook path:
 - Loads `full_simulation_results8.rds`, `mortality2.rds`, and `HLD/Mx_1x1/` life tables

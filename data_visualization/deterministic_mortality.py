@@ -80,8 +80,58 @@ def run_deterministic_mortality(
     population_weighted: bool = True,
 ) -> pd.DataFrame:
     """Compute expected additional survivor person-years by country/scenario."""
+    individual = compute_individual_survival_diffs(
+        df_input,
+        mortality_lookup,
+        benefit_reduction=benefit_reduction,
+        population_weighted=population_weighted,
+    )
+    diff_columns = [f"diff_Y{year}" for year in range(0, 11)]
+    summary = individual.groupby(["ISO", "scenario"], as_index=False)[diff_columns].sum()
+    summary["total_person_years_saved"] = summary[diff_columns].sum(axis=1)
+
+    # Placeholder emissions columns keep the legacy schema intact until
+    # consumption_ghg.py rebuilds authoritative OECD emissions.
+    summary["emissions_factor_Y0"] = np.nan
+    summary["total_emissions"] = 0.0
+    for year in range(1, 11):
+        summary[f"emissions_factor_Y{year}"] = np.nan
+        summary[f"emissions_Y{year}"] = np.nan
+
+    ordered_cols = [
+        "ISO",
+        "scenario",
+        *diff_columns,
+        "total_person_years_saved",
+        "emissions_factor_Y0",
+        "total_emissions",
+        *[
+            col
+            for year in range(1, 11)
+            for col in (f"emissions_factor_Y{year}", f"emissions_Y{year}")
+        ],
+    ]
+    return summary[ordered_cols]
+
+
+def compute_individual_survival_diffs(
+    df_input: pd.DataFrame,
+    mortality_lookup: pd.DataFrame,
+    benefit_reduction: float = 0.5,
+    population_weighted: bool = True,
+) -> pd.DataFrame:
+    """Compute deterministic survival differences for each simulated row."""
     base = df_input[
-        ["age", "Sex", "ISO", "scenario", "weighting", "bmi", "new_bmi"]
+        [
+            "age",
+            "Sex",
+            "ISO",
+            "scenario",
+            "weighting",
+            "bmi",
+            "new_bmi",
+            "adheres_to_treatment",
+        ]
     ].copy()
     base["baseline_bmi_hr"] = get_raw_bmi_hazard_ratio(base["bmi"])
     base["semaglutide_bmi_hr"] = get_raw_bmi_hazard_ratio(base["new_bmi"])
@@ -122,33 +172,7 @@ def run_deterministic_mortality(
         diff_cols[f"diff_Y{year}"] = diff
 
     diffs = pd.DataFrame(diff_cols)
-    diffs[["ISO", "scenario"]] = base[["ISO", "scenario"]]
-    summary = diffs.groupby(["ISO", "scenario"], as_index=False).sum(numeric_only=True)
-    diff_columns = [f"diff_Y{year}" for year in range(0, 11)]
-    summary["total_person_years_saved"] = summary[diff_columns].sum(axis=1)
-
-    # Placeholder emissions columns keep the legacy schema intact until
-    # consumption_ghg.py rebuilds authoritative OECD emissions.
-    summary["emissions_factor_Y0"] = np.nan
-    summary["total_emissions"] = 0.0
-    for year in range(1, 11):
-        summary[f"emissions_factor_Y{year}"] = np.nan
-        summary[f"emissions_Y{year}"] = np.nan
-
-    ordered_cols = [
-        "ISO",
-        "scenario",
-        *diff_columns,
-        "total_person_years_saved",
-        "emissions_factor_Y0",
-        "total_emissions",
-        *[
-            col
-            for year in range(1, 11)
-            for col in (f"emissions_factor_Y{year}", f"emissions_Y{year}")
-        ],
-    ]
-    return summary[ordered_cols]
+    return pd.concat([base.reset_index(drop=True), diffs], axis=1)
 
 
 def save_comparison(new_output: pd.DataFrame) -> None:

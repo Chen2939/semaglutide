@@ -33,6 +33,7 @@ Seth/Claude flagged that the headline mortality path used only 10 Monte Carlo it
 Implemented in:
 
 - `data_visualization/deterministic_mortality.py`
+- `data_visualization/survivor_manuscript_numbers.py` for manuscript X/Y survivor numbers
 - `Mortality Model.ipynb` headline execution cell now calls the deterministic function
 - Main output schema preserved: `mortality model total emissions.csv`
 - Comparison output: `data_result/deterministic_mortality_comparison.csv`
@@ -49,6 +50,30 @@ Validation from rerun:
 - Global max-uptake person-years saved: `15.75 million`
 - Global moderate-uptake person-years saved: `8.32 million`
 - Linter checks for edited Python files passed.
+
+### Manuscript Survivor Numbers
+
+Professor shared an earlier root-level `_survivor_manuscript_numbers.py` helper. It was reconciled and moved into the package as:
+
+- `data_visualization/survivor_manuscript_numbers.py`
+
+Use:
+
+```bash
+.\venv\Scripts\python.exe -m data_visualization.survivor_manuscript_numbers
+```
+
+This now uses the same deterministic mortality function and `mortality2.rds` lookup as `mortality model total emissions.csv`, rather than maintaining a second raw-HLD implementation. Outputs:
+
+- `data_result/survivor_manuscript_numbers.csv`
+- `data_result/survivor_manuscript_top_countries.csv`
+
+Current reconciled results:
+
+- Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `2.94 million`, cumulative person-years saved `15.75 million`
+- Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.55 million`, cumulative person-years saved `8.32 million`
+
+Validation: `extra_survivors_y10` equals `diff_Y10` in `mortality model total emissions.csv` and cumulative person-years equal `total_person_years_saved` to numerical precision.
 
 ## Important Recent Methodology Change: OECD GHG Replacement
 
@@ -331,6 +356,8 @@ Important files generated or updated during recent work:
 
 - `mortality model total emissions.csv`
 - `data_result/deterministic_mortality_comparison.csv`
+- `data_result/survivor_manuscript_numbers.csv`
+- `data_result/survivor_manuscript_top_countries.csv`
 - `data_result/oecd_consumption_ghg_per_capita.csv`
 - `data_result/oecd_vs_worldbank_survivor_emissions.csv`
 - `data_result/diet_sensitivity_results.csv`
@@ -387,6 +414,7 @@ Deterministic mortality and OECD rebuild:
 
 ```bash
 .\venv\Scripts\python.exe -m data_visualization.deterministic_mortality
+.\venv\Scripts\python.exe -m data_visualization.survivor_manuscript_numbers
 .\venv\Scripts\python.exe -m data_visualization.consumption_ghg
 ```
 
