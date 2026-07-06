@@ -89,43 +89,22 @@ def load_kcal_shares(countries_in_scope) -> pd.DataFrame:
     return shares[["ISO", "final_food_group", "kcal_share"]].copy()
 
 
-def calibrate_group_shocks(
-    base_pct: float,
+def calibrate_group_multipliers(
     country_kcal_shares: pd.DataFrame,
     multipliers: Dict[str, float],
-) -> Dict[str, float]:
-    """
-    Compute per-food-group demand reduction percentages that preserve the
-    total calorie reduction while applying the scenario multipliers.
+) -> tuple[Dict[str, float], float]:
+    """Compute food-group multipliers that preserve total calorie reduction.
 
     Algorithm
     ---------
-    For groups with a specified multiplier m_g:
-        group_shock_g = base_pct × m_g
-
-    For the remaining ("neutral") groups:
-        m_neutral is solved so that the calorie-weighted sum of all
-        multipliers equals 1, i.e.:
+    For the remaining ("neutral") groups, ``m_neutral`` is solved so that the
+    calorie-weighted sum of all multipliers equals 1, i.e.:
 
             Σ_g  w_g × m_g  =  1
 
-        where w_g is the group's calorie share.  This ensures:
-
-            Σ_g  w_g × (base_pct × m_g)  =  base_pct  (original total shock)
-
-    Parameters
-    ----------
-    base_pct : float
-        Country-level uniform demand reduction percentage (negative, e.g. -0.022).
-    country_kcal_shares : DataFrame
-        Rows for a single country with columns: final_food_group, kcal_share.
-    multipliers : dict
-        Scenario multipliers for specified food groups.
-
-    Returns
-    -------
-    dict mapping final_food_group → adjusted demand reduction percent
-        Only contains groups present in country_kcal_shares.
+    ``m_neutral`` is not clamped.  In a few high-cereal countries it can be
+    negative, meaning non-targeted groups increase slightly to preserve the
+    total calorie reduction while honoring the specified diet-preference shift.
     """
     shares = country_kcal_shares.set_index("final_food_group")["kcal_share"]
     all_groups: List[str] = shares.index.tolist()
@@ -144,13 +123,35 @@ def calibrate_group_shocks(
         # All calorie share is in specified groups — use 1.0 as fallback
         m_neutral = 1.0
 
-    # Clamp: neutral groups should not have a *positive* shock (increase in
-    # consumption) from the sensitivity scenario.
-    m_neutral = max(0.0, m_neutral)
-
     result: Dict[str, float] = {}
     for g in all_groups:
-        m = specified.get(g, m_neutral)
+        result[g] = specified.get(g, m_neutral)
+
+    weighted_avg = sum(shares[g] * result[g] for g in all_groups)
+    if not np.isclose(weighted_avg, 1.0, atol=1e-9):
+        raise ValueError(
+            "Diet calibration failed to preserve calories: "
+            f"weighted multiplier={weighted_avg:.12f}"
+        )
+
+    return result, m_neutral
+
+
+def calibrate_group_shocks(
+    base_pct: float,
+    country_kcal_shares: pd.DataFrame,
+    multipliers: Dict[str, float],
+) -> Dict[str, float]:
+    """
+    Compute per-food-group demand reduction percentages that preserve the
+    total calorie reduction while applying the scenario multipliers.
+    """
+    group_multipliers, _ = calibrate_group_multipliers(
+        country_kcal_shares,
+        multipliers,
+    )
+    result: Dict[str, float] = {}
+    for g, m in group_multipliers.items():
         result[g] = base_pct * m
 
     return result
@@ -179,6 +180,7 @@ def build_diet_shocks(
     DataFrame with columns: ISO, scenario, final_food_group, diet_shock_pct
     """
     rows = []
+    diagnostics = []
     for (iso, scenario), row in sim_result_perc.iterrows():
         base_pct = row["expected_demand_reduction_percent"]
         country_kcal = kcal_shares[kcal_shares["ISO"] == iso]
@@ -188,7 +190,19 @@ def build_diet_shocks(
             # the uniform shock as fallback
             continue
 
-        group_shocks = calibrate_group_shocks(base_pct, country_kcal, multipliers)
+        group_multipliers, m_neutral = calibrate_group_multipliers(
+            country_kcal,
+            multipliers,
+        )
+        if m_neutral < 0:
+            diagnostics.append({
+                "ISO": iso,
+                "scenario": scenario,
+                "neutral_multiplier": m_neutral,
+                "base_pct": base_pct,
+                "implied_neutral_shock_pct": base_pct * m_neutral,
+            })
+        group_shocks = {fg: base_pct * m for fg, m in group_multipliers.items()}
         for fg, shock_pct in group_shocks.items():
             rows.append({
                 "ISO": iso,
@@ -196,6 +210,15 @@ def build_diet_shocks(
                 "final_food_group": fg,
                 "diet_shock_pct": shock_pct,
             })
+
+    if diagnostics:
+        diag = pd.DataFrame(diagnostics)
+        print(
+            "    Diet calibration note: "
+            f"{len(diag)} country-scenarios require small neutral-group increases "
+            "to preserve total calories. "
+            f"Max implied increase: {diag['implied_neutral_shock_pct'].max() * 100:.3f}%"
+        )
 
     return pd.DataFrame(rows) if rows else pd.DataFrame(
         columns=["ISO", "scenario", "final_food_group", "diet_shock_pct"]

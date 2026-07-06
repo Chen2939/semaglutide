@@ -39,7 +39,7 @@ from .scenarios import SCENARIOS
 SCENARIO_LABELS = {
     "baseline_uniform": "Uniform baseline",
     "fatty_food_down": "Fatty foods down",
-    "cereal_sweets_up": "Cereals/sweets down",
+    "cereal_sweets_up": "Cereals/sweets shift",
 }
 
 SCENARIO_COLORS = {

@@ -17,7 +17,7 @@ The main comparison is food-emission savings versus survivor emissions over a 10
 Main execution/data flow:
 
 1. `Data_Cleaning9.8.R` / archived R code generates synthetic population outputs.
-2. `Mortality Model.ipynb` / mortality pipeline estimates additional survivor person-years.
+2. `data_visualization/deterministic_mortality.py` estimates additional survivor person-years deterministically; `Mortality Model.ipynb` remains the exploratory mortality notebook.
 3. `data_visualization/consumption_ghg.py` rebuilds survivor emissions using OECD consumption-based GHG factors.
 4. `data_visualization/pipeline.py` computes baseline food-emission savings using the price rebound model.
 5. `data_visualization/breakeven_analysis.py` computes food-to-survivor ratios and break-even summaries.
@@ -25,6 +25,30 @@ Main execution/data flow:
 7. `diet_sensitivity/analysis.py` runs the diet-composition sensitivity analysis.
 8. `diet_sensitivity/combined_analysis.py` runs the stacked conservative sensitivity analysis.
 9. `drug_effect/analysis.py` adds drug product carbon-footprint emissions to net accounting.
+
+## Important Recent Methodology Change: Deterministic Mortality
+
+Seth/Claude flagged that the headline mortality path used only 10 Monte Carlo iterations and treated HLD `Mx` rates like one-year death probabilities. This is now fixed.
+
+Implemented in:
+
+- `data_visualization/deterministic_mortality.py`
+- `Mortality Model.ipynb` headline execution cell now calls the deterministic function
+- Main output schema preserved: `mortality model total emissions.csv`
+- Comparison output: `data_result/deterministic_mortality_comparison.csv`
+
+Method:
+
+- Each simulated individual carries expected baseline and semaglutide survival probabilities over 10 years.
+- HLD `Mx` rates are converted with `q = 1 - exp(-Mx)` and survival with `exp(-Mx)`.
+- Semaglutide mortality benefit is still derived from BMI hazard-ratio category changes, with the existing half-benefit assumption after age 75.
+- Output remains population weighted and grouped by `ISO`/`scenario`.
+
+Validation from rerun:
+
+- Global max-uptake person-years saved: `15.75 million`
+- Global moderate-uptake person-years saved: `8.32 million`
+- Linter checks for edited Python files passed.
 
 ## Important Recent Methodology Change: OECD GHG Replacement
 
@@ -71,13 +95,13 @@ Validation:
 
 ### Key Result Impact
 
-The mortality/person-year estimates did not change. Only the emissions factor applied to those person-years changed.
+After deterministic mortality, OECD factors are applied to the updated expected person-years.
 
 Observed impact:
 
-- USA max-uptake 10-year survivor emissions changed from about `104 Mt CO2e` to about `139 Mt CO2e`.
+- USA max-uptake 10-year survivor emissions changed from about `107 Mt CO2e` under the World Bank comparison factor to about `133 Mt CO2e` under OECD.
 - Across countries with both old and new factors, OECD factors are higher by about 36% at the median.
-- The baseline max-uptake food-to-survivor-emissions ratio is now about `5.3x` among complete-data countries.
+- The baseline max-uptake food-to-survivor-emissions ratio is now about `5.5x` among `35` complete-data countries.
 - All complete-data countries still break even in Year 1.
 - The conclusion weakens but does not reverse.
 
@@ -127,6 +151,8 @@ Important: the diet sensitivity does not change total calorie reduction or morta
 
 It redistributes the same country/scenario-specific total calorie reduction across food groups. It uses FAOSTAT kcal shares and calibrates neutral food-group multipliers so the calorie-weighted average multiplier equals 1.
 
+Seth/Claude flagged that an earlier clamp on the neutral multiplier could break this invariant. The clamp was removed in `diet_sensitivity/pipeline.py`, and the calibration now raises an error if the calorie-weighted multiplier differs from 1 beyond numerical tolerance. If neutral food groups must rise slightly to preserve total calories, the run prints a diagnostic instead of silently forcing the multiplier to zero.
+
 This means:
 
 - Total EER-based calorie reduction stays fixed.
@@ -137,9 +163,9 @@ This means:
 
 Under maximum uptake, among valid complete-data countries:
 
-- Uniform baseline: about `5.3x`
-- Fatty foods decrease more: about `6.7x`
-- Cereals/sweets decrease more while meat decreases less: about `3.5x`
+- Uniform baseline: about `5.5x`
+- Fatty foods decrease more: about `7.0x`
+- Cereals/sweets decrease more while meat decreases less: about `3.6x`
 
 No valid country tips into net positive emissions under any diet scenario.
 
@@ -176,12 +202,12 @@ Outputs:
 - `data_result/carbon_intensity_meat_p10.csv`
 - `figures/combined_sensitivity_lowest_ratio_countries.png`
 
-Validation from saved CSV:
+Validation from saved CSV after deterministic mortality:
 
-- Complete-data countries: `40`
-- Uniform baseline ratio: `5.324x`; closest country Lithuania at `3.527x`
-- Cereals/sweets shift with mean CI ratio: `3.472x`; closest country Poland at `2.393x`
-- Cereals/sweets shift with meat P10 CI ratio: `2.710x`; closest country Poland at `2.102x`
+- Complete-data countries: `35`
+- Uniform baseline ratio: `5.483x`; closest country Lithuania at `3.568x`
+- Cereals/sweets shift with mean CI ratio: `3.573x`; closest country Poland at `2.394x`
+- Cereals/sweets shift with meat P10 CI ratio: `2.779x`; closest country Poland at `2.103x`
 - No complete-data country tips into net positive emissions (`ratio < 1`) in any combined scenario.
 
 ## All Sensitivities Overview
@@ -201,7 +227,7 @@ It includes:
 - `All foods P90 CI`
 - `Cereals/sweets + low-meat CI`
 
-It excludes drug-manufacturing emissions because those are not implemented yet.
+It excludes drug-manufacturing emissions because drug emissions are handled in the separate `drug_effect/analysis.py` net-accounting module.
 
 Outputs:
 
@@ -209,14 +235,14 @@ Outputs:
 - `data_result/all_sensitivity_overview_country_ratios.csv`
 - `figures/all_sensitivity_overview.png`
 
-Validation from run:
+Validation from run after deterministic mortality:
 
-- Baseline: global `5.32x`; closest Lithuania `3.53x`; tipped `0`
-- Fatty foods down: global `6.74x`; closest Lithuania `4.12x`; tipped `0`
-- Cereals/sweets shift: global `3.47x`; closest Poland `2.39x`; tipped `0`
-- All foods P10 CI: global `2.34x`; closest Lithuania `1.58x`; tipped `0`
-- All foods P90 CI: global `10.13x`; closest Poland `6.37x`; tipped `0`
-- Cereals/sweets + low-meat CI: global `2.71x`; closest Poland `2.10x`; tipped `0`
+- Baseline: global `5.48x`; closest Lithuania `3.57x`; tipped `0`
+- Fatty foods down: global `6.96x`; closest Lithuania `4.17x`; tipped `0`
+- Cereals/sweets shift: global `3.57x`; closest Poland `2.39x`; tipped `0`
+- All foods P10 CI: global `2.42x`; closest Lithuania `1.60x`; tipped `0`
+- All foods P90 CI: global `10.43x`; closest Poland `6.37x`; tipped `0`
+- Cereals/sweets + low-meat CI: global `2.78x`; closest Poland `2.10x`; tipped `0`
 
 Interpretation: across all current sensitivity analyses, no complete-data country tips into net positive emissions. The most conservative current margin is the full all-food P10 carbon-intensity sensitivity, not the combined low-meat scenario.
 
@@ -285,18 +311,17 @@ Outputs:
 Validation/results:
 
 - Max uptake:
-  - One-year drug emissions: `1,297 kt CO2e`
-  - 10-year drug emissions approximation: `12.97 Mt CO2e`
-  - Drug emissions are `1.13%` of annual food savings
-  - Ratio changes from `5.324x` to `5.021x`
+  - One-year drug emissions: `1,206 kt CO2e`
+  - 10-year drug emissions approximation: `12.06 Mt CO2e`
+  - Drug emissions are `1.10%` of annual food savings
+  - Ratio changes from `5.483x` to `5.172x`
   - No country tips after adding drug emissions
 - Moderate uptake:
-  - One-year drug emissions: `678 kt CO2e`
-  - 10-year drug emissions approximation: `6.78 Mt CO2e`
-  - Drug emissions are `1.16%` of annual food savings
-  - Ratio changes from `5.395x` to `5.078x`
+  - One-year drug emissions: `630 kt CO2e`
+  - 10-year drug emissions approximation: `6.30 Mt CO2e`
+  - Drug emissions are `1.12%` of annual food savings
+  - Ratio changes from `5.291x` to `4.995x`
   - No country tips after adding drug emissions
-- Lowest max-uptake country after adding drug emissions: Poland at about `3.35x`.
 
 Interpretation: drug emissions are small relative to food-emission savings and do not change the conclusion. No extra drug-footprint sensitivity was added because professor said it is unnecessary if the term is trivial.
 
@@ -305,6 +330,7 @@ Interpretation: drug emissions are small relative to food-emission savings and d
 Important files generated or updated during recent work:
 
 - `mortality model total emissions.csv`
+- `data_result/deterministic_mortality_comparison.csv`
 - `data_result/oecd_consumption_ghg_per_capita.csv`
 - `data_result/oecd_vs_worldbank_survivor_emissions.csv`
 - `data_result/diet_sensitivity_results.csv`
@@ -314,6 +340,7 @@ Important files generated or updated during recent work:
 - `data_result/carbon_intensity_meat_p10.csv`
 - `data_result/all_sensitivity_overview_results.csv`
 - `data_result/all_sensitivity_overview_country_ratios.csv`
+- `data_result/sensitivity_tornado_results.csv`
 - `data_result/drug_emissions_by_country.csv`
 - `data_result/net_emissions_with_drug.csv`
 - `data_result/drug_footprint_summary.csv`
@@ -325,6 +352,7 @@ Important files generated or updated during recent work:
 - `figures/diet_sensitivity_lowest_ratio_countries.png`
 - `figures/combined_sensitivity_lowest_ratio_countries.png`
 - `figures/all_sensitivity_overview.png`
+- `figures/sensitivity_tornado.png`
 - `figures/drug_footprint_summary.png`
 - `oecd_methodology_changes_summary.docx`
 
@@ -336,10 +364,12 @@ There was also an earlier `professor_oecd_methodology_update.docx` on the Deskto
 
 `README.md` was updated to describe:
 
+- deterministic expected-value mortality and Mx-to-q conversion
 - OECD consumption-based GHG survivor-emissions rebuild
 - `data_visualization/consumption_ghg.py`
 - `oecd/consumption_ghg_2025.csv`
 - Updated diet sensitivity results after OECD replacement
+- calorie-preserving diet calibration fix and ISO-aligned Meat P10/P90 CI replacement
 - OECD as active survivor-emissions source and World Bank as legacy/comparison source
 
 `.gitignore` was updated to unignore:
@@ -347,14 +377,16 @@ There was also an earlier `professor_oecd_methodology_update.docx` on the Deskto
 - `oecd/consumption_ghg_2025.csv`
 - `data_result/oecd_consumption_ghg_per_capita.csv`
 - `data_result/oecd_vs_worldbank_survivor_emissions.csv`
+- `data_result/deterministic_mortality_comparison.csv`
 
 `.gitattributes` already tracks `*.csv` via Git LFS.
 
 ## Important Commands Already Run
 
-OECD rebuild:
+Deterministic mortality and OECD rebuild:
 
 ```bash
+.\venv\Scripts\python.exe -m data_visualization.deterministic_mortality
 .\venv\Scripts\python.exe -m data_visualization.consumption_ghg
 ```
 
@@ -364,33 +396,13 @@ Downstream reruns:
 .\venv\Scripts\python.exe -m data_visualization.breakeven_analysis
 .\venv\Scripts\python.exe -m data_visualization.generate_dashboard_figure
 .\venv\Scripts\python.exe -m diet_sensitivity.analysis
-```
-
-These completed successfully after missing-data handling was fixed.
-
-Combined sensitivity:
-
-```bash
 .\venv\Scripts\python.exe -m diet_sensitivity.combined_analysis
-```
-
-This completed successfully on `feature/combined_sensitivity`.
-
-All sensitivities overview:
-
-```bash
 .\venv\Scripts\python.exe -m diet_sensitivity.sensitivity_overview
-```
-
-This completed successfully on `feature/combined_sensitivity`.
-
-Drug footprint:
-
-```bash
+.\venv\Scripts\python.exe -m diet_sensitivity.tornado_analysis
 .\venv\Scripts\python.exe -m drug_effect.analysis
 ```
 
-This completed successfully on `feature/drug_effect`.
+These completed successfully after the deterministic mortality, calorie-calibration, and CI-alignment fixes.
 
 Linter checks for edited Python files reported no linter errors.
 
@@ -400,12 +412,12 @@ The user has been preparing an update for the professor and wants concise but te
 
 Key phrasing to preserve:
 
-- This is a methodology improvement, not a change to the mortality simulation itself.
-- Mortality/person-years saved are unchanged.
-- Food-side carbon intensity and rebound model are unchanged.
+- This is a methodology improvement to the mortality calculation and survivor-emissions accounting.
+- The headline mortality/person-year calculation is now deterministic expected survival, with `Mx` converted to `q = 1 - exp(-Mx)`.
+- Food-side carbon intensity and rebound model are unchanged, except for explicit sensitivity files.
 - The survivor-emissions factor changed from World Bank territorial/production-based emissions to OECD demand-based final-consumption GHG in CO2e.
 - The conclusion is more conservative but unchanged: food savings still exceed survivor emissions for complete-data countries.
-- Diet sensitivity formulas are new and separate from the OECD update; they explain how total calorie reduction is preserved while diet composition changes.
+- Diet sensitivity formulas preserve total calorie reduction exactly while diet composition changes.
 
 Avoid saying "we made a mistake." Better phrasing:
 

@@ -25,6 +25,7 @@ semaglutide/
 │
 ├── data_visualization/            # Visualization scripts (Python package)
 │   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
+│   ├── deterministic_mortality.py # Deterministic expected-value survivor person-years
 │   ├── consumption_ghg.py         # OECD demand-based final-consumption GHG survivor-emissions rebuild
 │   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
 │   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
@@ -84,12 +85,24 @@ Constructs country × food-group carbon intensity values (kg CO₂eq / kg food) 
 
 ### Step 3 — Mortality Model (with population weighting)
 
-Run all cells in `Mortality Model.ipynb`:
-- Loads `full_simulation_results8.rds`, `mortality2.rds`, and `HLD/Mx_1x1/` life tables
-- Runs 10-year Monte Carlo survival simulation (`run_multi_simulation()`) with BMI-based hazard ratios
-- `population_weighted=True` (default) multiplies individual survival diffs by their population weight before aggregation, producing output at the national population level; set to `False` for the original sample-level output
+Run the deterministic expected-value mortality model:
+
+```bash
+python -m data_visualization.deterministic_mortality
+```
+
+- Loads `final_df_imputed.pkl` and `mortality2.rds`
+- Replaces the old stochastic Monte Carlo headline calculation with deterministic expected survival probabilities over 10 years
+- Converts Human Life-Table `Mx` rates to annual death probabilities using `q = 1 - exp(-Mx)`
 - Computes person-years saved under both uptake scenarios
-- **Outputs:** `final_df_imputed.pkl`, `mortality model total emissions.csv`
+- **Output:** `mortality model total emissions.csv`
+
+`Mortality Model.ipynb` remains as the exploratory notebook for mortality data preparation and legacy diagnostics, but the deterministic script is the reproducible headline path.
+
+The legacy notebook path:
+- Loads `full_simulation_results8.rds`, `mortality2.rds`, and `HLD/Mx_1x1/` life tables
+- `population_weighted=True` (default) multiplies individual survival diffs by their population weight before aggregation, producing output at the national population level; set to `False` for the original sample-level output
+- **Output:** `final_df_imputed.pkl`
 
 Then rebuild survivor emissions with the OECD consumption-based GHG source:
 
@@ -169,7 +182,7 @@ Outputs:
 - **Datasets:** `data_result/diet_sensitivity_results.csv`, `data_result/diet_sensitivity_ratio_comparison.csv`
 - **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
 
-Current headline result with OECD consumption-based survivor emissions: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year food-savings-to-survivor-emissions ratio is 5.3× in the uniform baseline, 6.8× when fatty foods decrease more, and 3.5× when cereals/sweets decrease more and meat decreases less. Lithuania and Poland are closest to tipping in the cereal/sweets scenario at approximately 2.4×.
+Current headline result with deterministic mortality and OECD consumption-based survivor emissions: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year food-savings-to-survivor-emissions ratio is 5.5× in the uniform baseline, 7.0× when fatty foods decrease more, and 3.6× when cereals/sweets decrease more and meat decreases less. Poland is closest to tipping in the cereal/sweets scenario at approximately 2.4×.
 
 ### Step 7 — Combined Conservative Sensitivity Analysis
 
@@ -184,7 +197,7 @@ Outputs:
 - **Derived input:** `data_result/carbon_intensity_meat_p10.csv`
 - **Figure:** `figures/combined_sensitivity_lowest_ratio_countries.png`
 
-Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio falls from 3.5× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.7× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.1×.
+Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio falls from 3.6× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.8× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.1×.
 
 ### Step 8 — All Sensitivities Overview
 
@@ -198,7 +211,7 @@ Outputs:
 - **Datasets:** `data_result/all_sensitivity_overview_results.csv`, `data_result/all_sensitivity_overview_country_ratios.csv`
 - **Figure:** `figures/all_sensitivity_overview.png`
 
-Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio ranges from 2.3× under the full all-food P10 carbon-intensity case to 10.1× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.6× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.7× globally, with Poland closest at approximately 2.1×.
+Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio ranges from 2.4× under the full all-food P10 carbon-intensity case to 10.4× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.6× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.8× globally, with Poland closest at approximately 2.1×.
 
 ### Step 9 — Drug Carbon Footprint Accounting
 
@@ -217,6 +230,8 @@ The script calculates one-year drug emissions for comparison with annual food sa
 Outputs:
 - **Datasets:** `data_result/drug_emissions_by_country.csv`, `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv`
 - **Figure:** `figures/drug_footprint_summary.png`
+
+Current headline result: drug product emissions are small relative to food-emission savings. Under maximum uptake, including drug emissions lowers the 10-year food-savings-to-offset-emissions ratio from 5.48× to 5.17×; under moderate uptake, it lowers the ratio from 5.29× to 5.00×. No complete-data country tips into net positive emissions after adding drug emissions.
 
 ## Setup
 

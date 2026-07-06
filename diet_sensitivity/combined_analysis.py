@@ -66,8 +66,13 @@ def build_meat_p10_ci_file() -> Path:
     mean_ci = pd.read_csv(ROOT / "Food data" / "carbon_intensity.csv")
     p10_ci = pd.read_csv(ROOT / "Food data" / "carbon_intensity_p10.csv")
 
-    derived = mean_ci.copy()
-    derived["Meat"] = p10_ci["Meat"]
+    derived = mean_ci.set_index("ISO").copy()
+    meat_p10 = p10_ci.set_index("ISO")["Meat"]
+    derived["Meat"] = meat_p10
+    if derived["Meat"].isna().any():
+        missing = ", ".join(derived[derived["Meat"].isna()].index.astype(str))
+        raise ValueError(f"Meat P10 missing for ISO codes after alignment: {missing}")
+    derived = derived.reset_index()
 
     out = output_path("carbon_intensity_meat_p10.csv")
     derived.to_csv(out, index=False)

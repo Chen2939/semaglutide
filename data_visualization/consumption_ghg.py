@@ -114,6 +114,7 @@ def validate_oecd_inputs(per_capita: pd.DataFrame) -> None:
 def rebuild_mortality_emissions(
     decline_rate: float = 0.0,
     old_file: Path = MORTALITY_EMISSIONS_FILE,
+    comparison_file: Path | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Rebuild survivor emissions using OECD per-capita GHG factors.
 
@@ -124,7 +125,12 @@ def rebuild_mortality_emissions(
         central analysis uses 0.0 (constant 2022 OECD factors).
     old_file:
         Existing survivor-emissions CSV, used as the source of mortality
-        person-year diffs and as the comparison baseline.
+        person-year diffs.
+    comparison_file:
+        Optional older survivor-emissions CSV, used only to recover the previous
+        per-capita emissions factor for comparison.  The comparison is computed
+        with the current person-year diffs so deterministic mortality updates
+        are not mixed with old Monte Carlo person-years.
     """
     per_capita = build_oecd_per_capita_table()
     validate_oecd_inputs(per_capita)
@@ -179,12 +185,37 @@ def rebuild_mortality_emissions(
     ]
     rebuilt = merged[ordered_cols]
 
+    comparison_source = old
+    if comparison_file is not None and comparison_file.exists():
+        comparison_source = pd.read_csv(comparison_file)
+
+    old_factor = comparison_source[["ISO", "scenario", "emissions_factor_Y0"]].rename(
+        columns={"emissions_factor_Y0": "emissions_factor_Y0_worldbank"}
+    )
     comparison = old[
-        ["ISO", "scenario", "total_person_years_saved", "emissions_factor_Y0", "total_emissions"]
+        ["ISO", "scenario", "total_person_years_saved", *[f"diff_Y{y}" for y in range(1, 11)]]
+    ].merge(
+        old_factor,
+        on=["ISO", "scenario"],
+        how="left",
+    )
+    comparison["total_emissions_worldbank"] = 0.0
+    for year in range(1, 11):
+        comparison["total_emissions_worldbank"] += (
+            comparison[f"diff_Y{year}"] * comparison["emissions_factor_Y0_worldbank"]
+        )
+
+    comparison = comparison[
+        ["ISO", "scenario", "total_person_years_saved", "emissions_factor_Y0_worldbank", "total_emissions_worldbank"]
     ].merge(
         rebuilt[["ISO", "scenario", "emissions_factor_Y0", "total_emissions"]],
         on=["ISO", "scenario"],
-        suffixes=("_worldbank", "_oecd"),
+    )
+    comparison = comparison.rename(
+        columns={
+            "emissions_factor_Y0": "emissions_factor_Y0_oecd",
+            "total_emissions": "total_emissions_oecd",
+        }
     )
     comparison["emissions_factor_change_pct"] = (
         comparison["emissions_factor_Y0_oecd"]
@@ -202,10 +233,10 @@ def rebuild_mortality_emissions(
 
 def main() -> None:
     print("Rebuilding mortality survivor emissions with OECD consumption GHG...")
-    baseline_file = BACKUP_FILE if BACKUP_FILE.exists() else MORTALITY_EMISSIONS_FILE
     rebuilt, comparison = rebuild_mortality_emissions(
         decline_rate=0.0,
-        old_file=baseline_file,
+        old_file=MORTALITY_EMISSIONS_FILE,
+        comparison_file=BACKUP_FILE if BACKUP_FILE.exists() else None,
     )
 
     if not BACKUP_FILE.exists():
