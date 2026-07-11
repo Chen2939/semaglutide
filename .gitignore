@@ -66,6 +66,7 @@ legacy/data/.Rhistory
 !/data_result/deterministic_mortality_comparison.csv
 !/data_result/survivor_manuscript_numbers.csv
 !/data_result/survivor_manuscript_top_countries.csv
+!/data_result/global_emissions_waterfall.csv
 
 # === OECD consumption-based GHG input tracked via LFS ===
 !/oecd/
