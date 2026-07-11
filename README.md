@@ -158,7 +158,7 @@ python -m data_visualization.generate_rebound_figure
 python -m data_visualization.generate_rebound_validation
 ```
 
-**Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
+**Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Pharmaceutical production emissions are folded into net food savings by default (`annual food savings - annual drug emissions`) before the comparison. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
 - **Output:** `figures/breakeven_by_country.png`, `figures/breakeven_curves.png`
 
 **Emissions saved figure** — horizontal bar chart of carbon emissions saved from food reduction by country, for both moderate and maximum uptake scenarios.
@@ -196,7 +196,7 @@ Outputs:
 - **Datasets:** `data_result/diet_sensitivity_results.csv`, `data_result/diet_sensitivity_ratio_comparison.csv`
 - **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
 
-Current headline result with deterministic mortality and OECD consumption-based survivor emissions: no valid country tips into net positive emissions after accounting for mortality under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year food-savings-to-survivor-emissions ratio is 5.5× in the uniform baseline, 7.0× when fatty foods decrease more, and 3.6× when cereals/sweets decrease more and meat decreases less. Poland is closest to tipping in the cereal/sweets scenario at approximately 2.4×.
+Current headline result with deterministic mortality, OECD consumption-based survivor emissions, and pharmaceutical emissions folded into net food savings: no valid country tips into net positive emissions under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year ratio is 5.42× in the uniform baseline, 6.90× when fatty foods decrease more, and 3.51× when cereals/sweets decrease more and meat decreases less. Poland is closest to tipping in the cereal/sweets scenario at approximately 2.32×.
 
 ### Step 7 — Combined Conservative Sensitivity Analysis
 
@@ -211,7 +211,7 @@ Outputs:
 - **Derived input:** `data_result/carbon_intensity_meat_p10.csv`
 - **Figure:** `figures/combined_sensitivity_lowest_ratio_countries.png`
 
-Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio falls from 3.6× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.8× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.1×.
+Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year ratio falls from 3.51× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.72× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.03×.
 
 ### Step 8 — All Sensitivities Overview
 
@@ -219,13 +219,14 @@ Current headline result: no complete-data country tips into net positive emissio
 python -m diet_sensitivity.sensitivity_overview
 ```
 
-Generates a compact comparison of all current sensitivity analyses against the OECD-updated baseline. This includes the uniform baseline, both diet-composition scenarios, full food carbon-intensity P10/P90 scenarios, and the combined conservative cereals/sweets + low-meat-CI scenario. Drug-manufacturing emissions are not included yet.
+Pharmaceutical emissions are folded into baseline net food savings through
+``compute_breakeven(..., include_drug=True)``.
 
 Outputs:
 - **Datasets:** `data_result/all_sensitivity_overview_results.csv`, `data_result/all_sensitivity_overview_country_ratios.csv`
 - **Figure:** `figures/all_sensitivity_overview.png`
 
-Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year food-savings-to-survivor-emissions ratio ranges from 2.4× under the full all-food P10 carbon-intensity case to 10.4× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.6× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.8× globally, with Poland closest at approximately 2.1×.
+Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year net-food-savings-to-survivor-emissions ratio ranges from 2.36× under the full all-food P10 carbon-intensity case to 10.37× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.55× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.72× globally, with Poland closest at approximately 2.03×.
 
 ### Step 9 — Drug Carbon Footprint Accounting
 
@@ -245,7 +246,7 @@ Outputs:
 - **Datasets:** `data_result/drug_emissions_by_country.csv`, `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv`
 - **Figure:** `figures/drug_footprint_summary.png`
 
-Current headline result: drug product emissions are small relative to food-emission savings. Under maximum uptake, including drug emissions lowers the 10-year food-savings-to-offset-emissions ratio from 5.48× to 5.17×; under moderate uptake, it lowers the ratio from 5.29× to 5.00×. No complete-data country tips into net positive emissions after adding drug emissions.
+Current headline result: pharmaceutical emissions are folded into the baseline break-even comparison as a subtraction from food savings. Under maximum uptake, this lowers the 10-year ratio from 5.48× (gross food / survivor) to 5.42× ((food − drug) / survivor); under moderate uptake, from 5.29× to 5.23×. No complete-data country tips into net positive emissions.
 
 ## Setup
 

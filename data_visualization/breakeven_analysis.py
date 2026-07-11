@@ -3,9 +3,10 @@ Break-even analysis: when do cumulative food-emission savings from
 semaglutide equal cumulative emissions from additional survivors?
 
 Food side:  Annual CO2eq savings from reduced food consumption
-            (Price Rebound Model — static equilibrium, 2022 baseline)
+            (Price Rebound Model — static equilibrium, 2022 baseline),
+            net of pharmaceutical production emissions by default
 Mortality:  Year-by-year emissions from additional survivors
-            (Mortality Model — 10-year Monte Carlo simulation)
+            (Deterministic expected-value mortality model)
 
 Outputs:
     figures/breakeven_by_country.png   — break-even ratios by country
@@ -20,18 +21,36 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
+from .drug_footprint import build_drug_emissions
 from .pipeline import compute_food_savings, load_mortality_emissions, output_path
 
 
-def compute_breakeven(food_savings, mort):
+def compute_breakeven(food_savings, mort, include_drug: bool = True):
     """For each (ISO, scenario), find the year where cumulative food savings
-    exceed cumulative survivor emissions."""
+    exceed cumulative survivor emissions.
+
+    When ``include_drug`` is True (default), annual pharmaceutical emissions are
+    subtracted from annual food savings before the cumulative comparison, so the
+    baseline mortality break-even already accounts for drug production.
+    """
 
     merged = pd.merge(food_savings, mort, on=["ISO", "scenario"], how="inner")
+    if include_drug:
+        drug = build_drug_emissions()[
+            ["ISO", "scenario", "drug_emissions_1yr_t", "drug_emissions_10yr_t"]
+        ]
+        merged = pd.merge(merged, drug, on=["ISO", "scenario"], how="left")
+        merged["drug_emissions_1yr_t"] = merged["drug_emissions_1yr_t"].fillna(0.0)
+        merged["drug_emissions_10yr_t"] = merged["drug_emissions_10yr_t"].fillna(0.0)
+    else:
+        merged["drug_emissions_1yr_t"] = 0.0
+        merged["drug_emissions_10yr_t"] = 0.0
 
     records = []
     for _, row in merged.iterrows():
-        annual_food = row["annual_food_savings_t"]
+        annual_food_gross = float(row["annual_food_savings_t"])
+        annual_drug = float(row["drug_emissions_1yr_t"])
+        annual_food = annual_food_gross - annual_drug
 
         cum_food = 0.0
         cum_mort = 0.0
@@ -78,14 +97,18 @@ def compute_breakeven(food_savings, mort):
             "ISO": row["ISO"],
             "Country": row["Country"],
             "scenario": row["scenario"],
+            "annual_food_savings_gross_t": annual_food_gross,
+            "annual_drug_emissions_t": annual_drug,
             "annual_food_savings_t": annual_food,
             "total_survivor_emissions_10yr": cum_mort,
             "total_food_savings_10yr": cum_food,
+            "total_drug_emissions_10yr": float(row["drug_emissions_10yr_t"]),
             "ratio_food_to_mort": (
                 cum_food / cum_mort if has_survivor_emissions and cum_mort > 0 else np.nan
             ),
             "breakeven_year": breakeven_year,
             "food_dominates_all_years": food_dominates_all,
+            "drug_included_in_food_savings": include_drug,
             **{f"cum_food_Y{y+1}": yearly_food[y] for y in range(10)},
             **{f"cum_mort_Y{y+1}": yearly_mort[y] for y in range(10)},
         })
@@ -226,6 +249,7 @@ def main():
     print("=" * 65)
     print("BREAK-EVEN ANALYSIS")
     print("Food-emission savings vs. survivor emissions from semaglutide")
+    print("(Food savings are net of pharmaceutical production emissions)")
     print("=" * 65)
 
     print("\n[1/4] Computing annual food-emission savings...")
@@ -234,8 +258,8 @@ def main():
     print("[2/4] Loading mortality-model emissions...")
     mort = load_mortality_emissions()
 
-    print("[3/4] Computing break-even...")
-    be_df = compute_breakeven(food_savings, mort)
+    print("[3/4] Computing break-even (folding in drug emissions)...")
+    be_df = compute_breakeven(food_savings, mort, include_drug=True)
 
     print("\n" + "=" * 65)
     print("RESULTS")

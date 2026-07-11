@@ -8,8 +8,8 @@ This script summarizes the sensitivity analyses currently implemented:
 3. Full food carbon-intensity P10/P90 sensitivities.
 4. Combined conservative case: cereals/sweets diet shift + Meat P10 CI.
 
-It intentionally excludes drug-manufacturing emissions, which are not yet
-implemented.
+Pharmaceutical emissions are folded into baseline net food savings through
+``compute_breakeven(..., include_drug=True)``.
 
 Outputs:
   data_result/all_sensitivity_overview_results.csv

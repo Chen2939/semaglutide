@@ -4,10 +4,11 @@ Tornado sensitivity plot for manuscript drafting.
 Metric:
     Global 10-year net GHG savings under maximum uptake, in Mt CO2e:
 
-        net = 10-year food-emission savings - 10-year survivor emissions
+        net = 10-year (food savings - drug emissions) - 10-year survivor emissions
 
 The central reference is the OECD-updated uniform baseline with mean carbon
-intensity and 0% annual decline in survivor per-capita GHG factors.
+intensity, pharmaceutical emissions folded into net food savings, and 0%
+annual decline in survivor per-capita GHG factors.
 
 Sensitivity ranges:
   1. Meat carbon intensity: Meat P10 to Meat P90, other foods mean.
