@@ -11,6 +11,10 @@ Mortality:  Year-by-year emissions from additional survivors
 Outputs:
     figures/breakeven_by_country.png   — break-even ratios by country
     figures/breakeven_curves.png       — cumulative curves for top countries
+    figures/breakeven_stock_all_countries.png
+        — cumulative stock for all complete-data countries
+    figures/breakeven_flow_all_countries.png
+        — annual flow for all complete-data countries
 
 Usage:
     python -m data_visualization.breakeven_analysis
@@ -245,6 +249,159 @@ def plot_breakeven_curves(be_df):
     print(f"Saved: {out}")
 
 
+def _complete_data_subset(be_df: pd.DataFrame, scenario: str = "max_uptake") -> pd.DataFrame:
+    """Return complete-data rows used for headline all-country aggregates."""
+    return be_df[
+        (be_df["scenario"] == scenario)
+        & (be_df["annual_food_savings_t"] > 0)
+        & (be_df["total_survivor_emissions_10yr"] > 0)
+        & np.isfinite(be_df["ratio_food_to_mort"])
+    ].copy()
+
+
+def plot_stock_flow_all_countries(be_df: pd.DataFrame, scenario: str = "max_uptake") -> tuple[str, str]:
+    """Save separate stock and flow figures for all complete-data countries.
+
+    Figure A: cumulative food savings vs cumulative survivor emissions.
+    Figure B: annual food savings vs annual survivor emissions.
+    """
+    valid = _complete_data_subset(be_df, scenario=scenario)
+    years = np.arange(1, 11)
+
+    cum_food = np.array([valid[f"cum_food_Y{y}"].sum() for y in years], dtype=float)
+    cum_mort = np.array([valid[f"cum_mort_Y{y}"].sum() for y in years], dtype=float)
+    annual_food = np.diff(cum_food, prepend=0.0)
+    annual_mort = np.diff(cum_mort, prepend=0.0)
+
+    # Convert tonnes to Mt for readable all-country axis labels.
+    cum_food_mt = cum_food / 1e6
+    cum_mort_mt = cum_mort / 1e6
+    annual_food_mt = annual_food / 1e6
+    annual_mort_mt = annual_mort / 1e6
+    ratio_10yr = cum_food[-1] / cum_mort[-1] if cum_mort[-1] > 0 else np.nan
+
+    uptake_label = "maximum uptake" if scenario == "max_uptake" else "moderate uptake"
+    common_title = (
+        "All complete-data countries: food-emission savings vs survivor emissions\n"
+        f"({uptake_label}; food savings net of pharmaceutical emissions)"
+    )
+
+    # Figure A: cumulative stock
+    fig_a, ax = plt.subplots(figsize=(7.2, 5.2))
+    ax.plot(
+        years,
+        cum_food_mt,
+        "b-o",
+        markersize=5,
+        linewidth=2.2,
+        label="Food savings (cumulative)",
+    )
+    ax.plot(
+        years,
+        cum_mort_mt,
+        "r-s",
+        markersize=5,
+        linewidth=2.2,
+        label="Survivor emissions (cumulative)",
+    )
+    ax.fill_between(years, cum_mort_mt, cum_food_mt, alpha=0.15, color="blue")
+    ax.set_title("A. Cumulative stock", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Mt CO₂eq")
+    ax.set_xticks(years)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+    ax.legend(fontsize=8, loc="upper left")
+    ax.grid(alpha=0.25)
+    ax.annotate(
+        f"Year 1:\nfood {cum_food_mt[0]:,.1f} Mt\nsurvivor {cum_mort_mt[0]:,.1f} Mt",
+        xy=(1, cum_food_mt[0]),
+        xytext=(2.4, cum_food_mt[0] + (cum_food_mt[-1] - cum_food_mt[0]) * 0.12),
+        fontsize=8,
+        arrowprops=dict(arrowstyle="->", color="gray"),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="gray"),
+    )
+    ax.text(
+        0.97,
+        0.05,
+        f"Year-10 ratio: {ratio_10yr:,.1f}x",
+        transform=ax.transAxes,
+        fontsize=9,
+        ha="right",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", edgecolor="gray"),
+    )
+    fig_a.suptitle(common_title, fontsize=11, fontweight="bold", y=1.02)
+    fig_a.tight_layout()
+    out_a = output_path("breakeven_stock_all_countries.png")
+    fig_a.savefig(str(out_a), dpi=200, bbox_inches="tight")
+    plt.close(fig_a)
+
+    # Figure B: annual flow
+    fig_b, ax = plt.subplots(figsize=(7.2, 5.2))
+    ax.plot(
+        years,
+        annual_food_mt,
+        "b-o",
+        markersize=5,
+        linewidth=2.2,
+        label="Food savings (annual)",
+    )
+    ax.plot(
+        years,
+        annual_mort_mt,
+        "r-s",
+        markersize=5,
+        linewidth=2.2,
+        label="Survivor emissions (annual)",
+    )
+    ax.fill_between(years, annual_mort_mt, annual_food_mt, alpha=0.15, color="blue")
+    ax.set_title("B. Annual flow", fontsize=12, fontweight="bold")
+    ax.set_xlabel("Year")
+    ax.set_ylabel("Mt CO₂eq / year")
+    ax.set_xticks(years)
+    # Leave headroom so the legend sits above the flat food-savings line.
+    ax.set_ylim(0, annual_food_mt.max() * 1.28)
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.1f}"))
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(alpha=0.25)
+    ax.annotate(
+        f"Year 1:\nfood {annual_food_mt[0]:,.1f} Mt/yr\nsurvivor {annual_mort_mt[0]:,.1f} Mt/yr",
+        xy=(1, annual_mort_mt[0]),
+        xytext=(2.8, annual_food_mt[0] * 0.42),
+        fontsize=8,
+        arrowprops=dict(arrowstyle="->", color="gray"),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="gray"),
+    )
+    ax.annotate(
+        (
+            f"Year 10:\n"
+            f"food {annual_food_mt[-1]:,.1f} Mt/yr\n"
+            f"survivor {annual_mort_mt[-1]:,.1f} Mt/yr"
+        ),
+        xy=(10, annual_mort_mt[-1]),
+        xytext=(6.6, annual_food_mt[-1] * 0.42),
+        fontsize=8,
+        arrowprops=dict(arrowstyle="->", color="gray"),
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="white", edgecolor="gray"),
+    )
+    fig_b.suptitle(common_title, fontsize=11, fontweight="bold", y=1.02)
+    fig_b.tight_layout()
+    out_b = output_path("breakeven_flow_all_countries.png")
+    fig_b.savefig(str(out_b), dpi=200, bbox_inches="tight")
+    plt.close(fig_b)
+
+    print(
+        f"  Stock/flow aggregate ({len(valid)} countries, {scenario}): "
+        f"year-10 cumulative ratio {ratio_10yr:,.2f}x; "
+        f"year-1 annual food {annual_food_mt[0]:,.1f} Mt vs "
+        f"survivor {annual_mort_mt[0]:,.1f} Mt; "
+        f"year-10 annual food {annual_food_mt[-1]:,.1f} Mt vs "
+        f"survivor {annual_mort_mt[-1]:,.1f} Mt"
+    )
+    print(f"Saved: {out_a}")
+    print(f"Saved: {out_b}")
+    return str(out_a), str(out_b)
+
+
 def main():
     print("=" * 65)
     print("BREAK-EVEN ANALYSIS")
@@ -326,6 +483,7 @@ def main():
     print(f"\n[4/4] Generating figures...")
     plot_breakeven_bars(be_df)
     plot_breakeven_curves(be_df)
+    plot_stock_flow_all_countries(be_df, scenario="max_uptake")
 
     max_sub = be_df[be_df["scenario"] == "max_uptake"]
     valid = max_sub[
