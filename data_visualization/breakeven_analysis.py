@@ -15,6 +15,9 @@ Outputs:
         — cumulative stock for all complete-data countries
     figures/breakeven_flow_all_countries.png
         — annual flow for all complete-data countries
+    figures/breakeven_publication.png / .pdf
+        — Nature Food-style panel: A (cumulative stock) + B (annual flow),
+          joined, square, no titles/annotations, muted colorblind-safe palette
 
 Usage:
     python -m data_visualization.breakeven_analysis
@@ -402,6 +405,130 @@ def plot_stock_flow_all_countries(be_df: pd.DataFrame, scenario: str = "max_upta
     return str(out_a), str(out_b)
 
 
+def plot_breakeven_publication(
+    be_df: pd.DataFrame, scenario: str = "max_uptake"
+) -> str:
+    """Nature Food-ready joined panel figure (A: cumulative stock, B: annual flow).
+
+    Same underlying data as ``plot_stock_flow_all_countries``, but combined into
+    a single figure, with no panel titles/suptitle, both panels drawn as squares
+    (equal box aspect) for print layout, and a single in-wedge ratio annotation
+    per panel computed directly from the plotted arrays (not hardcoded). Saved
+    as both a 300 dpi PNG and a vector PDF.
+    """
+    valid = _complete_data_subset(be_df, scenario=scenario)
+    years = np.arange(1, 11)
+
+    cum_food = np.array([valid[f"cum_food_Y{y}"].sum() for y in years], dtype=float)
+    cum_mort = np.array([valid[f"cum_mort_Y{y}"].sum() for y in years], dtype=float)
+    annual_food = np.diff(cum_food, prepend=0.0)
+    annual_mort = np.diff(cum_mort, prepend=0.0)
+
+    cum_food_mt = cum_food / 1e6
+    cum_mort_mt = cum_mort / 1e6
+    annual_food_mt = annual_food / 1e6
+    annual_mort_mt = annual_mort / 1e6
+
+    # Year-10 ratios, derived from the same arrays that are plotted so the
+    # annotation text always tracks the underlying data.
+    ratio_cum_y10 = cum_food_mt[-1] / cum_mort_mt[-1]
+    ratio_annual_y10 = annual_food_mt[-1] / annual_mort_mt[-1]
+
+    # Place each label inside the shaded wedge, vertically centred between the
+    # two curves at that x position (interpolated so x need not be an integer
+    # year).
+    ann_a_x = 8.0
+    ann_a_y = (
+        np.interp(ann_a_x, years, cum_food_mt)
+        + np.interp(ann_a_x, years, cum_mort_mt)
+    ) / 2
+    ann_b_x = 8.2
+    ann_b_y = (
+        np.interp(ann_b_x, years, annual_food_mt)
+        + np.interp(ann_b_x, years, annual_mort_mt)
+    ) / 2
+
+    food_color = "#648FFF"  # bright colorblind-safe blue (IBM palette)
+    survivor_color = "#FE6100"  # bright colorblind-safe orange (IBM palette)
+
+    rc = {
+        "font.family": "sans-serif",
+        "font.sans-serif": ["Arial", "Helvetica", "DejaVu Sans"],
+        "font.weight": "bold",
+        "axes.labelweight": "bold",
+        "xtick.labelsize": 10,
+        "ytick.labelsize": 10,
+        "axes.labelsize": 11,
+        "legend.fontsize": 10,
+    }
+
+    with plt.rc_context(rc):
+        fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(11, 5.5))
+
+        # Panel A: cumulative stock
+        ax_a.plot(
+            years, cum_food_mt, "-o", color=food_color, markersize=4, linewidth=1.5,
+            label="Food savings (cumulative)",
+        )
+        ax_a.plot(
+            years, cum_mort_mt, "-s", color=survivor_color, markersize=4, linewidth=1.5,
+            label="Survivor emissions (cumulative)",
+        )
+        ax_a.fill_between(years, cum_mort_mt, cum_food_mt, alpha=0.12, color=food_color)
+        ax_a.set_xlabel("Year")
+        ax_a.set_ylabel(r"Cumulative Mt CO$_2$eq")
+        ax_a.set_xticks(years)
+        ax_a.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+        ax_a.legend(loc="upper left", frameon=False)
+        ax_a.set_axisbelow(True)
+        ax_a.set_box_aspect(1)
+        ax_a.text(
+            ann_a_x, ann_a_y, f"{ratio_cum_y10:.1f}× at year 10",
+            ha="center", va="center", fontsize=10, color="#333333",
+        )
+        ax_a.text(
+            -0.14, 1.06, "A", transform=ax_a.transAxes,
+            fontsize=14, fontweight="bold", va="bottom", ha="left",
+        )
+
+        # Panel B: annual flow
+        ax_b.plot(
+            years, annual_food_mt, "-o", color=food_color, markersize=4, linewidth=1.5,
+            label="Food savings (annual)",
+        )
+        ax_b.plot(
+            years, annual_mort_mt, "-s", color=survivor_color, markersize=4, linewidth=1.5,
+            label="Survivor emissions (annual)",
+        )
+        ax_b.fill_between(years, annual_mort_mt, annual_food_mt, alpha=0.12, color=food_color)
+        ax_b.set_xlabel("Year")
+        ax_b.set_ylabel(r"Annual Mt CO$_2$eq yr$^{-1}$")
+        ax_b.set_xticks(years)
+        ax_b.set_ylim(0, annual_food_mt.max() * 1.1)
+        ax_b.yaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+        ax_b.set_axisbelow(True)
+        ax_b.set_box_aspect(1)
+        ax_b.text(
+            ann_b_x, ann_b_y, f"{ratio_annual_y10:.1f}× at year 10",
+            ha="center", va="center", fontsize=10, color="#333333",
+        )
+        ax_b.text(
+            -0.14, 1.06, "B", transform=ax_b.transAxes,
+            fontsize=14, fontweight="bold", va="bottom", ha="left",
+        )
+
+        fig.tight_layout()
+        out_png = output_path("breakeven_publication.png")
+        out_pdf = output_path("breakeven_publication.pdf")
+        fig.savefig(str(out_png), dpi=300, bbox_inches="tight")
+        fig.savefig(str(out_pdf), bbox_inches="tight")
+        plt.close(fig)
+
+    print(f"Saved: {out_png}")
+    print(f"Saved: {out_pdf}")
+    return str(out_png)
+
+
 def main():
     print("=" * 65)
     print("BREAK-EVEN ANALYSIS")
@@ -484,6 +611,7 @@ def main():
     plot_breakeven_bars(be_df)
     plot_breakeven_curves(be_df)
     plot_stock_flow_all_countries(be_df, scenario="max_uptake")
+    plot_breakeven_publication(be_df, scenario="max_uptake")
 
     max_sub = be_df[be_df["scenario"] == "max_uptake"]
     valid = max_sub[
