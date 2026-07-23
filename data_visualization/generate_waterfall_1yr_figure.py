@@ -1,39 +1,29 @@
 """
-Global emissions waterfall / bridge plot.
+Global emissions waterfall / bridge plot — Panel A: one-year, no survivorship.
 
-Decomposes the 10-year maximum-uptake climate result for complete-data
-countries into a continuous bridge:
+Companion to ``generate_waterfall_figure`` (the 10-year decomposition, which
+includes survivorship emissions for the 35-country OECD complete-data subset).
 
-    naïve food-emission reductions
-  − rebound offset
-  − survivorship emissions
-  − manufacturing (drug) emissions
-  = net climate savings
+This version (Panel A) shows a single year of the maximum-uptake climate result
+and deliberately excludes survivorship emissions. Because it does not use
+survivor emissions or mortality at all, it is not gated by OECD/HLD coverage and
+therefore uses the FULL 53-country food-data sample (every country with real
+food-emission savings under maximum uptake):
 
-Reconciliation with ``breakeven_stock_all_countries``
------------------------------------------------------
-These two figures describe the same 35-country, 10-year result and their
-Year-10 endpoints match exactly; they only differ in where the drug
-(manufacturing) term is placed:
+    naïve food-emission reductions (1 year)
+  − rebound offset (1 year)
+  − manufacturing (drug) emissions (1 year)
+  = net climate savings (1 year)
 
-  * The break-even stock figure folds drug emissions INTO its food-savings
-    line, so its blue "food savings" curve is net of pharmaceuticals
-    (Year-10 = 1,086.6 Mt) and its red curve is survivor emissions
-    (Year-10 = 200.6 Mt).
-  * This waterfall pulls drug back OUT as its own downward step (12.1 Mt),
-    so ``actual_food_savings`` here is the GROSS figure before drug removal
-    (1,098.6 Mt), i.e. actual_food_savings − manufacturing = the stock
-    figure's blue-line endpoint.
-
-Both land on the identical net (886.0 Mt) and 5.42× year-10 ratio; the net
-bar equals the vertical gap between the stock figure's two curves at Year 10.
+Only the food side and one year of pharmaceutical manufacturing are needed, so
+no imputation of survivor emissions or mortality is involved.
 
 Output:
-  figures/global_emissions_waterfall.png
-  data_result/global_emissions_waterfall.csv
+  figures/global_emissions_waterfall_1yr.png
+  data_result/global_emissions_waterfall_1yr.csv
 
 Usage:
-    python -m data_visualization.generate_waterfall_figure
+    python -m data_visualization.generate_waterfall_1yr_figure
 """
 
 from __future__ import annotations
@@ -43,29 +33,37 @@ import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 
-from .breakeven_analysis import _complete_data_subset, compute_breakeven
-from .pipeline import compute_food_savings, load_mortality_emissions, output_path
+from .drug_footprint import build_drug_emissions
+from .pipeline import compute_food_savings, output_path
 
 
 SCENARIO = "max_uptake"
-HORIZON_YEARS = 10
+HORIZON_YEARS = 1
 
-# Muted publication palette
+# Muted publication palette (matches the 10-year figure)
 COLOR_START = "#4C72B0"
 COLOR_DECREASE = "#C44E52"
 COLOR_NET = "#55A868"
 
 
 def compute_waterfall_components() -> pd.DataFrame:
-    """Compute the waterfall components in Mt CO2e over 10 years."""
+    """Compute the one-year waterfall components in Mt CO2e (no survivorship).
+
+    Uses the full 53-country food-data sample: every country with positive
+    food-emission savings under the scenario. Survivor emissions and mortality
+    are not used, so there is no OECD/HLD coverage gate.
+    """
     food_savings, detail = compute_food_savings()
-    mort = load_mortality_emissions()
-    be = compute_breakeven(food_savings, mort, include_drug=True)
-    valid = _complete_data_subset(be, scenario=SCENARIO)
-    complete_isos = set(valid["ISO"])
+
+    # Full food-data sample: countries with real food savings in this scenario.
+    food_scenario = food_savings[
+        (food_savings["scenario"] == SCENARIO)
+        & (food_savings["annual_food_savings_t"] > 0)
+    ]
+    sample_isos = set(food_scenario["ISO"])
 
     detail_max = detail[
-        (detail["scenario"] == SCENARIO) & (detail["ISO"].isin(complete_isos))
+        (detail["scenario"] == SCENARIO) & (detail["ISO"].isin(sample_isos))
     ].copy()
 
     detail_max["naive_carbon_savings_t"] = (
@@ -78,20 +76,23 @@ def compute_waterfall_components() -> pd.DataFrame:
     actual_annual = detail_max["actual_carbon_savings_t"].sum()
     rebound_annual = naive_annual - actual_annual
 
-    actual_annual_be = valid["annual_food_savings_gross_t"].sum()
-    if not np.isclose(actual_annual, actual_annual_be, rtol=1e-3, atol=1.0):
+    actual_annual_agg = food_scenario["annual_food_savings_t"].sum()
+    if not np.isclose(actual_annual, actual_annual_agg, rtol=1e-3, atol=1.0):
         print(
-            "Warning: food-group actual savings differ from break-even gross "
-            f"food savings ({actual_annual:,.0f} vs {actual_annual_be:,.0f} t)."
+            "Warning: food-group actual savings differ from aggregated gross "
+            f"food savings ({actual_annual:,.0f} vs {actual_annual_agg:,.0f} t)."
         )
 
-    survivor_10yr = valid["total_survivor_emissions_10yr"].sum()
-    drug_10yr = valid["total_drug_emissions_10yr"].sum()
+    # One year of pharmaceutical manufacturing emissions for the same sample.
+    drug = build_drug_emissions()
+    drug_scenario = drug[
+        (drug["scenario"] == SCENARIO) & (drug["ISO"].isin(sample_isos))
+    ]
+    drug_annual = drug_scenario["drug_emissions_1yr_t"].sum()
 
-    naive_10yr = naive_annual * HORIZON_YEARS
-    rebound_10yr = rebound_annual * HORIZON_YEARS
-    actual_10yr = actual_annual * HORIZON_YEARS
-    net_10yr = actual_10yr - survivor_10yr - drug_10yr
+    # Net one-year savings: food savings after rebound, minus drug emissions.
+    # Survivorship emissions are intentionally excluded from this figure.
+    net_annual = actual_annual - drug_annual
 
     # Keep the intermediate actual-food step in the table for transparency,
     # but the plotted bridge is continuous without a mid-chart subtotal bar.
@@ -101,46 +102,39 @@ def compute_waterfall_components() -> pd.DataFrame:
             "label": "Naive\nreductions",
             "kind": "increase",
             "plot": True,
-            "value_Mt": naive_10yr / 1e6,
+            "value_Mt": naive_annual / 1e6,
         },
         {
             "step": "rebound_effect",
             "label": "Rebound\neffect",
             "kind": "decrease",
             "plot": True,
-            "value_Mt": rebound_10yr / 1e6,
+            "value_Mt": rebound_annual / 1e6,
         },
         {
             "step": "actual_food_savings",
             "label": "Actual food savings (after rebound)",
             "kind": "total",
             "plot": False,
-            "value_Mt": actual_10yr / 1e6,
-        },
-        {
-            "step": "survivorship",
-            "label": "Survivorship\nemissions",
-            "kind": "decrease",
-            "plot": True,
-            "value_Mt": survivor_10yr / 1e6,
+            "value_Mt": actual_annual / 1e6,
         },
         {
             "step": "manufacturing",
             "label": "Manufacturing\nemissions",
             "kind": "decrease",
             "plot": True,
-            "value_Mt": drug_10yr / 1e6,
+            "value_Mt": drug_annual / 1e6,
         },
         {
             "step": "net_savings",
             "label": "Net climate\nsavings",
             "kind": "total",
             "plot": True,
-            "value_Mt": net_10yr / 1e6,
+            "value_Mt": net_annual / 1e6,
         },
     ]
     out = pd.DataFrame(rows)
-    out["n_countries"] = len(complete_isos)
+    out["n_countries"] = len(sample_isos)
     out["scenario"] = SCENARIO
     out["horizon_years"] = HORIZON_YEARS
     return out
@@ -256,7 +250,7 @@ def plot_waterfall(components: pd.DataFrame) -> str:
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel("Mt CO$_2$eq over 10 years", fontsize=10)
+    ax.set_ylabel("Mt CO$_2$eq over 1 year", fontsize=10)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.set_ylim(0, max(hi for _, hi in levels) * 1.16)
     ax.tick_params(axis="both", labelsize=9)
@@ -264,22 +258,23 @@ def plot_waterfall(components: pd.DataFrame) -> str:
     ax.set_axisbelow(True)
 
     fig.tight_layout()
-    out = output_path("global_emissions_waterfall.png")
+    out = output_path("global_emissions_waterfall_1yr.png")
     fig.savefig(str(out), dpi=300, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return str(out)
 
 
 def main() -> None:
-    print("Building global emissions waterfall...")
+    print("Building global emissions waterfall (Panel A: 1-year, no survivorship, 53-country sample)...")
     components = compute_waterfall_components()
-    csv_path = output_path("global_emissions_waterfall.csv")
+    csv_path = output_path("global_emissions_waterfall_1yr.csv")
     components.to_csv(csv_path, index=False)
     fig_path = plot_waterfall(components)
 
+    print(f"Sample size: {int(components['n_countries'].iloc[0])} countries")
     print(f"Saved table: {csv_path}")
     print(f"Saved figure: {fig_path}")
-    print("\n10-year decomposition (Mt CO2e):")
+    print("\n1-year decomposition (Mt CO2e):")
     for _, row in components.iterrows():
         prefix = "-" if row["kind"] == "decrease" else " "
         label = str(row["label"]).replace("\n", " ")
