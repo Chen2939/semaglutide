@@ -221,9 +221,10 @@ def main():
     # Copy to figures/
     import shutil
     fig_dest = ROOT / "figures"
-    if fig_dest.exists():
-        shutil.copy(str(out), str(fig_dest / "rebound_by_income.png"))
-        print(f"\nCopied to: {fig_dest / 'rebound_by_income.png'}")
+    dest = fig_dest / "rebound_by_income.png"
+    if fig_dest.exists() and out.resolve() != dest.resolve():
+        shutil.copy(str(out), str(dest))
+        print(f"\nCopied to: {dest}")
 
 
 if __name__ == "__main__":
