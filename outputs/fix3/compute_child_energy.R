@@ -1,10 +1,10 @@
 # =============================================================================
 # Fix #3 support: total annual child (0-17) energy requirement by country.
 #
-# For each of the 56 in-scope high-income countries, computes the all-ages
+# For each of the in-scope high-income countries, computes the all-ages
 # under-18 daily energy-requirement pool needed to build the all-ages EER
 # denominator for the demand-shock correction (the adult 18+ pool comes from
-# the sim; this supplies the missing child block).
+# the sim; this supplies the child block).
 #
 # Population source : UN WPP 2024 single-age files (same files the adult sim's
 #                     Data_Cleaning9.8.R reads; those drop 0-17 on import via a
@@ -89,7 +89,7 @@ lookup_long <- energy_lookup %>%
   mutate(sex = if_else(sex == "male_kcal", "male", "female")) %>%
   rename(Age = age)
 
-# Export the hardcoded table for later reference (Step 2 requirement).
+# Export the hardcoded table for later reference
 write_csv(energy_lookup,
           file.path(OUT_DIR, "child_energy_requirement_lookup.csv"))
 
