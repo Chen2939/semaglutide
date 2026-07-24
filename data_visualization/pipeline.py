@@ -5,6 +5,7 @@ All file paths are resolved relative to the project root
 (one level above this package).
 """
 
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -13,6 +14,14 @@ import pyreadr
 from scipy.optimize import root_scalar
 
 ROOT = Path(__file__).resolve().parent.parent
+
+# Single source of truth for the FAOSTAT parent-level aggregate items that
+# double-count their sub-items. build_carbon_intensity.py already excludes
+# these from its carbon-intensity weighting; the food-quantity step here must
+# apply the identical exclusion (fix #1).
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+from build_carbon_intensity import AGGREGATE_ITEMS
 
 
 # ── Equilibrium solver ────────────────────────────────────────────────
@@ -48,7 +57,10 @@ def _compute_equilibrium(row):
 # ── Full pipeline ─────────────────────────────────────────────────────
 
 
-def compute_food_savings(ci_file: str = "carbon_intensity.csv"):
+def compute_food_savings(
+    ci_file: str = "carbon_intensity.csv",
+    exclude_aggregates: bool = True,
+):
     """Run the Price Rebound equilibrium model and return per-country
     annual food-emission savings plus a detailed result DataFrame.
 
@@ -58,6 +70,11 @@ def compute_food_savings(ci_file: str = "carbon_intensity.csv"):
         Carbon-intensity CSV inside ``Food data/``.  Use
         ``carbon_intensity_p10.csv`` or ``carbon_intensity_p90.csv``
         for sensitivity scenarios.
+    exclude_aggregates : bool
+        When True (default; fix #1), drop FAOSTAT parent-level aggregate
+        items (``AGGREGATE_ITEMS``) from the food-quantity step so they are
+        not summed alongside their own components. When False, reproduce the
+        legacy behaviour that double-counts these aggregates.
 
     Returns
     -------
@@ -98,6 +115,10 @@ def compute_food_savings(ci_file: str = "carbon_intensity.csv"):
         & (food_norm["Element"] == "Food")
         & (food_norm["ISO"].isin(countries_in_scope))
     ]
+    if exclude_aggregates:
+        # Fix #1: drop parent-level aggregate items before grouping so their
+        # tonnage is not summed on top of their own components.
+        food_norm = food_norm[~food_norm["Item"].isin(AGGREGATE_ITEMS)]
     food_norm = pd.merge(
         food_norm,
         mapping.set_index("fbs_group")[["first_level_aggregation", "final_food_group"]],
