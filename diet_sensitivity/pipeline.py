@@ -29,6 +29,7 @@ import pyreadr
 # existing package — these are stable, unit-tested, and should not be
 # duplicated.
 from data_visualization.pipeline import (
+    AGGREGATE_ITEMS,
     ROOT,
     _compute_equilibrium,
 )
@@ -230,12 +231,21 @@ def build_diet_shocks(
 def compute_food_savings_diet(
     diet_scenario: str = "baseline_uniform",
     ci_file: str = "carbon_intensity.csv",
+    exclude_aggregates: bool = True,
+    all_ages_denominator: bool = True,
+    child_energy_file: str = "child_energy_by_country.xlsx",
 ):
     """
     Run the Price Rebound equilibrium model with a diet-composition scenario.
 
     When ``diet_scenario == "baseline_uniform"`` the output is numerically
     identical to ``data_visualization.pipeline.compute_food_savings()``.
+
+    ``exclude_aggregates`` (fix #1) and ``all_ages_denominator`` /
+    ``child_energy_file`` (fix #3) mirror the baseline pipeline exactly, so the
+    two code paths stay in lockstep; both default True. The diet redistribution
+    consumes the corrected all-ages base shock, so fix #3 flows through to the
+    calibrated per-group shocks as well.
 
     Parameters
     ----------
@@ -294,6 +304,11 @@ def compute_food_savings_diet(
         & (food_norm["Element"] == "Food")
         & (food_norm["ISO"].isin(countries_in_scope))
     ]
+    if exclude_aggregates:
+        # Fix #1: drop parent-level aggregate items before grouping so their
+        # tonnage is not summed on top of their own components (mirrors
+        # data_visualization.pipeline.compute_food_savings).
+        food_norm = food_norm[~food_norm["Item"].isin(AGGREGATE_ITEMS)]
     food_norm = pd.merge(
         food_norm,
         mapping.set_index("fbs_group")[["first_level_aggregation", "final_food_group"]],
@@ -343,10 +358,29 @@ def compute_food_savings_diet(
     sim_result_perc = sim_result_perc[
         ["weighted_eer", "weighted_treatment_eer"]
     ].copy()
-    sim_result_perc["expected_demand_reduction_percent"] = (
-        sim_result_perc["weighted_treatment_eer"]
-        / sim_result_perc["weighted_eer"]
-    ) - 1
+
+    if all_ages_denominator:
+        # Fix #3 (mirrors data_visualization.pipeline): dilute the adults-only
+        # reduction fraction to an all-ages basis by adding the untreated child
+        # (0-17) daily energy pool to BOTH baseline and treatment pools. Child
+        # file is national ANNUAL kcal, so /365 -> daily to match the adult pools.
+        child = pd.read_excel(ROOT / "Food data" / child_energy_file)
+        child_pool_daily = (
+            child.set_index("ISO3")["total_annual_child_kcal"] / 365.0
+        ).dropna()
+        cpd = sim_result_perc.index.get_level_values("ISO").map(child_pool_daily)
+        sim_result_perc["child_pool_daily"] = np.asarray(cpd, dtype=float)
+        sim_result_perc["expected_demand_reduction_percent"] = (
+            (sim_result_perc["weighted_treatment_eer"]
+             + sim_result_perc["child_pool_daily"])
+            / (sim_result_perc["weighted_eer"]
+               + sim_result_perc["child_pool_daily"])
+        ) - 1
+    else:
+        sim_result_perc["expected_demand_reduction_percent"] = (
+            sim_result_perc["weighted_treatment_eer"]
+            / sim_result_perc["weighted_eer"]
+        ) - 1
 
     # ── Merge into one DataFrame (food groups × scenarios per country) ────
     merged = pd.merge(
@@ -373,6 +407,25 @@ def compute_food_savings_diet(
         sim_result_perc[["expected_demand_reduction_percent"]].reset_index(),
         on="ISO", how="left",
     )
+
+    if all_ages_denominator:
+        # Hard guard (mirrors main): every shocked country must have a child
+        # pool; a silent gap would revert it to the inflated adults-only shock.
+        shock = merged[merged["initial_eql_quantity"].notna()]
+        no_child = sorted(set(shock["ISO"].unique()) - set(child_pool_daily.index))
+        nan_delta = sorted(
+            shock.loc[
+                shock["expected_demand_reduction_percent"].isna(), "ISO"
+            ].unique()
+        )
+        offenders = sorted(set(no_child) | set(nan_delta))
+        if offenders:
+            raise ValueError(
+                "Fix #3 all-ages denominator (diet): no child energy pool for "
+                f"shocked country(ies) {offenders}. Refusing to proceed -- these "
+                "would revert to the inflated adults-only demand shock. Add rows "
+                f"to 'Food data/{child_energy_file}'."
+            )
 
     # ── Apply diet-scenario calibrated shocks ─────────────────────────────
     if multipliers:
