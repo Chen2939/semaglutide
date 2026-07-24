@@ -1,468 +1,59 @@
-# HANDOFF
-
-This file is for a fresh agent after context refresh. It summarizes the project, recent work, key decisions, validation results, and likely next steps.
-
-## Project Goal
-
-This repository analyzes the population-level impact of broad semaglutide adoption on:
-
-- Food demand and food-system greenhouse gas emissions
-- Mortality/person-years saved
-- Net climate impact after accounting for emissions from additional survivor person-years
-
-The main comparison is food-emission savings versus survivor emissions over a 10-year horizon, under maximum uptake and moderate uptake scenarios.
-
-## Core Pipeline
-
-Main execution/data flow:
-
-1. `Data_Cleaning9.8.R` / archived R code generates synthetic population outputs.
-2. `data_visualization/deterministic_mortality.py` estimates additional survivor person-years deterministically; `Mortality Model.ipynb` remains the exploratory mortality notebook.
-3. `data_visualization/consumption_ghg.py` rebuilds survivor emissions using OECD consumption-based GHG factors.
-4. `data_visualization/pipeline.py` computes baseline food-emission savings using the price rebound model.
-5. `data_visualization/breakeven_analysis.py` computes food-to-survivor ratios and break-even summaries.
-6. `data_visualization/generate_dashboard_figure.py` creates paper-style dashboard figures.
-7. `diet_sensitivity/analysis.py` runs the diet-composition sensitivity analysis.
-8. `diet_sensitivity/combined_analysis.py` runs the stacked conservative sensitivity analysis.
-9. `drug_effect/analysis.py` adds drug product carbon-footprint emissions to net accounting.
-
-## Important Recent Methodology Change: Deterministic Mortality
-
-Seth/Claude flagged that the headline mortality path used only 10 Monte Carlo iterations and treated HLD `Mx` rates like one-year death probabilities. This is now fixed.
-
-Implemented in:
-
-- `data_visualization/deterministic_mortality.py`
-- `data_visualization/survivor_manuscript_numbers.py` for manuscript X/Y survivor numbers
-- `Mortality Model.ipynb` headline execution cell now calls the deterministic function
-- Main output schema preserved: `mortality model total emissions.csv`
-- Comparison output: `data_result/deterministic_mortality_comparison.csv`
-
-Method:
-
-- Each simulated individual carries expected baseline and semaglutide survival probabilities over 10 years.
-- HLD `Mx` rates are converted with `q = 1 - exp(-Mx)` and survival with `exp(-Mx)`.
-- Semaglutide mortality benefit is still derived from BMI hazard-ratio category changes, with the existing half-benefit assumption after age 75.
-- Output remains population weighted and grouped by `ISO`/`scenario`.
-
-Validation from rerun:
-
-- Global max-uptake person-years saved: `15.75 million`
-- Global moderate-uptake person-years saved: `8.32 million`
-- Linter checks for edited Python files passed.
-
-### Manuscript Survivor Numbers
-
-Professor shared an earlier root-level `_survivor_manuscript_numbers.py` helper. It was reconciled and moved into the package as:
-
-- `data_visualization/survivor_manuscript_numbers.py`
-
-Use:
-
-```bash
-.\venv\Scripts\python.exe -m data_visualization.survivor_manuscript_numbers
-```
-
-This now uses the same deterministic mortality function and `mortality2.rds` lookup as `mortality model total emissions.csv`, rather than maintaining a second raw-HLD implementation. Outputs:
-
-- `data_result/survivor_manuscript_numbers.csv`
-- `data_result/survivor_manuscript_top_countries.csv`
-
-Current reconciled results:
-
-- Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `2.94 million`, cumulative person-years saved `15.75 million`
-- Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.55 million`, cumulative person-years saved `8.32 million`
-
-Validation: `extra_survivors_y10` equals `diff_Y10` in `mortality model total emissions.csv` and cumulative person-years equal `total_person_years_saved` to numerical precision.
-
-## Important Recent Methodology Change: OECD GHG Replacement
-
-The professor requested replacing the old World Bank survivor-emissions source because it was not ideal for comparison with food emissions:
-
-- Food emissions use Poore & Nemecek CO2e, including methane and nitrous oxide.
-- The old survivor-emissions source was closer to territorial/production-based CO2 accounting.
-- The new method uses OECD demand-based final-consumption GHG, including direct household emissions and excluding gross capital formation.
-
-Implemented in:
-
-- `data_visualization/consumption_ghg.py`
-- Input file: `oecd/consumption_ghg_2025.csv`
-- Main output overwritten/preserved schema: `mortality model total emissions.csv`
-- Comparison outputs:
-  - `data_result/oecd_consumption_ghg_per_capita.csv`
-  - `data_result/oecd_vs_worldbank_survivor_emissions.csv`
-
-### OECD Filtering
-
-The script filters the OECD file to:
-
-- `FINAL_DEMAND_CATEGORY == "CONS"`
-- `ACTIVITY == "_T"`
-- `TIME_PERIOD == 2022`
-- `UNIT_MEASURE == "T_CO2E"`
-- `UNIT_MULT == 6`
-
-This corresponds to 2022 final-consumption GHG totals in Mt CO2e.
-
-### Per-Capita Factor
-
-OECD per-capita factor is calculated as:
-
-`OECD final-consumption GHG in Mt CO2e * 1,000,000 / UN WPP 2022 population`
-
-This gives tonnes CO2e/person.
-
-Validation:
-
-- USA OECD filtered 2022 total = `5892.9 Mt CO2e`
-- USA per-capita factor = about `17.25 t CO2e/person`
-- This matches the professor's expected check of about 17 tonnes/person.
-
-### Key Result Impact
-
-After deterministic mortality, OECD factors are applied to the updated expected person-years.
-
-Observed impact:
-
-- USA max-uptake 10-year survivor emissions changed from about `107 Mt CO2e` under the World Bank comparison factor to about `133 Mt CO2e` under OECD.
-- Across countries with both old and new factors, OECD factors are higher by about 36% at the median.
-- The baseline max-uptake food-to-survivor-emissions ratio is now about `5.5x` among `35` complete-data countries.
-- All complete-data countries still break even in Year 1.
-- The conclusion weakens but does not reverse.
-
-### OECD Coverage Caveat
-
-OECD coverage is narrower than the old source. Missing OECD ISO codes observed:
-
-`AND, ASM, ATG, BHR, BHS, BMU, BRB, GRL, GUY, KNA, KWT, NRU, OMN, PAN, PRI, PYF, QAT, SYC, TTO, URY`
-
-Handling:
-
-- Missing OECD survivor-emissions factors remain missing.
-- `breakeven_analysis.py` was updated so missing survivor-emissions data become `NaN` ratios, not infinite ratios.
-- Ratio summaries exclude incomplete rows.
-
-## Diet-Composition Sensitivity Analysis
-
-The professor requested sensitivity analyses because semaglutide may change food preference, not just total volume.
-
-Implemented as a separate package:
-
-- `diet_sensitivity/__init__.py`
-- `diet_sensitivity/scenarios.py`
-- `diet_sensitivity/pipeline.py`
-- `diet_sensitivity/analysis.py`
-
-### Scenarios
-
-Defined in `diet_sensitivity/scenarios.py`:
-
-1. `baseline_uniform`
-   - Original model.
-   - Every food group receives the same country/scenario-specific EER demand shock.
-
-2. `fatty_food_down`
-   - Meat, Dairy, Fats and oils receive multiplier `1.5`.
-   - Motivated by Blundell et al. (2017) and Gibbons et al. (2021).
-
-3. `cereal_sweets_up`
-   - Cereals and Sweets receive multiplier `1.5`.
-   - Meat receives multiplier `0.5`.
-   - Motivated by Hironaka et al. (2025).
-
-### Calibration Logic
-
-Important: the diet sensitivity does not change total calorie reduction or mortality.
-
-It redistributes the same country/scenario-specific total calorie reduction across food groups. It uses FAOSTAT kcal shares and calibrates neutral food-group multipliers so the calorie-weighted average multiplier equals 1.
-
-Seth/Claude flagged that an earlier clamp on the neutral multiplier could break this invariant. The clamp was removed in `diet_sensitivity/pipeline.py`, and the calibration now raises an error if the calorie-weighted multiplier differs from 1 beyond numerical tolerance. If neutral food groups must rise slightly to preserve total calories, the run prints a diagnostic instead of silently forcing the multiplier to zero.
-
-This means:
-
-- Total EER-based calorie reduction stays fixed.
-- BMI/mortality/person-years saved stay fixed.
-- Food-emission savings change because different food groups have different carbon intensities.
-
-### Diet Sensitivity Results After OECD Update
-
-Under maximum uptake, among valid complete-data countries:
-
-- Uniform baseline: about `5.5x`
-- Fatty foods decrease more: about `7.0x`
-- Cereals/sweets decrease more while meat decreases less: about `3.6x`
-
-No valid country tips into net positive emissions under any diet scenario.
-
-Closest countries under conservative cereal/sweets scenario are around `2.4x` (Poland/Lithuania).
-
-## Combined Conservative Sensitivity Analysis
-
-The professor asked whether the conservative diet scenario should be combined with a low meat carbon-intensity assumption, because reviewers may ask if a shift toward cereals/sweets plus lower meat emissions intensity could tip low-margin countries.
-
-Implemented on branch:
-
-- `feature/combined_sensitivity`
-
-Main file:
-
-- `diet_sensitivity/combined_analysis.py`
-
-Supporting change:
-
-- `diet_sensitivity/pipeline.py` now accepts an absolute `ci_file` path, so derived carbon-intensity files in `data_result/` can be used directly.
-
-Method:
-
-- Compare three max/mod uptake scenarios:
-  - `baseline_uniform_mean_ci`
-  - `cereal_sweets_up_mean_ci`
-  - `cereal_sweets_up_meat_p10_ci`
-- The stacked conservative case uses the `cereal_sweets_up` diet-composition scenario and a derived carbon-intensity file where only `Meat` is replaced with P10 intensity from `Food data/carbon_intensity_p10.csv`; all other food groups remain at mean intensity from `Food data/carbon_intensity.csv`.
-
-Outputs:
-
-- `data_result/combined_sensitivity_results.csv`
-- `data_result/combined_sensitivity_ratio_comparison.csv`
-- `data_result/carbon_intensity_meat_p10.csv`
-- `figures/combined_sensitivity_lowest_ratio_countries.png`
-
-Validation from saved CSV after deterministic mortality:
-
-- Complete-data countries: `35`
-- Uniform baseline ratio: `5.483x`; closest country Lithuania at `3.568x`
-- Cereals/sweets shift with mean CI ratio: `3.573x`; closest country Poland at `2.394x`
-- Cereals/sweets shift with meat P10 CI ratio: `2.779x`; closest country Poland at `2.103x`
-- No complete-data country tips into net positive emissions (`ratio < 1`) in any combined scenario.
-
-## All Sensitivities Overview
-
-The user asked for a broader figure comparing all current sensitivity analyses against baseline, not just the combined conservative figure.
-
-Main file:
-
-- `diet_sensitivity/sensitivity_overview.py`
-
-It includes:
-
-- `Baseline`
-- `Fatty foods down`
-- `Cereals/sweets shift`
-- `All foods P10 CI`
-- `All foods P90 CI`
-- `Cereals/sweets + low-meat CI`
-
-It excludes drug-manufacturing emissions because drug emissions are handled in the separate `drug_effect/analysis.py` net-accounting module.
-
-Outputs:
-
-- `data_result/all_sensitivity_overview_results.csv`
-- `data_result/all_sensitivity_overview_country_ratios.csv`
-- `figures/all_sensitivity_overview.png`
-
-Validation from run after deterministic mortality:
-
-- Baseline: global `5.48x`; closest Lithuania `3.57x`; tipped `0`
-- Fatty foods down: global `6.96x`; closest Lithuania `4.17x`; tipped `0`
-- Cereals/sweets shift: global `3.57x`; closest Poland `2.39x`; tipped `0`
-- All foods P10 CI: global `2.42x`; closest Lithuania `1.60x`; tipped `0`
-- All foods P90 CI: global `10.43x`; closest Poland `6.37x`; tipped `0`
-- Cereals/sweets + low-meat CI: global `2.78x`; closest Poland `2.10x`; tipped `0`
-
-Interpretation: across all current sensitivity analyses, no complete-data country tips into net positive emissions. The most conservative current margin is the full all-food P10 carbon-intensity sensitivity, not the combined low-meat scenario.
-
-## Food-Side Model Status
-
-The OECD update did not change the food-emissions side.
-
-Unchanged:
-
-- FAOSTAT food quantity inputs
-- Poore & Nemecek carbon intensity inputs
-- `CI_{c,g}` country-food-group carbon intensity calculation
-- Hegwood-style price rebound/equilibrium model
-- Baseline food-savings numerator
-
-Main file:
-
-- `data_visualization/pipeline.py`
-
-## Drug Carbon Footprint Accounting
-
-The professor asked to subtract the climate impact of producing/administering semaglutide itself.
-
-Implemented on branch:
-
-- `feature/drug_effect`
-
-Main file:
-
-- `drug_effect/analysis.py`
-
-Source/assumption:
-
-- PDF: `C:\Users\Yimin Chen\Desktop\sema_theory\Ozempic carbon footprint.pdf`
-- Use Appendix A, Table 2, US market.
-- Ozempic 1.0 mg annual components:
-  - API: `1.2 kg CO2e/year`
-  - Device incl. cartridge: `2.1 kg CO2e/year`
-  - Needle: `0.4 kg CO2e/year`
-- Scale only API from 1.0 mg to 2.4 mg:
-  - `1.2 * 2.4 = 2.88 kg CO2e/year`
-- Hold device and needle constant:
-  - `2.88 + 2.1 + 0.4 = 5.38 kg CO2e/user-year`
-
-Treatment population:
-
-- Uses `full_simulation_results8.rds`
-- Treated users are calculated as `sum(weighting)` where `adheres_to_treatment == True`, grouped by `ISO` and `scenario`.
-- One-year drug emissions are calculated directly from treated users.
-- 10-year drug emissions use `initial_treated_users * 10` because the saved headline mortality output does not include treated-specific alive years. This is labeled as an approximation in the output (`drug_treated_year_method = initial_treated_users_x_10`).
-
-Formula:
-
-```text
-drug_emissions_t = treated_user_years * 5.38 / 1000
-net_savings = food_savings - survivor_emissions - drug_emissions
-```
-
-Outputs:
-
-- `data_result/drug_emissions_by_country.csv`
-- `data_result/net_emissions_with_drug.csv`
-- `data_result/drug_footprint_summary.csv`
-- `figures/drug_footprint_summary.png`
-
-Validation/results:
-
-- Max uptake:
-  - One-year drug emissions: `1,206 kt CO2e`
-  - 10-year drug emissions approximation: `12.06 Mt CO2e`
-  - Drug emissions are `1.10%` of annual food savings
-  - Ratio changes from `5.483x` to `5.172x`
-  - No country tips after adding drug emissions
-- Moderate uptake:
-  - One-year drug emissions: `630 kt CO2e`
-  - 10-year drug emissions approximation: `6.30 Mt CO2e`
-  - Drug emissions are `1.12%` of annual food savings
-  - Ratio changes from `5.291x` to `4.995x`
-  - No country tips after adding drug emissions
-
-Interpretation: drug emissions are small relative to food-emission savings and do not change the conclusion. No extra drug-footprint sensitivity was added because professor said it is unnecessary if the term is trivial.
-
-## Generated/Updated Outputs
-
-Important files generated or updated during recent work:
-
-- `mortality model total emissions.csv`
-- `data_result/deterministic_mortality_comparison.csv`
-- `data_result/survivor_manuscript_numbers.csv`
-- `data_result/survivor_manuscript_top_countries.csv`
-- `data_result/oecd_consumption_ghg_per_capita.csv`
-- `data_result/oecd_vs_worldbank_survivor_emissions.csv`
-- `data_result/diet_sensitivity_results.csv`
-- `data_result/diet_sensitivity_ratio_comparison.csv`
-- `data_result/combined_sensitivity_results.csv`
-- `data_result/combined_sensitivity_ratio_comparison.csv`
-- `data_result/carbon_intensity_meat_p10.csv`
-- `data_result/all_sensitivity_overview_results.csv`
-- `data_result/all_sensitivity_overview_country_ratios.csv`
-- `data_result/sensitivity_tornado_results.csv`
-- `data_result/drug_emissions_by_country.csv`
-- `data_result/net_emissions_with_drug.csv`
-- `data_result/drug_footprint_summary.csv`
-- `figures/breakeven_by_country.png`
-- `figures/breakeven_curves.png`
-- `figures/country_dashboard.png`
-- `figures/food_group_breakdown.png`
-- `figures/diet_sensitivity_global_comparison.png`
-- `figures/diet_sensitivity_lowest_ratio_countries.png`
-- `figures/combined_sensitivity_lowest_ratio_countries.png`
-- `figures/all_sensitivity_overview.png`
-- `figures/sensitivity_tornado.png`
-- `figures/drug_footprint_summary.png`
-- `oecd_methodology_changes_summary.docx`
-
-There was also an earlier `professor_oecd_methodology_update.docx` on the Desktop, but the user removed it and asked for a paragraph-only version in the repo. The current repo document is:
-
-- `oecd_methodology_changes_summary.docx`
-
-## Documentation Updates
-
-`README.md` was updated to describe:
-
-- deterministic expected-value mortality and Mx-to-q conversion
-- OECD consumption-based GHG survivor-emissions rebuild
-- `data_visualization/consumption_ghg.py`
-- `oecd/consumption_ghg_2025.csv`
-- Updated diet sensitivity results after OECD replacement
-- calorie-preserving diet calibration fix and ISO-aligned Meat P10/P90 CI replacement
-- OECD as active survivor-emissions source and World Bank as legacy/comparison source
-
-`.gitignore` was updated to unignore:
-
-- `oecd/consumption_ghg_2025.csv`
-- `data_result/oecd_consumption_ghg_per_capita.csv`
-- `data_result/oecd_vs_worldbank_survivor_emissions.csv`
-- `data_result/deterministic_mortality_comparison.csv`
-
-`.gitattributes` already tracks `*.csv` via Git LFS.
-
-## Important Commands Already Run
-
-Deterministic mortality and OECD rebuild:
-
-```bash
-.\venv\Scripts\python.exe -m data_visualization.deterministic_mortality
-.\venv\Scripts\python.exe -m data_visualization.survivor_manuscript_numbers
-.\venv\Scripts\python.exe -m data_visualization.consumption_ghg
-```
-
-Downstream reruns:
-
-```bash
-.\venv\Scripts\python.exe -m data_visualization.breakeven_analysis
-.\venv\Scripts\python.exe -m data_visualization.generate_dashboard_figure
-.\venv\Scripts\python.exe -m diet_sensitivity.analysis
-.\venv\Scripts\python.exe -m diet_sensitivity.combined_analysis
-.\venv\Scripts\python.exe -m diet_sensitivity.sensitivity_overview
-.\venv\Scripts\python.exe -m diet_sensitivity.tornado_analysis
-.\venv\Scripts\python.exe -m drug_effect.analysis
-```
-
-These completed successfully after the deterministic mortality, calorie-calibration, and CI-alignment fixes.
-
-Linter checks for edited Python files reported no linter errors.
-
-## User Communication Preferences / Current Context
-
-The user has been preparing an update for the professor and wants concise but technically accurate explanation.
-
-Key phrasing to preserve:
-
-- This is a methodology improvement to the mortality calculation and survivor-emissions accounting.
-- The headline mortality/person-year calculation is now deterministic expected survival, with `Mx` converted to `q = 1 - exp(-Mx)`.
-- Food-side carbon intensity and rebound model are unchanged, except for explicit sensitivity files.
-- The survivor-emissions factor changed from World Bank territorial/production-based emissions to OECD demand-based final-consumption GHG in CO2e.
-- The conclusion is more conservative but unchanged: food savings still exceed survivor emissions for complete-data countries.
-- Diet sensitivity formulas preserve total calorie reduction exactly while diet composition changes.
-
-Avoid saying "we made a mistake." Better phrasing:
-
-- "We identified a data-source mismatch and updated the survivor-emissions methodology."
-- "The OECD source better aligns survivor emissions with the CO2e accounting used for food emissions."
-
-## Likely Next Steps
-
-1. Review drug-footprint outputs and wording with the user/professor if needed.
-2. Update Draft 2 with OECD, diet sensitivity, combined sensitivity, and drug-emissions results.
-3. Consider whether to commit changes. Do not commit unless the user explicitly asks.
-4. If committing, check LFS state first and ensure no large unintended files are included.
-5. If professor asks about missing OECD countries, explain that no imputation was done and ratio summaries use complete data only.
-
-## Current Safety Notes
-
-- Do not revert user changes.
-- The repo may include generated outputs and data files tracked via LFS.
-- Do not run destructive git commands.
-- Do not commit unless explicitly requested.
+# Handoff — implement fix #3 (adults-only demand scaling)
+
+State-only handoff for a fresh session. The CI promotion is now **committed** (two
+commits, below); fix #1 (`pipeline.py`) and everything else remain uncommitted.
+
+## Branch & working tree
+- Branch: `seth_bug_fixes`.
+- Commits added by the CI promotion (most recent first):
+  - `7ca038c` — code: raw-milk dairy default (`dairy_raw_milk_basis=True` in all three functions) + `_fix2` filename-suffix drop + explicit flag threading through `regen_ci_files()` + git-LFS-pointer guard in `build_ci`. Touches `build_carbon_intensity.py`, `outputs/compare_cireg.py`, `outputs/verify_promotion.py`.
+  - `dba51f2` — the three canonical CI files + narrowed `.gitignore`.
+- Still uncommitted (`git status -s`):
+  - ` M data_visualization/pipeline.py`  (fix #1 — NOT yet committed)
+  - ` M HANDOFF.md`  (this file)
+  - `?? FINDINGS_food_baseline.md`  (untracked; original diagnosis of issues #1–#4)
+  - `?? outputs/*.py + result dirs`  (untracked drivers/results). NOTE: `compare_fix1.py`, `compare_fix2.py`, `repro_sensitivity.py` are NOT committed, yet the committed `compare_cireg.py`/`verify_promotion.py` import them — those two won't run standalone from a clean checkout until the deps are committed too.
+- `Food data/` is **no longer fully gitignored**: `.gitignore` now tracks exactly three files there — `carbon_intensity.csv`, `_p10.csv`, `_p90.csv` — via **git LFS** (`*.csv filter=lfs`). All FAOSTAT source data and other inputs remain ignored. A fresh clone needs `git lfs pull` to hydrate them; `build_ci` raises a clear "run git lfs pull" error if handed a pointer stub.
+
+## What each change did and where outputs live
+
+### Fix #1 — FAOSTAT aggregate double-counting (DONE)
+- Code: `data_visualization/pipeline.py`. Added `from build_carbon_intensity import AGGREGATE_ITEMS` (line 24) and an `exclude_aggregates: bool = True` param to `compute_food_savings()`; when True it drops the 19 parent aggregate items from `food_norm` before grouping (lines 118–121). `False` reproduces legacy double-counting.
+- Outputs: `outputs/current/` (pre-fix, `exclude_aggregates=False`), `outputs/corrected_fix1/` (fixed). Tonnage comparison + invariant in `outputs/tonnage_comparison_by_*.csv`, `outputs/headline_numbers.csv`. Driver: `outputs/compare_fix1.py`. Invariant (tonnage removed == excluded-aggregate tonnage) held exactly.
+
+### Fix #2 — dairy raw-milk CI basis (DONE)
+- Code: `build_carbon_intensity.py`. Added `dairy_raw_milk_basis=False` param threaded through `build_faostat_ghg_map`/`compute_global_group_averages`/`build_ci`; when True, `Milk - Excluding Butter` uses raw-milk CI `g["milk"]`=3.15 instead of milk+cheese blend `g["dairy"]`=4.043849. Butter/Cream unchanged.
+- The pipeline reads a CI CSV, so fix #2 is delivered as a CI file: `Food data/carbon_intensity_fix2.csv` = the restored original mean CI with **only** the Dairy column set to 3.15.
+- Outputs: `outputs/corrected_fix2/`, `outputs/headline_numbers_fix2.csv`. Driver: `outputs/compare_fix2.py`. Invariant Δ(dairy emissions)=tonnage×ΔCI held exactly (−404.245 Mt); only Dairy moved.
+
+### CI-REGEN — reproducibility cleanup (DONE; not a numbered fix)
+- Committed mean `carbon_intensity.csv` was stale: generated pre-commit `c1746f1`, when `"Oilcrops Oil, Other"` was a hardcoded 4.50; current code computes `oilcrops_avg`=5.286. Only the `Fats and oils` column is affected.
+- Code: added `out_path=None` override to `build_ci()` so regen writes to `*_cireg` names without clobbering baselines.
+- Regenerated `Food data/carbon_intensity_cireg.csv`, `carbon_intensity_p10_cireg.csv`, `carbon_intensity_p90_cireg.csv` from current code. p10/p90 **never existed before** (gitignored, no copies anywhere) — created for the first time; `diet_sensitivity/*` reads them with no fallback (FileNotFoundError if absent).
+- `carbon_intensity_cireg_fix2.csv` = cireg mean + Dairy 3.15 (used for the fix1+fix2+cireg run). `carbon_intensity_meat_p10_cireg.csv` = repro artifact (mean + Meat from p10). The `*_cireg`/`*_fix2` scratch files were **deleted after promotion**; only `carbon_intensity_meat_p10_cireg.csv` (the live combined-conservative input for issue #4) is kept.
+- Outputs: `outputs/cireg/` (`headline_numbers_cireg.csv`, `fats_invariant_by_country.csv`, `sensitivity_reproduction.csv`, `food_savings.csv`, `breakeven.csv`). Drivers: `outputs/compare_cireg.py`, `outputs/repro_sensitivity.py`. Fats invariant held exactly (+6.600 Mt). Sensitivity reproduction **on the blend `_cireg` p10/p90**: P10 2.36 vs manuscript 2.34, combined 2.71 vs 2.71, P90 10.37 vs 10.13. These bounds changed once p10/p90 adopted raw-milk dairy at promotion — see the CI-promotion section below for the canonical numbers.
+
+## Current headline numbers — fix1+fix2+cireg = now the DEFAULT path (complete-data countries; savings gross of drug)
+- After promotion these ARE the numbers a default `compute_food_savings()` run produces (verified exact match, `outputs/verify_promotion.log`).
+- Baseline national food emissions: **6,510.9 Mt** CO2e (progression: original 11,858.0 → fix1 6,908.6 → fix1+fix2 6,504.3 → +cireg 6,510.9).
+- Annual food savings: **max_uptake 64.3 Mt/yr, mod_uptake 32.9 Mt/yr**.
+- Cumulative 10-yr food:survivor ratio: **max 2.98×, mod 2.87×**.
+- Year-10 annual food:survivor ratio: **max 1.60×, mod 1.54×**.
+
+## CI promotion — DONE (committed 2026-07-23)
+- The regenerated CIs are now **canonical and committed** (`dba51f2` files, `7ca038c` code). The pipeline default (`compute_food_savings()` → `carbon_intensity.csv`) reads them directly. Verified: the default path reproduces the fix1+fix2+cireg headline **exactly** (baseline 6,510.9 Mt) — promotion changed nothing but which file the default reads. See `outputs/verify_promotion.py` / `.log`.
+- **Canonical values** (raw-milk dairy basis `dairy_raw_milk_basis=True` is now the code default, applied to all three scenarios):
+  - Dairy CI: **3.15** (mean) / **1.70** (p10) / **4.83** (p90) — supersedes the milk+cheese blend (mean 4.043849). Fix #2 is a units correction (FAOSTAT milk mass is whole-milk-equivalent), so it applies to every scenario, not just the mean.
+  - `Oilcrops Oil, Other`: computed `oilcrops_avg = 5.286` (mean), superseding the old hardcoded 4.50. Only the Fats-and-oils column moves.
+  - All three reproduce **bit-for-bit** from a fresh default `build_ci` run. Tracked via **git LFS**; `git lfs pull` required after clone.
+- **Sensitivity bounds under raw-milk dairy** (global max-uptake ratio, `outputs/cireg/sensitivity_raw_milk.csv`): **P10 2.27** (was blend 2.36; manuscript 2.34), **P90 10.04** (was 10.37; manuscript 10.13), **combined-conservative 2.57** (was 2.71; manuscript 2.71). Raw-milk pulls P90 much closer to the published value, lands P10 slightly under, and drops combined below 2.71. **Professor to confirm before these enter the manuscript.**
+- Still NOT decided by the professor: the meat/beef CI sensitivity (issue #4) — do not change unilaterally. (Oilcrops 5.286 and raw-milk dairy are now baked into canonical per this session's explicit instruction.)
+
+## Fix #3 target — `compute_food_savings()` in `data_visualization/pipeline.py`
+- Function starts at **line 60**: `compute_food_savings(ci_file="carbon_intensity.csv", exclude_aggregates=True)`. Returns `(food_savings, result_df)`. Loads `full_simulation_results8.rds` (adults 18–89 only), FAOSTAT FBS, price index, elasticities, and the CI CSV.
+- The bug (issue #3, from `FINDINGS_food_baseline.md`): `expected_demand_reduction_percent` is computed on the adult energy pool — `sim_result.groupby(["ISO","scenario"]).sum()` then `weighted_treatment_eer/weighted_eer − 1` at **lines 187–193** — but is applied to the **all-ages** national FAOSTAT supply: `result_df["expected_demand_reduction"] = initial_eql_quantity * expected_demand_reduction_percent` at **lines ~204–206**. Adults are ~85–88% of consumers, so this overstates the aggregate reduction by ~1.10–1.15×.
+- Fix direction  apply the absolute adult calorie reduction directly instead of a percent-of-total. Do NOT change the per-treated-patient metric in `scripts/build_supplement_table.py` (patient-scoped numerator and denominator; correct as-is).
+- Verification pattern used for #1/#2/cireg (reuse): run the pipeline both ways from one process via a param, save to `outputs/corrected_fix3/`, print an explicit invariant, confirm nothing unintended moved, then report the headline table with a `fix1+fix2+cireg` column alongside `+fix3`. Suffix outputs `_fix3`.
+
+## How to run
+`PYTHONUTF8=1 C:\Python314\python.exe outputs\compare_cireg.py` (Windows console needs `PYTHONUTF8=1` for the Δ glyph). Python: `C:\Python314\python.exe`. The `.rds` is 167 MB and re-read per `compute_food_savings`/`build_drug_emissions` call.
