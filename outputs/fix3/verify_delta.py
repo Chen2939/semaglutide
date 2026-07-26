@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pyreadr
 
-ROOT = Path(r"C:\Users\sethw\repos")
+ROOT = Path(__file__).resolve().parents[2]
 
 sim = list(pyreadr.read_r(str(ROOT / "full_simulation_results8.rds")).values())[0]
 sim["w_eer"] = sim["weighting"] * sim["eer"]

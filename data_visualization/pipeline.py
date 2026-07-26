@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 # apply the identical exclusion (fix #1).
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from build_carbon_intensity import AGGREGATE_ITEMS
+from build_carbon_intensity import AGGREGATE_ITEMS, _assert_not_lfs_pointer
 
 
 # ── Equilibrium solver ────────────────────────────────────────────────
@@ -117,6 +117,9 @@ def compute_food_savings(
     )
     elasticity_supply_raw = pd.read_csv(ROOT / "Food data" / "elasticity_supply.csv")
     elasticity_demand = pd.read_csv(ROOT / "Food data" / "elasticity_demand.csv")
+    # The carbon-intensity CSVs are git-LFS tracked; fail loudly on a fresh
+    # clone where they are still unresolved pointer stubs.
+    _assert_not_lfs_pointer(ROOT / "Food data" / ci_file)
     carbon_intensity_raw = pd.read_csv(ROOT / "Food data" / ci_file)
 
     countries_in_scope = sim_result["ISO"].unique()

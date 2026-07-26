@@ -31,6 +31,7 @@ import pyreadr
 from data_visualization.pipeline import (
     AGGREGATE_ITEMS,
     ROOT,
+    _assert_not_lfs_pointer,
     _compute_equilibrium,
 )
 
@@ -39,10 +40,17 @@ from .scenarios import SCENARIOS
 
 # ── FAOSTAT kcal helpers ──────────────────────────────────────────────────────
 
-def load_kcal_shares(countries_in_scope) -> pd.DataFrame:
+def load_kcal_shares(countries_in_scope, exclude_aggregates: bool = True) -> pd.DataFrame:
     """
     Load 2022 FAOSTAT kcal supply and compute calorie shares per
     country × ``final_food_group``.
+
+    ``exclude_aggregates`` (default True) applies the same fix #1
+    ``AGGREGATE_ITEMS`` exclusion as the tonnage step: the FBS lists parent
+    aggregates alongside their component items, and groups without a parent
+    aggregate (Dairy, Eggs) would otherwise be counted once while every other
+    group is counted twice, distorting the calorie-share weights used for
+    diet-scenario calibration.
 
     Returns
     -------
@@ -62,6 +70,8 @@ def load_kcal_shares(countries_in_scope) -> pd.DataFrame:
         & (kcal["Element"] == "Food supply (kcal/capita/day)")
         & (kcal["ISO"].isin(countries_in_scope))
     ]
+    if exclude_aggregates:
+        kcal = kcal[~kcal["Item"].isin(AGGREGATE_ITEMS)]
     kcal = pd.merge(
         kcal,
         mapping.set_index("fbs_group")[["final_food_group"]],
@@ -295,6 +305,9 @@ def compute_food_savings_diet(
     ci_path = Path(ci_file)
     if not ci_path.is_absolute():
         ci_path = ROOT / "Food data" / ci_file
+    # Carbon-intensity CSVs are git-LFS tracked; fail loudly on a fresh clone
+    # where they are still unresolved pointer stubs.
+    _assert_not_lfs_pointer(ci_path)
     carbon_intensity_raw = pd.read_csv(ci_path)
 
     # ── FAOSTAT food quantities ────────────────────────────────────────────
@@ -430,7 +443,9 @@ def compute_food_savings_diet(
     # ── Apply diet-scenario calibrated shocks ─────────────────────────────
     if multipliers:
         print(f"    Loading FAOSTAT kcal shares for calibration...")
-        kcal_shares = load_kcal_shares(countries_in_scope)
+        kcal_shares = load_kcal_shares(
+            countries_in_scope, exclude_aggregates=exclude_aggregates
+        )
 
         diet_shocks = build_diet_shocks(sim_result_perc, kcal_shares, multipliers)
 
