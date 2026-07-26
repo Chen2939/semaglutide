@@ -20,11 +20,13 @@ semaglutide/
 ├── Mortality Model.ipynb          # Mortality data prep and legacy exploratory diagnostics
 ├── Price rebound model.ipynb      # Price rebound economics: equilibrium solver, carbon savings by country & food group
 ├── build_carbon_intensity.py      # Builds country-specific carbon intensity from Poore & Nemecek (2018) + FAOSTAT
+├── CHANGES.md                     # Internal audit of food-model corrections (fix #1–#3, CI regen)
+├── HANDOFF.md                     # Post-fix branch status and open cleanup items
 ├── requirements.txt               # Python dependencies
 ├── requirements_lock.txt          # Pinned dependency versions
 │
 ├── data_visualization/            # Visualization scripts (Python package)
-│   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
+│   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline (all-ages shock + aggregate exclusion)
 │   ├── deterministic_mortality.py # Deterministic expected-value survivor person-years
 │   ├── survivor_manuscript_numbers.py # Manuscript X/Y survivor numbers
 │   ├── consumption_ghg.py         # OECD demand-based final-consumption GHG survivor-emissions rebuild
@@ -42,7 +44,7 @@ semaglutide/
 │
 ├── figures/                       # Paper-ready figures (tracked in Git)
 ├── data_result/                   # Generated tabular analysis outputs (selected CSVs tracked via LFS)
-├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
+├── Food data/                     # FAOSTAT inputs (mostly ignored); CI CSVs + child energy tracked
 ├── oecd/                          # OECD GHG footprint input tracked via LFS
 ├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
 ├── Lancet/                        # NCD-RisC BMI & diabetes distributions (not tracked)
@@ -76,13 +78,17 @@ python build_carbon_intensity.py
 Constructs country × food-group carbon intensity values (kg CO₂eq / kg food) by:
 - Mapping 43 products from Poore & Nemecek (2018) to 115 FAOSTAT items → 9 `final_food_group` categories
 - Computing country-specific weighted averages based on each nation's FAOSTAT consumption mix
-- Excluding 18 FAOSTAT aggregate items to prevent double-counting
+- Excluding 19 FAOSTAT parent-aggregate items (`AGGREGATE_ITEMS`) to prevent double-counting
+- Assigning Dairy (`Milk - Excluding Butter`) on a **raw-milk** basis (3.15 kg CO₂e/kg mean), because FAOSTAT dairy mass is whole-milk-equivalent
+- Setting residual `"Oilcrops Oil, Other"` to the mean of five Poore & Nemecek oils (~5.286), not a hardcoded proxy
 - Falling back to regional or global averages where country data is missing
 - Generating three scenarios: mean (central), P10 (10th percentile), P90 (90th percentile)
 
 **Input:** `recategorize/aaq0216_datas2.xls`, `Food data/FBS_Group_Mapping.csv`, FAOSTAT normalized food balance sheets, `Food data/faostat_country_mapping.csv`
 
-**Output:** `Food data/carbon_intensity.csv` (mean), `Food data/carbon_intensity_p10.csv`, `Food data/carbon_intensity_p90.csv`
+**Output (git LFS):** `Food data/carbon_intensity.csv` (mean), `Food data/carbon_intensity_p10.csv`, `Food data/carbon_intensity_p90.csv`
+
+After a fresh clone, run `git lfs pull` so these CSVs are real data rather than LFS pointer stubs. The analysis pipelines refuse to proceed on an unresolved pointer.
 
 ### Step 3 — Mortality Model (with population weighting)
 
@@ -130,16 +136,20 @@ This replaces the old World Bank territorial CO2 per-capita factor with OECD dem
 
 ### Step 4 — Price Rebound Model
 
-Run all cells in `Price rebound model.ipynb`:
-- Loads `full_simulation_results8.rds` and all `Food data/` files
-- Implements constant-elasticity supply/demand equilibrium (Hegwood et al., 2023)
+The reproducible path is `data_visualization.pipeline.compute_food_savings()` (also used by the visualization and diet-sensitivity packages). The exploratory notebook `Price rebound model.ipynb` remains available but can lag the package defaults.
+
+Default pipeline behaviour:
+- Loads `full_simulation_results8.rds` (adults 18+) and FAOSTAT all-ages food supply
+- Drops FAOSTAT parent-aggregate items before summing food tonnage (same `AGGREGATE_ITEMS` set as the CI builder)
+- Forms the demand-reduction fraction on an **all-ages** energy basis: untreated child (0–17) kcal from `Food data/child_energy_by_country.xlsx` are added to both baseline and treatment pools so the adult-only EER reduction is not applied as if adults were 100% of national food consumption
+- Solves constant-elasticity supply/demand equilibrium (Hegwood et al., 2023)
 - Computes rebound effect, net food reduction, and carbon savings per country × food group
-- Includes sensitivity analysis (cells 15–17): re-runs the model with P10/Mean/P90 carbon intensity files and generates comparison figures
-- Generates summary tables and visualisations
+
+See `CHANGES.md` for the correction audit (aggregate double-count, dairy raw-milk CI, all-ages denominator) and verification drivers under `outputs/`.
 
 ### Step 5 — Visualization Scripts
 
-All visualization scripts live in the `data_visualization/` package. They share a common pipeline module (`pipeline.py`) that handles data loading and equilibrium solving, eliminating code duplication.
+All visualization scripts live in the `data_visualization/` package. They share a common pipeline module (`pipeline.py`) that handles data loading and equilibrium solving.
 
 ```bash
 # Break-even analysis: food savings vs. survivor emissions
@@ -183,7 +193,7 @@ Generated figures are written to `figures/`; generated tabular outputs are writt
 python -m diet_sensitivity.analysis
 ```
 
-Runs the professor-requested diet-composition sensitivity analysis while keeping each country × uptake scenario's total calorie reduction fixed. The baseline model applies the EER-based demand reduction uniformly to every food group; this extension uses FAOSTAT `Food supply (kcal/capita/day)` shares to redistribute the same calorie reduction across food groups before running the existing Hegwood-style rebound equilibrium solver.
+Runs the professor-requested diet-composition sensitivity analysis while keeping each country × uptake scenario's total calorie reduction fixed. The baseline model applies the EER-based demand reduction uniformly to every food group; this extension uses FAOSTAT `Food supply (kcal/capita/day)` shares (with the same parent-aggregate exclusion as the tonnage step) to redistribute the same calorie reduction across food groups before running the existing Hegwood-style rebound equilibrium solver.
 
 Scenarios:
 - **`baseline_uniform`** — current model, all food groups reduce uniformly.
@@ -196,7 +206,7 @@ Outputs:
 - **Datasets:** `data_result/diet_sensitivity_results.csv`, `data_result/diet_sensitivity_ratio_comparison.csv`
 - **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
 
-Current headline result with deterministic mortality, OECD consumption-based survivor emissions, and pharmaceutical emissions folded into net food savings: no valid country tips into net positive emissions under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year ratio is 5.42× in the uniform baseline, 6.90× when fatty foods decrease more, and 3.51× when cereals/sweets decrease more and meat decreases less. Poland is closest to tipping in the cereal/sweets scenario at approximately 2.32×.
+Current headline result (post food-model corrections; pharmaceutical emissions folded into net food savings): no complete-data country tips under either diet-composition scenario with mean CI. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year ratio is **2.50×** in the uniform baseline, **3.16×** when fatty foods decrease more, and **1.69×** when cereals/sweets decrease more and meat decreases less. Poland is closest to tipping in the cereal/sweets scenario at approximately **1.22×**.
 
 ### Step 7 — Combined Conservative Sensitivity Analysis
 
@@ -211,7 +221,7 @@ Outputs:
 - **Derived input:** `data_result/carbon_intensity_meat_p10.csv`
 - **Figure:** `figures/combined_sensitivity_lowest_ratio_countries.png`
 
-Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year ratio falls from 3.51× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.72× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.03×.
+Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year ratio falls from **1.69×** in the cereals/sweets diet-shift scenario with mean carbon intensities to **1.35×** when Meat is assigned the P10 carbon intensity. The United States is closest to tipping at approximately **1.08×**.
 
 ### Step 8 — All Sensitivities Overview
 
@@ -226,7 +236,7 @@ Outputs:
 - **Datasets:** `data_result/all_sensitivity_overview_results.csv`, `data_result/all_sensitivity_overview_country_ratios.csv`
 - **Figure:** `figures/all_sensitivity_overview.png`
 
-Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year net-food-savings-to-survivor-emissions ratio ranges from 2.36× under the full all-food P10 carbon-intensity case to 10.37× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.55× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.72× globally, with Poland closest at approximately 2.03×.
+Current headline result: under the full all-food P10 carbon-intensity case, **6** complete-data countries tip below break-even (global 10-year ratio **1.11×**; Lithuania lowest at ~**0.79×**). No tipping under baseline, diet-only, P90, or combined-conservative scenarios. For maximum uptake, the global 10-year net-food-savings-to-survivor-emissions ratio ranges from **1.11×** (all-food P10) to **4.72×** (all-food P90). The combined cereals/sweets + low-meat-CI case is **1.35×** globally (closest: USA ~**1.08×**). Uniform baseline remains **2.50×**.
 
 ### Step 9 — Drug Carbon Footprint Accounting
 
@@ -246,7 +256,7 @@ Outputs:
 - **Datasets:** `data_result/drug_emissions_by_country.csv`, `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv`
 - **Figure:** `figures/drug_footprint_summary.png`
 
-Current headline result: pharmaceutical emissions are folded into the baseline break-even comparison as a subtraction from food savings. Under maximum uptake, this lowers the 10-year ratio from 5.48× (gross food / survivor) to 5.42× ((food − drug) / survivor); under moderate uptake, from 5.29× to 5.23×. No complete-data country tips into net positive emissions.
+Current headline result: pharmaceutical emissions are folded into the baseline break-even comparison as a subtraction from food savings. Under maximum uptake (35 complete-data countries), this lowers the 10-year ratio from **2.56×** (gross food / survivor) to **2.50×** ((food − drug) / survivor); under moderate uptake, from **2.47×** to **2.41×**. No complete-data country tips into net positive emissions on the baseline mean-CI path.
 
 ## Setup
 
@@ -299,9 +309,10 @@ Legacy World Bank territorial CO2 per-capita source used before the OECD replace
 | `faostat_country_mapping.csv` | Project-specific | Maps FAOSTAT area names to ISO3 country codes |
 | `elasticity_supply.csv` | Hegwood et al. (2023) | Supply elasticity estimates by food group |
 | `elasticity_demand.csv` | Hegwood et al. (2023) | Demand elasticity estimates by food group and country |
-| `carbon_intensity.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — mean (kg CO₂eq/kg) |
-| `carbon_intensity_p10.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — 10th percentile |
-| `carbon_intensity_p90.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — 90th percentile |
+| `carbon_intensity.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — mean (kg CO₂eq/kg). **Tracked via git LFS.** |
+| `carbon_intensity_p10.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — 10th percentile. **Tracked via git LFS.** |
+| `carbon_intensity_p90.csv` | Built by `build_carbon_intensity.py` | Country × food-group carbon intensity — 90th percentile. **Tracked via git LFS.** |
+| `child_energy_by_country.xlsx` | Built by `outputs/fix3/compute_child_energy.R` | National 0–17 annual kcal pool for the all-ages demand-shock denominator. **Tracked in Git.** |
 
 ### `HLD/Mx_1x1/`
 > **Location:** `HLD/Mx_1x1/`
@@ -340,7 +351,7 @@ This repository uses [Git Large File Storage](https://git-lfs.com/) for binary d
 
 - `*.rds` — R data files (`full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
 - `*.pkl` — Python pickle files (`final_df_imputed.pkl`)
-- `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables and OECD validation/comparison tables
+- `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables, OECD validation/comparison tables, and the three canonical `Food data/carbon_intensity*.csv` files
 
 **For collaborators cloning the repo:**
 
@@ -350,9 +361,13 @@ git lfs install
 
 # Clone as usual — LFS files are downloaded automatically
 git clone <repo-url>
+
+# If CI/CSV files still look like pointer stubs (~130 bytes starting with
+# "version https://git-lfs.github.com/spec/v1"), hydrate them:
+git lfs pull
 ```
 
-If you cloned before LFS was configured, run `git lfs pull` to download the large files.
+If you cloned before LFS was configured, run `git lfs pull` to download the large files. Analysis pipelines raise a clear error if handed an unresolved LFS pointer for a carbon-intensity CSV.
 
 ## References
 
