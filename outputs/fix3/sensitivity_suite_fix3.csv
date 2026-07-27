@@ -1,3 +1,7 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:0687f5a26302277c6fbc06e6ee9385b0691ff7b82a6d032f42e29259d62e74bb
-size 715
+scenario_spec,uptake,cum_ratio_10yr,annual_ratio_y10,min_country_ratio,min_country_iso,min_country_name,n_tipping_countries,n_complete_countries
+P10,max_uptake,1.106425797027757,0.5931527249497375,0.7946454225370109,LTU,Lithuania,6,35
+P10,mod_uptake,1.0672273820389468,0.5737541833602527,0.7801849118305267,LTU,Lithuania,7,35
+P90,max_uptake,4.7172498916184,2.5289085223779484,3.083065013883472,POL,Poland,0,35
+P90,mod_uptake,4.553221995040207,2.4478665103505586,3.0489063847741282,POL,Poland,0,35
+combined_conservative,max_uptake,1.2919661190625529,0.692620531917575,0.9925775332988713,POL,Poland,1,35
+combined_conservative,mod_uptake,1.2478223554601624,0.6708441973892175,0.9802832040915472,POL,Poland,2,35

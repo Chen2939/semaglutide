@@ -1,3 +1,11 @@
 *.rds filter=lfs diff=lfs merge=lfs -text
 *.pkl filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
+
+# Verification-output CSVs under outputs/ are small plain text (~78 KB total)
+# and are the durable record of what each correction changed. Store them as
+# ordinary git blobs rather than LFS pointers, so the audit record does not
+# depend on LFS objects surviving. -text keeps bytes byte-exact (no
+# end-of-line conversion). Bulk data inputs everywhere else stay in LFS.
+outputs/*.csv -filter -diff -merge -text
+outputs/**/*.csv -filter -diff -merge -text

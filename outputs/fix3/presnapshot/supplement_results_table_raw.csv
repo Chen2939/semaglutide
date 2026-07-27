@@ -1,3 +1,27 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:839bb0db571f5264f592dfbf9c09ccb43b59a2cfd0c66505b5a0438c29c60c27
-size 4746
+﻿metric,unit,scenario,stage,value_raw,value_display,source_variable,source_detail
+Calories reduced (kcal/yr),kcal/yr,max_uptake,before,18695431509962.977,1.87e+13,"eer, treatment_eer, weighting",full_simulation_results8.rds; Sum(weighting * (eer - treatment_eer)) * 365
+Calories reduced (kcal/yr),kcal/yr,max_uptake,after,,—,n/a,n/a: rebound acts on tonnage downstream of caloric demand
+Calories reduced (kcal/yr),kcal/yr,mod_uptake,before,9628292162138.611,9.63e+12,"eer, treatment_eer, weighting",full_simulation_results8.rds; Sum(weighting * (eer - treatment_eer)) * 365
+Calories reduced (kcal/yr),kcal/yr,mod_uptake,after,,—,n/a,n/a: rebound acts on tonnage downstream of caloric demand
+Food tonnage reduced (Mt),Mt,max_uptake,before,47.926423415610614,47.9,expected_demand_reduction (before) / actual_reduction (after),pipeline.compute_food_savings() result_df (price-rebound model; FAOSTAT FoodBalanceSheets + sim EER)
+Food tonnage reduced (Mt),Mt,max_uptake,after,20.740877593237485,20.7,expected_demand_reduction (before) / actual_reduction (after),pipeline.compute_food_savings() result_df (price-rebound model; FAOSTAT FoodBalanceSheets + sim EER)
+Food tonnage reduced (Mt),Mt,mod_uptake,before,24.665532719246627,24.7,expected_demand_reduction (before) / actual_reduction (after),pipeline.compute_food_savings() result_df (price-rebound model; FAOSTAT FoodBalanceSheets + sim EER)
+Food tonnage reduced (Mt),Mt,mod_uptake,after,10.636719152457866,10.6,expected_demand_reduction (before) / actual_reduction (after),pipeline.compute_food_savings() result_df (price-rebound model; FAOSTAT FoodBalanceSheets + sim EER)
+"Emissions reduced (MtCO2e, mean CI)",MtCO2e,max_uptake,before,244.1483952749926,244,expected_demand_reduction * carbon_intensity_t (before) / carbon_savings_t (after),pipeline.compute_food_savings() result_df + Food data/carbon_intensity.csv (mean)
+"Emissions reduced (MtCO2e, mean CI)",MtCO2e,max_uptake,after,116.06431799055063,116,expected_demand_reduction * carbon_intensity_t (before) / carbon_savings_t (after),pipeline.compute_food_savings() result_df + Food data/carbon_intensity.csv (mean)
+"Emissions reduced (MtCO2e, mean CI)",MtCO2e,mod_uptake,before,125.47036396643094,125,expected_demand_reduction * carbon_intensity_t (before) / carbon_savings_t (after),pipeline.compute_food_savings() result_df + Food data/carbon_intensity.csv (mean)
+"Emissions reduced (MtCO2e, mean CI)",MtCO2e,mod_uptake,after,59.42546266644538,59.4,expected_demand_reduction * carbon_intensity_t (before) / carbon_savings_t (after),pipeline.compute_food_savings() result_df + Food data/carbon_intensity.csv (mean)
+Rebound offset (% tonnage),%,max_uptake,before,,—,n/a,n/a: rebound offset is a derived after-rebound metric
+Rebound offset (% tonnage),%,max_uptake,after,56.72350216210427,56.7,derived from expected_demand_reduction & actual_reduction,(sum|expected_demand_reduction| - sum|actual_reduction|) / sum|expected_demand_reduction| * 100
+Rebound offset (% tonnage),%,mod_uptake,before,,—,n/a,n/a: rebound offset is a derived after-rebound metric
+Rebound offset (% tonnage),%,mod_uptake,after,56.876183160001304,56.9,derived from expected_demand_reduction & actual_reduction,(sum|expected_demand_reduction| - sum|actual_reduction|) / sum|expected_demand_reduction| * 100
+per_treated_after_rebound_gross,kg CO2e/patient-yr,max_uptake,after,468.5729633829195,468.573,per-treated derived,carbon_savings_t / treated_headcount
+per_treated_after_rebound_net,kg CO2e/patient-yr,max_uptake,after,463.1929633829195,463.193,per-treated derived,gross_after - DRUG_FOOTPRINT(5.38)
+per_treated_pre_rebound_gross,kg CO2e/patient-yr,max_uptake,n/a,985.6719020957125,985.672,per-treated derived,expected_demand_reduction*CI / treated_headcount
+drug_footprint_pct_of_gross,%,max_uptake,after,1.148166970872249,1.1,per-treated derived,5.38 / gross_after * 100
+treated_headcount,patients,max_uptake,n/a,247697428.278,"247,697,428.278",per-treated derived,sum(weighting) where adheres_to_treatment
+per_treated_after_rebound_gross,kg CO2e/patient-yr,mod_uptake,after,458.6740714222919,458.674,per-treated derived,carbon_savings_t / treated_headcount
+per_treated_after_rebound_net,kg CO2e/patient-yr,mod_uptake,after,453.2940714222919,453.294,per-treated derived,gross_after - DRUG_FOOTPRINT(5.38)
+per_treated_pre_rebound_gross,kg CO2e/patient-yr,mod_uptake,n/a,968.4401282047628,968.440,per-treated derived,expected_demand_reduction*CI / treated_headcount
+drug_footprint_pct_of_gross,%,mod_uptake,after,1.1729461801311947,1.2,per-treated derived,5.38 / gross_after * 100
+treated_headcount,patients,mod_uptake,n/a,129559236.87200002,"129,559,236.872",per-treated derived,sum(weighting) where adheres_to_treatment

@@ -1,3 +1,4 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:3cc1fddc8081b06c9b5511d29adc2fcf0ee9712414fc875559187b1ef2e2a5d4
-size 168
+scenario,manuscript,reproduced,delta,n_countries,match
+P10,2.34,2.3558,0.0158,35,YES
+P90,10.13,10.3729,0.2429,35,NO
+combined_conservative,2.71,2.7142,0.0042,35,YES

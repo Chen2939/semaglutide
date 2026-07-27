@@ -1,3 +1,4 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:4d83f561787df88ce7f21a72cb92302a76df768f6ccd51f08b6c7cf6fea34361
-size 185
+scenario,manuscript,prior_blend,raw_milk,delta_vs_prior,n_countries
+P10,2.34,2.36,2.266,-0.094,35
+P90,10.13,10.37,10.037,-0.333,35
+combined_conservative,2.71,2.71,2.5744,-0.1356,35

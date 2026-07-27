@@ -1,3 +1,505 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:f32e12a8f991867a32dd344eaa1cc68a9a8c7c2f73e69442b17c9db6e69cb328
-size 28843
+ISO,Country,final_food_group,tonnage_before,tonnage_after,excluded_aggregate_t,difference,invariant_gap
+ATG,Antigua and Barbuda,Cereals,22.0,10.0,12.0,12.0,0.0
+ATG,Antigua and Barbuda,Dairy,18.0,18.0,0.0,0.0,0.0
+ATG,Antigua and Barbuda,Eggs,2.0,2.0,0.0,0.0,0.0
+ATG,Antigua and Barbuda,Fats and oils,4.0,1.0,3.0,3.0,0.0
+ATG,Antigua and Barbuda,Fish,10.0,5.0,5.0,5.0,0.0
+ATG,Antigua and Barbuda,Fruit and vegetables,63.0,32.0,31.0,31.0,0.0
+ATG,Antigua and Barbuda,Meat,17.0,8.0,9.0,9.0,0.0
+ATG,Antigua and Barbuda,Other,13.0,5.0,8.0,8.0,0.0
+ATG,Antigua and Barbuda,"Sweets, confectionery, and sweetened beverages",9.0,5.0,4.0,4.0,0.0
+AUS,Australia,Cereals,8565.0,4282.0,4283.0,4283.0,0.0
+AUS,Australia,Dairy,11162.0,11162.0,0.0,0.0,0.0
+AUS,Australia,Eggs,372.0,372.0,0.0,0.0,0.0
+AUS,Australia,Fats and oils,2087.0,1043.0,1044.0,1044.0,0.0
+AUS,Australia,Fish,1282.0,641.0,641.0,641.0,0.0
+AUS,Australia,Fruit and vegetables,13110.0,6555.0,6555.0,6555.0,0.0
+AUS,Australia,Meat,6299.0,3149.0,3150.0,3150.0,0.0
+AUS,Australia,Other,9177.0,4235.0,4942.0,4942.0,0.0
+AUS,Australia,"Sweets, confectionery, and sweetened beverages",5370.0,2685.0,2685.0,2685.0,0.0
+AUT,Austria,Cereals,3047.0,1523.0,1524.0,1524.0,0.0
+AUT,Austria,Dairy,3794.0,3794.0,0.0,0.0,0.0
+AUT,Austria,Eggs,268.0,268.0,0.0,0.0,0.0
+AUT,Austria,Fats and oils,1058.0,529.0,529.0,529.0,0.0
+AUT,Austria,Fish,257.0,128.0,129.0,129.0,0.0
+AUT,Austria,Fruit and vegetables,5752.0,2876.0,2876.0,2876.0,0.0
+AUT,Austria,Meat,1464.0,732.0,732.0,732.0,0.0
+AUT,Austria,Other,2824.0,1413.0,1411.0,1411.0,0.0
+AUT,Austria,"Sweets, confectionery, and sweetened beverages",739.0,370.0,369.0,369.0,0.0
+BHS,Bahamas,Cereals,88.0,44.0,44.0,44.0,0.0
+BHS,Bahamas,Dairy,88.0,88.0,0.0,0.0,0.0
+BHS,Bahamas,Eggs,10.0,10.0,0.0,0.0,0.0
+BHS,Bahamas,Fats and oils,25.0,12.0,13.0,13.0,0.0
+BHS,Bahamas,Fish,21.0,10.0,11.0,11.0,0.0
+BHS,Bahamas,Fruit and vegetables,386.0,194.0,192.0,192.0,0.0
+BHS,Bahamas,Meat,90.0,45.0,45.0,45.0,0.0
+BHS,Bahamas,Other,61.0,16.0,45.0,45.0,0.0
+BHS,Bahamas,"Sweets, confectionery, and sweetened beverages",52.0,26.0,26.0,26.0,0.0
+BHR,Bahrain,Cereals,630.0,315.0,315.0,315.0,0.0
+BHR,Bahrain,Dairy,694.0,694.0,0.0,0.0,0.0
+BHR,Bahrain,Eggs,40.0,40.0,0.0,0.0,0.0
+BHR,Bahrain,Fats and oils,108.0,54.0,54.0,54.0,0.0
+BHR,Bahrain,Fish,62.0,31.0,31.0,31.0,0.0
+BHR,Bahrain,Fruit and vegetables,930.0,465.0,465.0,465.0,0.0
+BHR,Bahrain,Meat,273.0,136.0,137.0,137.0,0.0
+BHR,Bahrain,Other,224.0,113.0,111.0,111.0,0.0
+BHR,Bahrain,"Sweets, confectionery, and sweetened beverages",171.0,85.0,86.0,86.0,0.0
+BRB,Barbados,Cereals,103.0,52.0,51.0,51.0,0.0
+BRB,Barbados,Dairy,58.0,58.0,0.0,0.0,0.0
+BRB,Barbados,Eggs,6.0,6.0,0.0,0.0,0.0
+BRB,Barbados,Fats and oils,22.0,11.0,11.0,11.0,0.0
+BRB,Barbados,Fish,25.0,13.0,12.0,12.0,0.0
+BRB,Barbados,Fruit and vegetables,127.0,64.0,63.0,63.0,0.0
+BRB,Barbados,Meat,52.0,26.0,26.0,26.0,0.0
+BRB,Barbados,Other,62.0,20.0,42.0,42.0,0.0
+BRB,Barbados,"Sweets, confectionery, and sweetened beverages",39.0,20.0,19.0,19.0,0.0
+BEL,Belgium,Cereals,5114.0,2557.0,2557.0,2557.0,0.0
+BEL,Belgium,Dairy,4286.0,4286.0,0.0,0.0,0.0
+BEL,Belgium,Eggs,450.0,450.0,0.0,0.0,0.0
+BEL,Belgium,Fats and oils,1718.0,859.0,859.0,859.0,0.0
+BEL,Belgium,Fish,561.0,281.0,280.0,280.0,0.0
+BEL,Belgium,Fruit and vegetables,7683.0,3842.0,3841.0,3841.0,0.0
+BEL,Belgium,Meat,1809.0,905.0,904.0,904.0,0.0
+BEL,Belgium,Other,3309.0,1654.0,1655.0,1655.0,0.0
+BEL,Belgium,"Sweets, confectionery, and sweetened beverages",1175.0,588.0,587.0,587.0,0.0
+CAN,Canada,Cereals,15493.0,7747.0,7746.0,7746.0,0.0
+CAN,Canada,Dairy,12696.0,12696.0,0.0,0.0,0.0
+CAN,Canada,Eggs,1210.0,1210.0,0.0,0.0,0.0
+CAN,Canada,Fats and oils,4051.0,2026.0,2025.0,2025.0,0.0
+CAN,Canada,Fish,1566.0,783.0,783.0,783.0,0.0
+CAN,Canada,Fruit and vegetables,19828.0,9914.0,9914.0,9914.0,0.0
+CAN,Canada,Meat,7059.0,3529.0,3530.0,3530.0,0.0
+CAN,Canada,Other,9073.0,4309.0,4764.0,4764.0,0.0
+CAN,Canada,"Sweets, confectionery, and sweetened beverages",3848.0,1924.0,1924.0,1924.0,0.0
+CHL,Chile,Cereals,7859.0,3930.0,3929.0,3929.0,0.0
+CHL,Chile,Dairy,3598.0,3598.0,0.0,0.0,0.0
+CHL,Chile,Eggs,382.0,382.0,0.0,0.0,0.0
+CHL,Chile,Fats and oils,883.0,440.0,443.0,443.0,0.0
+CHL,Chile,Fish,564.0,282.0,282.0,282.0,0.0
+CHL,Chile,Fruit and vegetables,5621.0,2811.0,2810.0,2810.0,0.0
+CHL,Chile,Meat,3635.0,1818.0,1817.0,1817.0,0.0
+CHL,Chile,Other,4379.0,2009.0,2370.0,2370.0,0.0
+CHL,Chile,"Sweets, confectionery, and sweetened beverages",1884.0,942.0,942.0,942.0,0.0
+TWN,"China, Taiwan Province of",Cereals,6558.0,3279.0,3279.0,3279.0,0.0
+TWN,"China, Taiwan Province of",Dairy,2770.0,2770.0,0.0,0.0,0.0
+TWN,"China, Taiwan Province of",Eggs,764.0,764.0,0.0,0.0,0.0
+TWN,"China, Taiwan Province of",Fats and oils,2109.0,1053.0,1056.0,1056.0,0.0
+TWN,"China, Taiwan Province of",Fish,1416.0,707.0,709.0,709.0,0.0
+TWN,"China, Taiwan Province of",Fruit and vegetables,10587.0,5294.0,5293.0,5293.0,0.0
+TWN,"China, Taiwan Province of",Meat,4317.0,2158.0,2159.0,2159.0,0.0
+TWN,"China, Taiwan Province of",Other,2506.0,1245.0,1261.0,1261.0,0.0
+TWN,"China, Taiwan Province of","Sweets, confectionery, and sweetened beverages",1452.0,726.0,726.0,726.0,0.0
+HRV,Croatia,Cereals,1255.0,627.0,628.0,628.0,0.0
+HRV,Croatia,Dairy,1404.0,1404.0,0.0,0.0,0.0
+HRV,Croatia,Eggs,68.0,68.0,0.0,0.0,0.0
+HRV,Croatia,Fats and oils,290.0,144.0,146.0,146.0,0.0
+HRV,Croatia,Fish,163.0,81.0,82.0,82.0,0.0
+HRV,Croatia,Fruit and vegetables,3535.0,1768.0,1767.0,1767.0,0.0
+HRV,Croatia,Meat,791.0,395.0,396.0,396.0,0.0
+HRV,Croatia,Other,1008.0,503.0,505.0,505.0,0.0
+HRV,Croatia,"Sweets, confectionery, and sweetened beverages",600.0,300.0,300.0,300.0,0.0
+CYP,Cyprus,Cereals,470.0,235.0,235.0,235.0,0.0
+CYP,Cyprus,Dairy,448.0,448.0,0.0,0.0,0.0
+CYP,Cyprus,Eggs,18.0,18.0,0.0,0.0,0.0
+CYP,Cyprus,Fats and oils,69.0,34.0,35.0,35.0,0.0
+CYP,Cyprus,Fish,49.0,25.0,24.0,24.0,0.0
+CYP,Cyprus,Fruit and vegetables,526.0,262.0,264.0,264.0,0.0
+CYP,Cyprus,Meat,193.0,96.0,97.0,97.0,0.0
+CYP,Cyprus,Other,231.0,92.0,139.0,139.0,0.0
+CYP,Cyprus,"Sweets, confectionery, and sweetened beverages",174.0,87.0,87.0,87.0,0.0
+CZE,Czechia,Cereals,3403.0,1701.0,1702.0,1702.0,0.0
+CZE,Czechia,Dairy,3524.0,3524.0,0.0,0.0,0.0
+CZE,Czechia,Eggs,172.0,172.0,0.0,0.0,0.0
+CZE,Czechia,Fats and oils,1146.0,573.0,573.0,573.0,0.0
+CZE,Czechia,Fish,225.0,113.0,112.0,112.0,0.0
+CZE,Czechia,Fruit and vegetables,4493.0,2247.0,2246.0,2246.0,0.0
+CZE,Czechia,Meat,1800.0,900.0,900.0,900.0,0.0
+CZE,Czechia,Other,4044.0,1970.0,2074.0,2074.0,0.0
+CZE,Czechia,"Sweets, confectionery, and sweetened beverages",902.0,451.0,451.0,451.0,0.0
+DNK,Denmark,Cereals,2241.0,1121.0,1120.0,1120.0,0.0
+DNK,Denmark,Dairy,4656.0,4656.0,0.0,0.0,0.0
+DNK,Denmark,Eggs,174.0,174.0,0.0,0.0,0.0
+DNK,Denmark,Fats and oils,340.0,170.0,170.0,170.0,0.0
+DNK,Denmark,Fish,266.0,132.0,134.0,134.0,0.0
+DNK,Denmark,Fruit and vegetables,3447.0,1722.0,1725.0,1725.0,0.0
+DNK,Denmark,Meat,794.0,397.0,397.0,397.0,0.0
+DNK,Denmark,Other,1684.0,842.0,842.0,842.0,0.0
+DNK,Denmark,"Sweets, confectionery, and sweetened beverages",672.0,336.0,336.0,336.0,0.0
+EST,Estonia,Cereals,416.0,208.0,208.0,208.0,0.0
+EST,Estonia,Dairy,860.0,860.0,0.0,0.0,0.0
+EST,Estonia,Eggs,34.0,34.0,0.0,0.0,0.0
+EST,Estonia,Fats and oils,116.0,58.0,58.0,58.0,0.0
+EST,Estonia,Fish,35.0,18.0,17.0,17.0,0.0
+EST,Estonia,Fruit and vegetables,673.0,336.0,337.0,337.0,0.0
+EST,Estonia,Meat,189.0,95.0,94.0,94.0,0.0
+EST,Estonia,Other,377.0,181.0,196.0,196.0,0.0
+EST,Estonia,"Sweets, confectionery, and sweetened beverages",234.0,117.0,117.0,117.0,0.0
+FIN,Finland,Cereals,2366.0,1183.0,1183.0,1183.0,0.0
+FIN,Finland,Dairy,2854.0,2854.0,0.0,0.0,0.0
+FIN,Finland,Eggs,110.0,110.0,0.0,0.0,0.0
+FIN,Finland,Fats and oils,346.0,172.0,174.0,174.0,0.0
+FIN,Finland,Fish,352.0,176.0,176.0,176.0,0.0
+FIN,Finland,Fruit and vegetables,2490.0,1245.0,1245.0,1245.0,0.0
+FIN,Finland,Meat,820.0,410.0,410.0,410.0,0.0
+FIN,Finland,Other,1463.0,651.0,812.0,812.0,0.0
+FIN,Finland,"Sweets, confectionery, and sweetened beverages",552.0,276.0,276.0,276.0,0.0
+FRA,France,Cereals,23515.0,11758.0,11757.0,11757.0,0.0
+FRA,France,Dairy,33282.0,33282.0,0.0,0.0,0.0
+FRA,France,Eggs,1774.0,1774.0,0.0,0.0,0.0
+FRA,France,Fats and oils,5903.0,2952.0,2951.0,2951.0,0.0
+FRA,France,Fish,4337.0,2168.0,2169.0,2169.0,0.0
+FRA,France,Fruit and vegetables,31779.0,15889.0,15890.0,15890.0,0.0
+FRA,France,Meat,11649.0,5825.0,5824.0,5824.0,0.0
+FRA,France,Other,16558.0,8006.0,8552.0,8552.0,0.0
+FRA,France,"Sweets, confectionery, and sweetened beverages",4790.0,2395.0,2395.0,2395.0,0.0
+PYF,French Polynesia,Cereals,106.0,53.0,53.0,53.0,0.0
+PYF,French Polynesia,Dairy,72.0,72.0,0.0,0.0,0.0
+PYF,French Polynesia,Eggs,8.0,8.0,0.0,0.0,0.0
+PYF,French Polynesia,Fats and oils,39.0,19.0,20.0,20.0,0.0
+PYF,French Polynesia,Fish,28.0,14.0,14.0,14.0,0.0
+PYF,French Polynesia,Fruit and vegetables,111.0,56.0,55.0,55.0,0.0
+PYF,French Polynesia,Meat,60.0,30.0,30.0,30.0,0.0
+PYF,French Polynesia,Other,62.0,24.0,38.0,38.0,0.0
+PYF,French Polynesia,"Sweets, confectionery, and sweetened beverages",31.0,15.0,16.0,16.0,0.0
+DEU,Germany,Cereals,27029.0,13515.0,13514.0,13514.0,0.0
+DEU,Germany,Dairy,35056.0,35056.0,0.0,0.0,0.0
+DEU,Germany,Eggs,2620.0,2620.0,0.0,0.0,0.0
+DEU,Germany,Fats and oils,7042.0,3521.0,3521.0,3521.0,0.0
+DEU,Germany,Fish,2194.0,1097.0,1097.0,1097.0,0.0
+DEU,Germany,Fruit and vegetables,49680.0,24841.0,24839.0,24839.0,0.0
+DEU,Germany,Meat,12310.0,6155.0,6155.0,6155.0,0.0
+DEU,Germany,Other,26311.0,13155.0,13156.0,13156.0,0.0
+DEU,Germany,"Sweets, confectionery, and sweetened beverages",8354.0,4177.0,4177.0,4177.0,0.0
+GRC,Greece,Cereals,3551.0,1775.0,1776.0,1776.0,0.0
+GRC,Greece,Dairy,4822.0,4822.0,0.0,0.0,0.0
+GRC,Greece,Eggs,196.0,196.0,0.0,0.0,0.0
+GRC,Greece,Fats and oils,1366.0,683.0,683.0,683.0,0.0
+GRC,Greece,Fish,401.0,200.0,201.0,201.0,0.0
+GRC,Greece,Fruit and vegetables,6218.0,3109.0,3109.0,3109.0,0.0
+GRC,Greece,Meat,1705.0,852.0,853.0,853.0,0.0
+GRC,Greece,Other,1828.0,914.0,914.0,914.0,0.0
+GRC,Greece,"Sweets, confectionery, and sweetened beverages",839.0,420.0,419.0,419.0,0.0
+GUY,Guyana,Cereals,387.0,193.0,194.0,194.0,0.0
+GUY,Guyana,Dairy,200.0,200.0,0.0,0.0,0.0
+GUY,Guyana,Eggs,2.0,2.0,0.0,0.0,0.0
+GUY,Guyana,Fats and oils,31.0,15.0,16.0,16.0,0.0
+GUY,Guyana,Fish,40.0,20.0,20.0,20.0,0.0
+GUY,Guyana,Fruit and vegetables,1009.0,505.0,504.0,504.0,0.0
+GUY,Guyana,Meat,128.0,64.0,64.0,64.0,0.0
+GUY,Guyana,Other,168.0,74.0,94.0,94.0,0.0
+GUY,Guyana,"Sweets, confectionery, and sweetened beverages",112.0,56.0,56.0,56.0,0.0
+HUN,Hungary,Cereals,3268.0,1634.0,1634.0,1634.0,0.0
+HUN,Hungary,Dairy,3434.0,3434.0,0.0,0.0,0.0
+HUN,Hungary,Eggs,268.0,268.0,0.0,0.0,0.0
+HUN,Hungary,Fats and oils,745.0,372.0,373.0,373.0,0.0
+HUN,Hungary,Fish,123.0,62.0,61.0,61.0,0.0
+HUN,Hungary,Fruit and vegetables,3174.0,1586.0,1588.0,1588.0,0.0
+HUN,Hungary,Meat,1548.0,774.0,774.0,774.0,0.0
+HUN,Hungary,Other,2188.0,1095.0,1093.0,1093.0,0.0
+HUN,Hungary,"Sweets, confectionery, and sweetened beverages",986.0,493.0,493.0,493.0,0.0
+ISL,Iceland,Cereals,167.0,84.0,83.0,83.0,0.0
+ISL,Iceland,Dairy,148.0,148.0,0.0,0.0,0.0
+ISL,Iceland,Eggs,8.0,8.0,0.0,0.0,0.0
+ISL,Iceland,Fats and oils,27.0,13.0,14.0,14.0,0.0
+ISL,Iceland,Fish,65.0,33.0,32.0,32.0,0.0
+ISL,Iceland,Fruit and vegetables,243.0,121.0,122.0,122.0,0.0
+ISL,Iceland,Meat,74.0,37.0,37.0,37.0,0.0
+ISL,Iceland,Other,96.0,39.0,57.0,57.0,0.0
+ISL,Iceland,"Sweets, confectionery, and sweetened beverages",76.0,38.0,38.0,38.0,0.0
+IRL,Ireland,Cereals,2097.0,1049.0,1048.0,1048.0,0.0
+IRL,Ireland,Dairy,3116.0,3116.0,0.0,0.0,0.0
+IRL,Ireland,Eggs,134.0,134.0,0.0,0.0,0.0
+IRL,Ireland,Fats and oils,366.0,183.0,183.0,183.0,0.0
+IRL,Ireland,Fish,200.0,100.0,100.0,100.0,0.0
+IRL,Ireland,Fruit and vegetables,3120.0,1561.0,1559.0,1559.0,0.0
+IRL,Ireland,Meat,1027.0,514.0,513.0,513.0,0.0
+IRL,Ireland,Other,1397.0,641.0,756.0,756.0,0.0
+IRL,Ireland,"Sweets, confectionery, and sweetened beverages",967.0,484.0,483.0,483.0,0.0
+ISR,Israel,Cereals,3649.0,1824.0,1825.0,1825.0,0.0
+ISR,Israel,Dairy,3272.0,3272.0,0.0,0.0,0.0
+ISR,Israel,Eggs,224.0,224.0,0.0,0.0,0.0
+ISR,Israel,Fats and oils,756.0,378.0,378.0,378.0,0.0
+ISR,Israel,Fish,458.0,229.0,229.0,229.0,0.0
+ISR,Israel,Fruit and vegetables,5148.0,2575.0,2573.0,2573.0,0.0
+ISR,Israel,Meat,2113.0,1056.0,1057.0,1057.0,0.0
+ISR,Israel,Other,1244.0,546.0,698.0,698.0,0.0
+ISR,Israel,"Sweets, confectionery, and sweetened beverages",987.0,493.0,494.0,494.0,0.0
+ITA,Italy,Cereals,23572.0,11786.0,11786.0,11786.0,0.0
+ITA,Italy,Dairy,27178.0,27178.0,0.0,0.0,0.0
+ITA,Italy,Eggs,1452.0,1452.0,0.0,0.0,0.0
+ITA,Italy,Fats and oils,5202.0,2601.0,2601.0,2601.0,0.0
+ITA,Italy,Fish,3497.0,1748.0,1749.0,1749.0,0.0
+ITA,Italy,Fruit and vegetables,29230.0,14615.0,14615.0,14615.0,0.0
+ITA,Italy,Meat,9018.0,4509.0,4509.0,4509.0,0.0
+ITA,Italy,Other,12362.0,6181.0,6181.0,6181.0,0.0
+ITA,Italy,"Sweets, confectionery, and sweetened beverages",4422.0,2211.0,2211.0,2211.0,0.0
+JPN,Japan,Cereals,40622.0,20311.0,20311.0,20311.0,0.0
+JPN,Japan,Dairy,15406.0,15406.0,0.0,0.0,0.0
+JPN,Japan,Eggs,4940.0,4940.0,0.0,0.0,0.0
+JPN,Japan,Fats and oils,6877.0,3438.0,3439.0,3439.0,0.0
+JPN,Japan,Fish,11455.0,5727.0,5728.0,5728.0,0.0
+JPN,Japan,Fruit and vegetables,39995.0,19997.0,19998.0,19998.0,0.0
+JPN,Japan,Meat,15559.0,7780.0,7779.0,7779.0,0.0
+JPN,Japan,Other,11458.0,5347.0,6111.0,6111.0,0.0
+JPN,Japan,"Sweets, confectionery, and sweetened beverages",7064.0,3532.0,3532.0,3532.0,0.0
+KWT,Kuwait,Cereals,2133.0,1067.0,1066.0,1066.0,0.0
+KWT,Kuwait,Dairy,1280.0,1280.0,0.0,0.0,0.0
+KWT,Kuwait,Eggs,154.0,154.0,0.0,0.0,0.0
+KWT,Kuwait,Fats and oils,250.0,124.0,126.0,126.0,0.0
+KWT,Kuwait,Fish,126.0,63.0,63.0,63.0,0.0
+KWT,Kuwait,Fruit and vegetables,2747.0,1373.0,1374.0,1374.0,0.0
+KWT,Kuwait,Meat,734.0,367.0,367.0,367.0,0.0
+KWT,Kuwait,Other,526.0,206.0,320.0,320.0,0.0
+KWT,Kuwait,"Sweets, confectionery, and sweetened beverages",398.0,199.0,199.0,199.0,0.0
+LVA,Latvia,Cereals,627.0,313.0,314.0,314.0,0.0
+LVA,Latvia,Dairy,812.0,812.0,0.0,0.0,0.0
+LVA,Latvia,Eggs,40.0,40.0,0.0,0.0,0.0
+LVA,Latvia,Fats and oils,148.0,74.0,74.0,74.0,0.0
+LVA,Latvia,Fish,92.0,46.0,46.0,46.0,0.0
+LVA,Latvia,Fruit and vegetables,846.0,422.0,424.0,424.0,0.0
+LVA,Latvia,Meat,322.0,161.0,161.0,161.0,0.0
+LVA,Latvia,Other,484.0,231.0,253.0,253.0,0.0
+LVA,Latvia,"Sweets, confectionery, and sweetened beverages",252.0,126.0,126.0,126.0,0.0
+LTU,Lithuania,Cereals,1056.0,528.0,528.0,528.0,0.0
+LTU,Lithuania,Dairy,1432.0,1432.0,0.0,0.0,0.0
+LTU,Lithuania,Eggs,82.0,82.0,0.0,0.0,0.0
+LTU,Lithuania,Fats and oils,123.0,62.0,61.0,61.0,0.0
+LTU,Lithuania,Fish,162.0,81.0,81.0,81.0,0.0
+LTU,Lithuania,Fruit and vegetables,1046.0,523.0,523.0,523.0,0.0
+LTU,Lithuania,Meat,465.0,232.0,233.0,233.0,0.0
+LTU,Lithuania,Other,864.0,432.0,432.0,432.0,0.0
+LTU,Lithuania,"Sweets, confectionery, and sweetened beverages",532.0,266.0,266.0,266.0,0.0
+LUX,Luxembourg,Cereals,225.0,112.0,113.0,113.0,0.0
+LUX,Luxembourg,Dairy,298.0,298.0,0.0,0.0,0.0
+LUX,Luxembourg,Eggs,26.0,26.0,0.0,0.0,0.0
+LUX,Luxembourg,Fats and oils,32.0,15.0,17.0,17.0,0.0
+LUX,Luxembourg,Fish,41.0,21.0,20.0,20.0,0.0
+LUX,Luxembourg,Fruit and vegetables,506.0,253.0,253.0,253.0,0.0
+LUX,Luxembourg,Meat,116.0,58.0,58.0,58.0,0.0
+LUX,Luxembourg,Other,279.0,125.0,154.0,154.0,0.0
+LUX,Luxembourg,"Sweets, confectionery, and sweetened beverages",215.0,107.0,108.0,108.0,0.0
+MLT,Malta,Cereals,243.0,121.0,122.0,122.0,0.0
+MLT,Malta,Dairy,300.0,300.0,0.0,0.0,0.0
+MLT,Malta,Eggs,14.0,14.0,0.0,0.0,0.0
+MLT,Malta,Fats and oils,37.0,18.0,19.0,19.0,0.0
+MLT,Malta,Fish,34.0,18.0,16.0,16.0,0.0
+MLT,Malta,Fruit and vegetables,284.0,142.0,142.0,142.0,0.0
+MLT,Malta,Meat,71.0,35.0,36.0,36.0,0.0
+MLT,Malta,Other,99.0,49.0,50.0,50.0,0.0
+MLT,Malta,"Sweets, confectionery, and sweetened beverages",82.0,41.0,41.0,41.0,0.0
+NRU,Nauru,Cereals,2.0,1.0,1.0,1.0,0.0
+NRU,Nauru,Dairy,2.0,2.0,0.0,0.0,0.0
+NRU,Nauru,Eggs,0.0,0.0,0.0,0.0,0.0
+NRU,Nauru,Fats and oils,4.0,2.0,2.0,2.0,0.0
+NRU,Nauru,Fish,0.0,0.0,0.0,0.0,0.0
+NRU,Nauru,Fruit and vegetables,4.0,2.0,2.0,2.0,0.0
+NRU,Nauru,Meat,2.0,1.0,1.0,1.0,0.0
+NRU,Nauru,Other,0.0,0.0,0.0,0.0,0.0
+NRU,Nauru,"Sweets, confectionery, and sweetened beverages",3.0,2.0,1.0,1.0,0.0
+NLD,Netherlands (Kingdom of the),Cereals,7061.0,3530.0,3531.0,3531.0,0.0
+NLD,Netherlands (Kingdom of the),Dairy,9456.0,9456.0,0.0,0.0,0.0
+NLD,Netherlands (Kingdom of the),Eggs,1162.0,1162.0,0.0,0.0,0.0
+NLD,Netherlands (Kingdom of the),Fats and oils,1136.0,568.0,568.0,568.0,0.0
+NLD,Netherlands (Kingdom of the),Fish,690.0,345.0,345.0,345.0,0.0
+NLD,Netherlands (Kingdom of the),Fruit and vegetables,12514.0,6258.0,6256.0,6256.0,0.0
+NLD,Netherlands (Kingdom of the),Meat,2472.0,1236.0,1236.0,1236.0,0.0
+NLD,Netherlands (Kingdom of the),Other,3326.0,1664.0,1662.0,1662.0,0.0
+NLD,Netherlands (Kingdom of the),"Sweets, confectionery, and sweetened beverages",1680.0,840.0,840.0,840.0,0.0
+NZL,New Zealand,Cereals,1756.0,877.0,879.0,879.0,0.0
+NZL,New Zealand,Dairy,1318.0,1318.0,0.0,0.0,0.0
+NZL,New Zealand,Eggs,106.0,106.0,0.0,0.0,0.0
+NZL,New Zealand,Fats and oils,288.0,144.0,144.0,144.0,0.0
+NZL,New Zealand,Fish,255.0,128.0,127.0,127.0,0.0
+NZL,New Zealand,Fruit and vegetables,2148.0,1074.0,1074.0,1074.0,0.0
+NZL,New Zealand,Meat,1035.0,518.0,517.0,517.0,0.0
+NZL,New Zealand,Other,1085.0,542.0,543.0,543.0,0.0
+NZL,New Zealand,"Sweets, confectionery, and sweetened beverages",572.0,286.0,286.0,286.0,0.0
+NOR,Norway,Cereals,2119.0,1060.0,1059.0,1059.0,0.0
+NOR,Norway,Dairy,1904.0,1904.0,0.0,0.0,0.0
+NOR,Norway,Eggs,134.0,134.0,0.0,0.0,0.0
+NOR,Norway,Fats and oils,405.0,202.0,203.0,203.0,0.0
+NOR,Norway,Fish,541.0,270.0,271.0,271.0,0.0
+NOR,Norway,Fruit and vegetables,3198.0,1599.0,1599.0,1599.0,0.0
+NOR,Norway,Meat,804.0,402.0,402.0,402.0,0.0
+NOR,Norway,Other,1660.0,681.0,979.0,979.0,0.0
+NOR,Norway,"Sweets, confectionery, and sweetened beverages",711.0,355.0,356.0,356.0,0.0
+OMN,Oman,Cereals,1386.0,693.0,693.0,693.0,0.0
+OMN,Oman,Dairy,2230.0,2230.0,0.0,0.0,0.0
+OMN,Oman,Eggs,112.0,112.0,0.0,0.0,0.0
+OMN,Oman,Fats and oils,296.0,147.0,149.0,149.0,0.0
+OMN,Oman,Fish,284.0,142.0,142.0,142.0,0.0
+OMN,Oman,Fruit and vegetables,4024.0,2013.0,2011.0,2011.0,0.0
+OMN,Oman,Meat,437.0,218.0,219.0,219.0,0.0
+OMN,Oman,Other,366.0,177.0,189.0,189.0,0.0
+OMN,Oman,"Sweets, confectionery, and sweetened beverages",317.0,158.0,159.0,159.0,0.0
+PAN,Panama,Cereals,2083.0,1041.0,1042.0,1042.0,0.0
+PAN,Panama,Dairy,438.0,438.0,0.0,0.0,0.0
+PAN,Panama,Eggs,68.0,68.0,0.0,0.0,0.0
+PAN,Panama,Fats and oils,291.0,145.0,146.0,146.0,0.0
+PAN,Panama,Fish,132.0,66.0,66.0,66.0,0.0
+PAN,Panama,Fruit and vegetables,1877.0,938.0,939.0,939.0,0.0
+PAN,Panama,Meat,718.0,359.0,359.0,359.0,0.0
+PAN,Panama,Other,935.0,423.0,512.0,512.0,0.0
+PAN,Panama,"Sweets, confectionery, and sweetened beverages",445.0,222.0,223.0,223.0,0.0
+POL,Poland,Cereals,19196.0,9598.0,9598.0,9598.0,0.0
+POL,Poland,Dairy,15214.0,15214.0,0.0,0.0,0.0
+POL,Poland,Eggs,428.0,428.0,0.0,0.0,0.0
+POL,Poland,Fats and oils,2569.0,1285.0,1284.0,1284.0,0.0
+POL,Poland,Fish,864.0,432.0,432.0,432.0,0.0
+POL,Poland,Fruit and vegetables,15415.0,7708.0,7707.0,7707.0,0.0
+POL,Poland,Meat,6604.0,3302.0,3302.0,3302.0,0.0
+POL,Poland,Other,9129.0,4564.0,4565.0,4565.0,0.0
+POL,Poland,"Sweets, confectionery, and sweetened beverages",4019.0,2010.0,2009.0,2009.0,0.0
+PRT,Portugal,Cereals,4517.0,2259.0,2258.0,2258.0,0.0
+PRT,Portugal,Dairy,3776.0,3776.0,0.0,0.0,0.0
+PRT,Portugal,Eggs,244.0,244.0,0.0,0.0,0.0
+PRT,Portugal,Fats and oils,696.0,347.0,349.0,349.0,0.0
+PRT,Portugal,Fish,1116.0,558.0,558.0,558.0,0.0
+PRT,Portugal,Fruit and vegetables,5055.0,2527.0,2528.0,2528.0,0.0
+PRT,Portugal,Meat,2104.0,1051.0,1053.0,1053.0,0.0
+PRT,Portugal,Other,3010.0,1498.0,1512.0,1512.0,0.0
+PRT,Portugal,"Sweets, confectionery, and sweetened beverages",598.0,299.0,299.0,299.0,0.0
+QAT,Qatar,Cereals,1346.0,673.0,673.0,673.0,0.0
+QAT,Qatar,Dairy,636.0,636.0,0.0,0.0,0.0
+QAT,Qatar,Eggs,110.0,110.0,0.0,0.0,0.0
+QAT,Qatar,Fats and oils,178.0,89.0,89.0,89.0,0.0
+QAT,Qatar,Fish,130.0,64.0,66.0,66.0,0.0
+QAT,Qatar,Fruit and vegetables,1859.0,929.0,930.0,930.0,0.0
+QAT,Qatar,Meat,484.0,242.0,242.0,242.0,0.0
+QAT,Qatar,Other,459.0,190.0,269.0,269.0,0.0
+QAT,Qatar,"Sweets, confectionery, and sweetened beverages",236.0,118.0,118.0,118.0,0.0
+KOR,Republic of Korea,Cereals,18432.0,9216.0,9216.0,9216.0,0.0
+KOR,Republic of Korea,Dairy,3248.0,3248.0,0.0,0.0,0.0
+KOR,Republic of Korea,Eggs,1306.0,1306.0,0.0,0.0,0.0
+KOR,Republic of Korea,Fats and oils,4196.0,2098.0,2098.0,2098.0,0.0
+KOR,Republic of Korea,Fish,9276.0,4638.0,4638.0,4638.0,0.0
+KOR,Republic of Korea,Fruit and vegetables,29144.0,14573.0,14571.0,14571.0,0.0
+KOR,Republic of Korea,Meat,9158.0,4578.0,4580.0,4580.0,0.0
+KOR,Republic of Korea,Other,7798.0,3899.0,3899.0,3899.0,0.0
+KOR,Republic of Korea,"Sweets, confectionery, and sweetened beverages",5274.0,2637.0,2637.0,2637.0,0.0
+ROU,Romania,Cereals,9628.0,4814.0,4814.0,4814.0,0.0
+ROU,Romania,Dairy,8542.0,8542.0,0.0,0.0,0.0
+ROU,Romania,Eggs,512.0,512.0,0.0,0.0,0.0
+ROU,Romania,Fats and oils,1367.0,683.0,684.0,684.0,0.0
+ROU,Romania,Fish,313.0,157.0,156.0,156.0,0.0
+ROU,Romania,Fruit and vegetables,9087.0,4544.0,4543.0,4543.0,0.0
+ROU,Romania,Meat,2816.0,1408.0,1408.0,1408.0,0.0
+ROU,Romania,Other,5405.0,2603.0,2802.0,2802.0,0.0
+ROU,Romania,"Sweets, confectionery, and sweetened beverages",1232.0,616.0,616.0,616.0,0.0
+KNA,Saint Kitts and Nevis,Cereals,12.0,6.0,6.0,6.0,0.0
+KNA,Saint Kitts and Nevis,Dairy,2.0,2.0,0.0,0.0,0.0
+KNA,Saint Kitts and Nevis,Eggs,0.0,0.0,0.0,0.0,0.0
+KNA,Saint Kitts and Nevis,Fats and oils,4.0,1.0,3.0,3.0,0.0
+KNA,Saint Kitts and Nevis,Fish,3.0,1.0,2.0,2.0,0.0
+KNA,Saint Kitts and Nevis,Fruit and vegetables,23.0,11.0,12.0,12.0,0.0
+KNA,Saint Kitts and Nevis,Meat,8.0,4.0,4.0,4.0,0.0
+KNA,Saint Kitts and Nevis,Other,4.0,1.0,3.0,3.0,0.0
+KNA,Saint Kitts and Nevis,"Sweets, confectionery, and sweetened beverages",8.0,4.0,4.0,4.0,0.0
+SAU,Saudi Arabia,Cereals,15578.0,7789.0,7789.0,7789.0,0.0
+SAU,Saudi Arabia,Dairy,4564.0,4564.0,0.0,0.0,0.0
+SAU,Saudi Arabia,Eggs,684.0,684.0,0.0,0.0,0.0
+SAU,Saudi Arabia,Fats and oils,2541.0,1270.0,1271.0,1271.0,0.0
+SAU,Saudi Arabia,Fish,860.0,430.0,430.0,430.0,0.0
+SAU,Saudi Arabia,Fruit and vegetables,16011.0,8005.0,8006.0,8006.0,0.0
+SAU,Saudi Arabia,Meat,4383.0,2191.0,2192.0,2192.0,0.0
+SAU,Saudi Arabia,Other,2313.0,868.0,1445.0,1445.0,0.0
+SAU,Saudi Arabia,"Sweets, confectionery, and sweetened beverages",2474.0,1236.0,1238.0,1238.0,0.0
+SYC,Seychelles,Cereals,49.0,25.0,24.0,24.0,0.0
+SYC,Seychelles,Dairy,26.0,26.0,0.0,0.0,0.0
+SYC,Seychelles,Eggs,2.0,2.0,0.0,0.0,0.0
+SYC,Seychelles,Fats and oils,14.0,7.0,7.0,7.0,0.0
+SYC,Seychelles,Fish,10.0,5.0,5.0,5.0,0.0
+SYC,Seychelles,Fruit and vegetables,75.0,37.0,38.0,38.0,0.0
+SYC,Seychelles,Meat,15.0,7.0,8.0,8.0,0.0
+SYC,Seychelles,Other,33.0,13.0,20.0,20.0,0.0
+SYC,Seychelles,"Sweets, confectionery, and sweetened beverages",9.0,5.0,4.0,4.0,0.0
+SVK,Slovakia,Cereals,1879.0,940.0,939.0,939.0,0.0
+SVK,Slovakia,Dairy,2032.0,2032.0,0.0,0.0,0.0
+SVK,Slovakia,Eggs,108.0,108.0,0.0,0.0,0.0
+SVK,Slovakia,Fats and oils,561.0,281.0,280.0,280.0,0.0
+SVK,Slovakia,Fish,112.0,56.0,56.0,56.0,0.0
+SVK,Slovakia,Fruit and vegetables,2026.0,1013.0,1013.0,1013.0,0.0
+SVK,Slovakia,Meat,750.0,375.0,375.0,375.0,0.0
+SVK,Slovakia,Other,1181.0,591.0,590.0,590.0,0.0
+SVK,Slovakia,"Sweets, confectionery, and sweetened beverages",686.0,343.0,343.0,343.0,0.0
+SVN,Slovenia,Cereals,914.0,457.0,457.0,457.0,0.0
+SVN,Slovenia,Dairy,814.0,814.0,0.0,0.0,0.0
+SVN,Slovenia,Eggs,36.0,36.0,0.0,0.0,0.0
+SVN,Slovenia,Fats and oils,123.0,62.0,61.0,61.0,0.0
+SVN,Slovenia,Fish,53.0,26.0,27.0,27.0,0.0
+SVN,Slovenia,Fruit and vegetables,1258.0,629.0,629.0,629.0,0.0
+SVN,Slovenia,Meat,273.0,137.0,136.0,136.0,0.0
+SVN,Slovenia,Other,574.0,265.0,309.0,309.0,0.0
+SVN,Slovenia,"Sweets, confectionery, and sweetened beverages",213.0,106.0,107.0,107.0,0.0
+ESP,Spain,Cereals,17538.0,8768.0,8770.0,8770.0,0.0
+ESP,Spain,Dairy,16606.0,16606.0,0.0,0.0,0.0
+ESP,Spain,Eggs,1416.0,1416.0,0.0,0.0,0.0
+ESP,Spain,Fats and oils,3487.0,1743.0,1744.0,1744.0,0.0
+ESP,Spain,Fish,3810.0,1905.0,1905.0,1905.0,0.0
+ESP,Spain,Fruit and vegetables,17250.0,8626.0,8624.0,8624.0,0.0
+ESP,Spain,Meat,10330.0,5165.0,5165.0,5165.0,0.0
+ESP,Spain,Other,12789.0,6395.0,6394.0,6394.0,0.0
+ESP,Spain,"Sweets, confectionery, and sweetened beverages",3273.0,1636.0,1637.0,1637.0,0.0
+SWE,Sweden,Cereals,3998.0,1999.0,1999.0,1999.0,0.0
+SWE,Sweden,Dairy,4532.0,4532.0,0.0,0.0,0.0
+SWE,Sweden,Eggs,280.0,280.0,0.0,0.0,0.0
+SWE,Sweden,Fats and oils,916.0,458.0,458.0,458.0,0.0
+SWE,Sweden,Fish,647.0,324.0,323.0,323.0,0.0
+SWE,Sweden,Fruit and vegetables,5818.0,2909.0,2909.0,2909.0,0.0
+SWE,Sweden,Meat,1569.0,784.0,785.0,785.0,0.0
+SWE,Sweden,Other,2531.0,1183.0,1348.0,1348.0,0.0
+SWE,Sweden,"Sweets, confectionery, and sweetened beverages",982.0,491.0,491.0,491.0,0.0
+CHE,Switzerland,Cereals,3266.0,1633.0,1633.0,1633.0,0.0
+CHE,Switzerland,Dairy,5344.0,5344.0,0.0,0.0,0.0
+CHE,Switzerland,Eggs,222.0,222.0,0.0,0.0,0.0
+CHE,Switzerland,Fats and oils,654.0,327.0,327.0,327.0,0.0
+CHE,Switzerland,Fish,292.0,146.0,146.0,146.0,0.0
+CHE,Switzerland,Fruit and vegetables,4989.0,2495.0,2494.0,2494.0,0.0
+CHE,Switzerland,Meat,1237.0,618.0,619.0,619.0,0.0
+CHE,Switzerland,Other,2427.0,1173.0,1254.0,1254.0,0.0
+CHE,Switzerland,"Sweets, confectionery, and sweetened beverages",728.0,364.0,364.0,364.0,0.0
+TTO,Trinidad and Tobago,Cereals,563.0,281.0,282.0,282.0,0.0
+TTO,Trinidad and Tobago,Dairy,228.0,228.0,0.0,0.0,0.0
+TTO,Trinidad and Tobago,Eggs,16.0,16.0,0.0,0.0,0.0
+TTO,Trinidad and Tobago,Fats and oils,97.0,49.0,48.0,48.0,0.0
+TTO,Trinidad and Tobago,Fish,55.0,27.0,28.0,28.0,0.0
+TTO,Trinidad and Tobago,Fruit and vegetables,497.0,248.0,249.0,249.0,0.0
+TTO,Trinidad and Tobago,Meat,199.0,99.0,100.0,100.0,0.0
+TTO,Trinidad and Tobago,Other,199.0,99.0,100.0,100.0,0.0
+TTO,Trinidad and Tobago,"Sweets, confectionery, and sweetened beverages",138.0,69.0,69.0,69.0,0.0
+ARE,United Arab Emirates,Cereals,4044.0,2022.0,2022.0,2022.0,0.0
+ARE,United Arab Emirates,Dairy,2470.0,2470.0,0.0,0.0,0.0
+ARE,United Arab Emirates,Eggs,230.0,230.0,0.0,0.0,0.0
+ARE,United Arab Emirates,Fats and oils,678.0,338.0,340.0,340.0,0.0
+ARE,United Arab Emirates,Fish,492.0,246.0,246.0,246.0,0.0
+ARE,United Arab Emirates,Fruit and vegetables,3710.0,1854.0,1856.0,1856.0,0.0
+ARE,United Arab Emirates,Meat,1618.0,809.0,809.0,809.0,0.0
+ARE,United Arab Emirates,Other,910.0,413.0,497.0,497.0,0.0
+ARE,United Arab Emirates,"Sweets, confectionery, and sweetened beverages",610.0,305.0,305.0,305.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Cereals,30288.0,15144.0,15144.0,15144.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Dairy,28486.0,28486.0,0.0,0.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Eggs,1246.0,1246.0,0.0,0.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Fats and oils,4520.0,2259.0,2261.0,2261.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Fish,2433.0,1217.0,1216.0,1216.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Fruit and vegetables,39885.0,19943.0,19942.0,19942.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Meat,11659.0,5830.0,5829.0,5829.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,Other,16396.0,7344.0,9052.0,9052.0,0.0
+GBR,United Kingdom of Great Britain and Northern Ireland,"Sweets, confectionery, and sweetened beverages",5914.0,2957.0,2957.0,2957.0,0.0
+USA,United States of America,Cereals,120610.0,60305.0,60305.0,60305.0,0.0
+USA,United States of America,Dairy,155830.0,155830.0,0.0,0.0,0.0
+USA,United States of America,Eggs,10754.0,10754.0,0.0,0.0,0.0
+USA,United States of America,Fats and oils,29912.0,14957.0,14955.0,14955.0,0.0
+USA,United States of America,Fish,15074.0,7537.0,7537.0,7537.0,0.0
+USA,United States of America,Fruit and vegetables,216851.0,108426.0,108425.0,108425.0,0.0
+USA,United States of America,Meat,83456.0,41728.0,41728.0,41728.0,0.0
+USA,United States of America,Other,69223.0,34612.0,34611.0,34611.0,0.0
+USA,United States of America,"Sweets, confectionery, and sweetened beverages",45402.0,22701.0,22701.0,22701.0,0.0
+URY,Uruguay,Cereals,1490.0,745.0,745.0,745.0,0.0
+URY,Uruguay,Dairy,1536.0,1536.0,0.0,0.0,0.0
+URY,Uruguay,Eggs,100.0,100.0,0.0,0.0,0.0
+URY,Uruguay,Fats and oils,180.0,90.0,90.0,90.0,0.0
+URY,Uruguay,Fish,80.0,40.0,40.0,40.0,0.0
+URY,Uruguay,Fruit and vegetables,1498.0,749.0,749.0,749.0,0.0
+URY,Uruguay,Meat,456.0,228.0,228.0,228.0,0.0
+URY,Uruguay,Other,646.0,303.0,343.0,343.0,0.0
+URY,Uruguay,"Sweets, confectionery, and sweetened beverages",342.0,171.0,171.0,171.0,0.0

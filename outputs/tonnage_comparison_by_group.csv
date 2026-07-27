@@ -1,3 +1,10 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:d1b62b5495525bee421dea5bbcf09268207a832f8236d5fc3ade2b3fe3e2a869
-size 548
+final_food_group,tonnage_before,tonnage_after,difference,excluded_aggregate_t,invariant_gap
+Cereals,457632.0,228813.0,228819.0,228819.0,0.0
+Dairy,452252.0,452252.0,0.0,0.0,0.0
+Eggs,35298.0,35298.0,0.0,0.0,0.0
+Fats and oils,98429.0,49199.0,49230.0,49230.0,0.0
+Fish,67629.0,33813.0,33816.0,33816.0,0.0
+Fruit and vegetables,648603.0,324305.0,324298.0,324298.0,0.0
+Meat,229088.0,114538.0,114550.0,114550.0,0.0
+Other,258758.0,125824.0,132934.0,132934.0,0.0
+"Sweets, confectionery, and sweetened beverages",123846.0,61922.0,61924.0,61924.0,0.0

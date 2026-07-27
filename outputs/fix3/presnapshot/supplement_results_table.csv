@@ -1,3 +1,5 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:3ecf1a18ab64c7df53d3f33eb7f4e380e730b1fca988cb5c95ea6fc5c6bcb756
-size 334
+﻿Metric,Max uptake - Before rebound,Max uptake - After rebound,Moderate uptake - Before rebound,Moderate uptake - After rebound
+Calories reduced (kcal/yr),1.87e+13,—,9.63e+12,—
+Food tonnage reduced (Mt),47.9,20.7,24.7,10.6
+"Emissions reduced (MtCO2e, mean CI)",244,116,125,59.4
+Rebound offset (% tonnage),—,56.7,—,56.9

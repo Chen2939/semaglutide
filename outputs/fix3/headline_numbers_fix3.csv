@@ -1,3 +1,5 @@
-version https://git-lfs.github.com/spec/v1
-oid sha256:8d1548e6a839382bf529bd70324fad06224ab1c010e81b3de00cdac6e412443b
-size 764
+run,scenario,baseline_food_emissions_mt,total_annual_food_savings_mt,cum_food_to_survivor_ratio_10yr,annual_food_to_survivor_ratio_y10,min_country_ratio_10yr,min_country_iso,min_country_name,n_complete_countries
+committed_legacy,max_uptake,6510.9065615889995,64.30221196661066,2.975908731414115,1.5953789020301703,2.0286659040967714,LTU,Lithuania,35
+committed_legacy,mod_uptake,6510.9065615889995,32.92472966330065,2.8705886878029645,1.5432627536101429,1.9926359048253135,LTU,Lithuania,35
+corrected_fix3,max_uptake,6510.9065615889995,54.197554582579755,2.5019426661698723,1.341286613248989,1.747084397478092,POL,Poland,35
+corrected_fix3,mod_uptake,6510.9065615889995,27.766417125924534,2.414645922463403,1.2981424789722986,1.7261221280745676,LTU,Lithuania,35
