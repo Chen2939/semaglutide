@@ -420,6 +420,12 @@ def compute_food_savings(
     # child_energy_file is built by compute_child_energy.R from UN WPP 2024
     # single-age populations x FAO/WHO/UNU (2004) moderate-activity energy
     # requirements for ages 0-17. See the README for the input/output map.
+    #
+    # NOTE: the FAO/WHO/UNU tables already have activity level embedded in the
+    # kcal/day figure, so NO PAL multiplier is applied to the child pool -- the
+    # R script uses pop x kcal_day x 365 directly. This differs from the adult
+    # side above, which is Mifflin BMR x PAL. Do not apply PAL to children a
+    # second time.
     child = pd.read_excel(ROOT / "Food data" / child_energy_file)
     child_pool_daily = (
         child.set_index("ISO3")["total_annual_child_kcal"] / 365.0

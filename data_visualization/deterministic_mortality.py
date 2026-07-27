@@ -13,6 +13,18 @@ Outputs preserve the schema consumed by ``data_visualization.consumption_ghg``:
   mortality model total emissions.csv
   data_result/deterministic_mortality_comparison.csv
 
+``population_weighted``
+-----------------------
+Only the ``True`` (population-scaled) path is valid for anything feeding the
+food:survivor ratio. Survivor emissions are divided into *national* FAOSTAT food
+supply, so the numerator must be on the same national scale: ``True`` multiplies
+each simulated individual's survival difference by its ``weighting`` before
+aggregating, expanding the sample to national headcounts. ``False`` sums raw
+per-individual differences and is sample-scale — roughly 240x smaller, since
+``weighting`` has a median of ~241 — which would inflate every food:survivor
+ratio by about that factor. It is retained only because the two settings are
+different output *units*, not a correct-versus-incorrect pair.
+
 Usage:
     python -m data_visualization.deterministic_mortality
 """
