@@ -228,9 +228,16 @@ def rebuild_mortality_emissions(
     if comparison_file is not None and comparison_file.exists():
         comparison_source = pd.read_csv(comparison_file)
 
-    old_factor = comparison_source[["ISO", "scenario", "emissions_factor_Y0"]].rename(
-        columns={"emissions_factor_Y0": "emissions_factor_Y0_worldbank"}
-    )
+    if "emissions_factor_Y0" in comparison_source.columns:
+        old_factor = comparison_source[
+            ["ISO", "scenario", "emissions_factor_Y0"]
+        ].rename(columns={"emissions_factor_Y0": "emissions_factor_Y0_worldbank"})
+    else:
+        # The person-years input carries no emissions columns, so when no
+        # genuine World Bank baseline is supplied there is nothing to compare
+        # against. Leave the baseline empty; main() skips writing the table.
+        old_factor = comparison_source[["ISO", "scenario"]].copy()
+        old_factor["emissions_factor_Y0_worldbank"] = np.nan
     comparison = old[
         ["ISO", "scenario", "total_person_years_saved", *[f"diff_Y{y}" for y in range(1, 11)]]
     ].merge(

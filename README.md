@@ -81,7 +81,7 @@ clone can skip steps 1–2 entirely and go straight to step 3.
 # 1. Survivor person-years  (only if the mortality model changed)
 python -m data_visualization.deterministic_mortality
 #    reads  final_df_imputed.pkl, mortality2.rds
-#    writes mortality model total emissions.csv   (person-years; NaN emissions)
+#    writes mortality model total emissions.csv   (person-years only)
 
 # 2. Attach OECD emissions factors  (only if step 1 was run)
 export UN_WPP_DIR=/path/to/unwpp        # see External data
@@ -145,7 +145,7 @@ Arguments are keyword-only on purpose. Both uptake levels (`max_uptake`,
 |---|---|---|
 | `build_carbon_intensity.py` | FAOSTAT FBS, `FBS_Group_Mapping.csv`, `faostat_country_mapping.csv`, hardcoded P&N values | `Food data/carbon_intensity{,_p10,_p90}.csv` |
 | `code/compute_child_energy.R` | `$UN_WPP_DIR` male + female WPP workbooks | `Food data/child_energy_by_country.xlsx`, `data/child_energy_requirement_lookup.csv`, `data/child_energy_diagnostics.csv` |
-| `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl`, `mortality2.rds` | `mortality model total emissions.csv`, `data_result/deterministic_mortality_comparison.csv` |
+| `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl`, `mortality2.rds` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
 | `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results8.rds`, `..._oecd.csv` | *(library — no outputs)* |
 | `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
@@ -549,10 +549,25 @@ published numbers from new code, so they are left as they are.
 `True` path is valid for anything feeding the food:survivor ratio; see the
 docstring in `data_visualization/deterministic_mortality.py`.
 
-**`mortality model total emissions.csv` still carries emissions columns that
-nothing reads.** Since `load_mortality_emissions()` now points at the `_oecd`
-file, the emissions columns in the person-years file are vestigial. Whether to
-drop them or mark them is undecided.
+**`mortality model total emissions.csv` is person-years only.** It holds
+`ISO`, `scenario`, `diff_Y0`–`diff_Y10` and `total_person_years_saved`, and
+nothing else. Emissions are computed downstream: `consumption_ghg.py` reads the
+`diff_Y*` columns, attaches OECD factors, and writes
+`mortality model total emissions_oecd.csv`, which is the file every analysis
+script reads. The person-years file previously carried 22 emissions columns as
+well; they were confirmed byte-for-byte duplicates of the OECD output — matching
+the OECD factors in all 84 recorded country-scenarios exactly and the World Bank
+factors in none — and were removed.
+
+**`Mortality Model.ipynb` still writes the wide schema.** It is an alternative
+producer of `mortality model total emissions.csv` and emits all 22 emissions
+columns, so **re-running it would restore the removed columns**. It is not in
+the current execution path — `deterministic_mortality.py` is the maintained
+producer — and it could not be updated here because it cannot be run in this
+checkout: `HLD/`, `Lancet/` and the UN WPP inputs it needs are all absent, and
+executing a notebook blind would be worse than leaving it. Anyone regenerating
+mortality from the notebook must slim its output to the four column groups above
+before the downstream scripts will behave as documented.
 
 ## Legacy Code
 

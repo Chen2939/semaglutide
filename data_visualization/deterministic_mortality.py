@@ -8,10 +8,17 @@ semaglutide survival probabilities over a 10-year horizon. Human Life-Table
 
     q = 1 - exp(-Mx)
 
-Outputs preserve the schema consumed by ``data_visualization.consumption_ghg``:
+Outputs are **person-years only**:
 
   mortality model total emissions.csv
   data_result/deterministic_mortality_comparison.csv
+
+Emissions are computed downstream. ``data_visualization.consumption_ghg`` reads
+the ``diff_Y*`` columns from this file, attaches OECD demand-based
+final-consumption factors, and writes
+``mortality model total emissions_oecd.csv`` — which is what every analysis
+script reads. This file no longer carries emissions columns of its own; the ones
+it used to hold were duplicates of that OECD output.
 
 ``population_weighted``
 -----------------------
@@ -102,27 +109,12 @@ def run_deterministic_mortality(
     summary = individual.groupby(["ISO", "scenario"], as_index=False)[diff_columns].sum()
     summary["total_person_years_saved"] = summary[diff_columns].sum(axis=1)
 
-    # Placeholder emissions columns keep the legacy schema intact until
-    # consumption_ghg.py rebuilds authoritative OECD emissions.
-    summary["emissions_factor_Y0"] = np.nan
-    summary["total_emissions"] = 0.0
-    for year in range(1, 11):
-        summary[f"emissions_factor_Y{year}"] = np.nan
-        summary[f"emissions_Y{year}"] = np.nan
-
-    ordered_cols = [
-        "ISO",
-        "scenario",
-        *diff_columns,
-        "total_person_years_saved",
-        "emissions_factor_Y0",
-        "total_emissions",
-        *[
-            col
-            for year in range(1, 11)
-            for col in (f"emissions_factor_Y{year}", f"emissions_Y{year}")
-        ],
-    ]
+    # Person-years only. Emissions are computed downstream by
+    # consumption_ghg.py, which attaches OECD factors and writes
+    # 'mortality model total emissions_oecd.csv'. This file previously carried
+    # placeholder emissions columns to preserve a legacy schema; they were
+    # duplicates of the OECD output that nothing read, and are no longer written.
+    ordered_cols = ["ISO", "scenario", *diff_columns, "total_person_years_saved"]
     return summary[ordered_cols]
 
 
