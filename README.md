@@ -23,35 +23,141 @@ semaglutide/
 ├── requirements.txt               # Python dependencies
 ├── requirements_lock.txt          # Pinned dependency versions
 │
-├── data_visualization/            # Visualization scripts (Python package)
-│   ├── pipeline.py                # Shared data-loading & equilibrium-solving pipeline
+├── data_visualization/            # Core model + figure scripts (Python package)
+│   ├── pipeline.py                # THE price-rebound pipeline: compute_food_savings()
 │   ├── deterministic_mortality.py # Deterministic expected-value survivor person-years
-│   ├── survivor_manuscript_numbers.py # Manuscript X/Y survivor numbers
 │   ├── consumption_ghg.py         # OECD demand-based final-consumption GHG survivor-emissions rebuild
-│   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
 │   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
+│   ├── survivor_manuscript_numbers.py # Manuscript X/Y survivor numbers
+│   ├── drug_footprint.py              # Per-country pharmaceutical emissions
+│   ├── generate_emissions_figure.py   # Country-level carbon emissions saved figure
 │   ├── generate_dashboard_figure.py   # Combined multi-panel country dashboard + food-group breakdown
 │   ├── generate_rebound_figure.py     # Rebound decomposition by food group (analog to Hegwood Fig. 3)
-│   └── generate_rebound_validation.py # Rebound % by food type & income group (analog to Hegwood Fig. 4a)
+│   ├── generate_rebound_validation.py # Rebound % by food type & income group (analog to Hegwood Fig. 4a)
+│   └── generate_waterfall*.py         # 1-year, 10-year and combined emissions waterfalls
 │
-├── diet_sensitivity/              # Diet-composition sensitivity analysis
+├── diet_sensitivity/              # Diet-composition and carbon-intensity sensitivity analyses
 │   ├── scenarios.py               # Literature-motivated food-group shock assumptions
-│   ├── pipeline.py                # Calorie-preserving diet-shock calibration + rebound model
-│   └── analysis.py                # Runs sensitivity analysis, outputs CSVs and figures
+│   ├── analysis.py                # Three diet scenarios, CSVs + figures
+│   ├── combined_analysis.py       # Combined conservative case (diet shift + meat P10 CI)
+│   ├── sensitivity_overview.py    # All six specifications, max uptake, overview figure
+│   ├── sensitivity_suite.py       # Both uptake levels + year-10 annual ratio (manuscript table)
+│   └── tornado_analysis.py        # Tornado plot over the sensitivity ranges
 ├── drug_effect/                   # Drug product carbon-footprint accounting
+├── scripts/
+│   └── build_supplement_table.py  # Supplementary results table
+│
+├── code/
+│   └── compute_child_energy.R     # Builds the child (0-17) energy pool from UN WPP + FAO/WHO/UNU
+├── data/
+│   └── child_energy_requirement_lookup.csv  # FAO/WHO/UNU (2004) requirement table (generated)
 │
 ├── figures/                       # Paper-ready figures (tracked in Git)
-├── data_result/                   # Generated tabular analysis outputs (selected CSVs tracked via LFS)
-├── Food data/                     # FAOSTAT food balance sheets, elasticities, price indices, mappings (not tracked)
+├── data_result/                   # Generated tabular analysis outputs (selected CSVs tracked)
+├── Food data/                     # FAOSTAT bulk data (download), mappings + elasticities (tracked)
 ├── oecd/                          # OECD GHG footprint input tracked via LFS
-├── HLD/                           # Human Life-Table Database — mortality rates (not tracked)
-├── Lancet/                        # NCD-RisC BMI & diabetes distributions (not tracked)
-├── UN/                            # UN World Population Prospects 2024 (not tracked)
-├── recategorize/                  # Poore & Nemecek (2018) paper + supplementary data (not tracked)
+├── HLD/                           # Human Life-Table Database — mortality rates (download from source)
+├── Lancet/                        # NCD-RisC BMI & diabetes distributions (download from source)
+├── recategorize/                  # Poore & Nemecek (2018) supplementary data (download from source)
 ├── test/                          # Legacy/intermediate upstream outputs (mostly ignored)
 ├── legacy/                        # Archived R scripts, old data, and docs (tracked via Git LFS for large files)
 └── venv/                          # Python virtual environment (not tracked)
 ```
+
+There is no `UN/` directory: the UN WPP workbooks are read from wherever they
+already live, via the `UN_WPP_DIR` environment variable. See
+[External data](#external-data-three-buckets).
+
+## Reproducing the paper's numbers
+
+### Run order
+
+Order matters between the mortality and food stages. Everything from step 3
+onward reads `mortality model total emissions_oecd.csv`, so that file must exist
+and be current before any analysis script runs. It is committed, so a fresh
+clone can skip steps 1–2 entirely and go straight to step 3.
+
+```bash
+# 1. Survivor person-years  (only if the mortality model changed)
+python -m data_visualization.deterministic_mortality
+#    reads  final_df_imputed.pkl, mortality2.rds
+#    writes mortality model total emissions.csv   (person-years; NaN emissions)
+
+# 2. Attach OECD emissions factors  (only if step 1 was run)
+export UN_WPP_DIR=/path/to/unwpp        # see External data
+python -m data_visualization.consumption_ghg
+#    reads  mortality model total emissions.csv, oecd/consumption_ghg_2025.csv,
+#           $UN_WPP_DIR/WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx
+#    writes mortality model total emissions_oecd.csv      <- what everything reads
+#           data_result/oecd_consumption_ghg_per_capita.csv
+
+# 3. Carbon intensity  (regenerates the committed canonical files bit-for-bit)
+python build_carbon_intensity.py --scenario mean
+python build_carbon_intensity.py --scenario p10
+python build_carbon_intensity.py --scenario p90
+
+# 4. Analysis and figures — any order, all independent
+python -m data_visualization.breakeven_analysis
+python -m data_visualization.generate_emissions_figure
+python -m data_visualization.generate_dashboard_figure
+python -m data_visualization.generate_rebound_figure
+python -m data_visualization.generate_rebound_validation
+python -m data_visualization.generate_waterfall_figure
+python -m data_visualization.generate_waterfall_1yr_figure
+python -m data_visualization.generate_waterfall_combined_figure
+python -m data_visualization.survivor_manuscript_numbers
+python -m diet_sensitivity.analysis
+python -m diet_sensitivity.combined_analysis
+python -m diet_sensitivity.sensitivity_overview
+python -m diet_sensitivity.sensitivity_suite
+python -m diet_sensitivity.tornado_analysis
+python -m drug_effect.analysis
+python scripts/build_supplement_table.py
+```
+
+Run everything from the repository root; several scripts resolve inputs
+relative to it.
+
+**Do not run step 1 after step 2.** `deterministic_mortality.py` writes
+`mortality model total emissions.csv` with NaN emissions placeholders, which
+step 2 then fills in. Running them in the wrong order leaves the person-year
+file stale relative to the OECD file, and nothing will warn you.
+
+### The one model function
+
+Every food-emissions number comes from a single function:
+
+```python
+from data_visualization.pipeline import compute_food_savings
+
+food_savings, result_df = compute_food_savings(
+    diet_scenario=None,               # None | baseline_uniform | fatty_food_down | cereal_sweets_up
+    ci_file="carbon_intensity.csv",   # mean | _p10 | _p90 | a derived file
+)
+```
+
+Arguments are keyword-only on purpose. Both uptake levels (`max_uptake`,
+`mod_uptake`) are produced in one call and appear as the `scenario` column.
+
+### Script → inputs → outputs
+
+| Script | Reads | Writes |
+|---|---|---|
+| `build_carbon_intensity.py` | FAOSTAT FBS, `FBS_Group_Mapping.csv`, `faostat_country_mapping.csv`, hardcoded P&N values | `Food data/carbon_intensity{,_p10,_p90}.csv` |
+| `code/compute_child_energy.R` | `$UN_WPP_DIR` male + female WPP workbooks | `Food data/child_energy_by_country.xlsx`, `data/child_energy_requirement_lookup.csv`, `data/child_energy_diagnostics.csv` |
+| `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl`, `mortality2.rds` | `mortality model total emissions.csv`, `data_result/deterministic_mortality_comparison.csv` |
+| `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
+| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results8.rds`, `..._oecd.csv` | *(library — no outputs)* |
+| `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
+| `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed.pkl`, `mortality2.rds` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
+| `data_visualization/generate_*_figure.py` | pipeline | `figures/*.png` (+ waterfall CSVs) |
+| `diet_sensitivity/analysis.py` | pipeline, 3 diet scenarios | `data_result/diet_sensitivity_results.csv`, `..._ratio_comparison.csv`, 2 figures |
+| `diet_sensitivity/combined_analysis.py` | pipeline, mean + P10 CI | `data_result/combined_sensitivity_results.csv`, `..._ratio_comparison.csv`, `carbon_intensity_meat_p10.csv` |
+| `diet_sensitivity/sensitivity_overview.py` | pipeline, all 6 specifications | `data_result/all_sensitivity_overview_results.csv`, `..._country_ratios.csv`, 1 figure |
+| `diet_sensitivity/sensitivity_suite.py` | pipeline, P10 / P90 / combined | `data_result/sensitivity_suite.csv` |
+| `diet_sensitivity/tornado_analysis.py` | pipeline, meat P10/P90, decline rates | `data_result/sensitivity_tornado_results.csv`, 1 figure |
+| `drug_effect/analysis.py` | pipeline, drug footprint | `data_result/drug_emissions_by_country.csv`, `drug_footprint_summary.csv` |
+| `scripts/build_supplement_table.py` | pipeline, `full_simulation_results8.rds` | `data_result/supplement_results_table{,_raw}.csv` |
 
 ## Pipeline
 
@@ -263,9 +369,69 @@ pip install -r requirements.txt
 
 Requires **Python 3.12+** and the virtual environment activated before running notebooks or scripts.
 
-## Required Datasets (not tracked in Git)
+## External data: three buckets
 
-The following datasets are too large or are third-party data that cannot be redistributed. They must be obtained separately and placed in the specified directories.
+Every input falls into exactly one of three categories. Only the first is in the
+repository.
+
+### 1. Committed — in the repository, nothing to download
+
+Hand-built inputs with no external source, plus generated files a clean clone
+cannot rebuild. All are tracked; the small text ones are stored as ordinary git
+blobs rather than LFS pointers so they survive a clone made without LFS.
+
+| File | Why committed |
+|---|---|
+| `Food data/FBS_Group_Mapping.csv` | hand-built: 115 FAOSTAT items → 9 food groups |
+| `Food data/faostat_country_mapping.csv` | hand-built: FAOSTAT area names → ISO3 |
+| `Food data/elasticity_supply.csv` | transcribed from Hegwood et al. (2023) |
+| `Food data/elasticity_demand.csv` | transcribed from Hegwood et al. (2023) |
+| `Food data/carbon_intensity{,_p10,_p90}.csv` | generated; regenerate bit-for-bit with `build_carbon_intensity.py` |
+| `Food data/child_energy_by_country.xlsx` | generated; needs UN WPP, so not rebuildable from a clean clone |
+| `data/child_energy_requirement_lookup.csv` | FAO/WHO/UNU table hardcoded in the R script |
+| `mortality model total emissions.csv` | mortality-model person-years (LFS) |
+| `mortality model total emissions_oecd.csv` | generated; needs UN WPP, so not rebuildable from a clean clone |
+| `full_simulation_results8.rds`, `final_df_imputed.pkl`, `mortality2.rds` | upstream simulation output (LFS) |
+| `oecd/consumption_ghg_2025.csv` | OECD extract (LFS) |
+
+### 2. Documented download — public and redistributable, too large to ship
+
+| Dataset | Version / filters | Consumed by | Where to put it |
+|---|---|---|---|
+| FAOSTAT Food Balance Sheets (Normalized), all data | 2022 reference year; `Element == "Food"` for quantities and `"Food supply (kcal/capita/day)"` for diet shares. ~582 MB. Accessed 2025-07. | `pipeline.py`, `build_carbon_intensity.py` | `Food data/FoodBalanceSheets_E_All_Data_(Normalized)/` |
+| FAOSTAT Consumer Price Indices (Normalized), all data | December 2022; `Item == "Consumer Prices, Food Indices (2015 = 100)"`. ~35 MB. Accessed 2025-07. | `pipeline.py` | `Food data/ConsumerPriceIndices_E_All_Data_(Normalized)/` |
+| UN World Population Prospects 2024, population by single age and sex | `WPP2024_POP_F01_1_..._BOTH_SEXES.xlsx`, `..._F01_2_..._MALE.xlsx`, `..._F01_3_..._FEMALE.xlsx`; 2022 reference year. Accessed 2025-07. | `consumption_ghg.py` (both-sexes), `code/compute_child_energy.R` (male + female) | **anywhere** — point `UN_WPP_DIR` at it |
+
+Download FAOSTAT bulk files from <https://www.fao.org/faostat/en/#data> ("Bulk
+downloads", All Data Normalized) and UN WPP from
+<https://population.un.org/wpp/downloads>.
+
+Two different patterns here, deliberately:
+
+- **FAOSTAT goes into `Food data/`.** These are dated, immutable bulk releases,
+  so provisioning one is a one-time act.
+- **UN WPP is read in place via `UN_WPP_DIR`.** These workbooks are also used
+  outside this repository, so copying one in would create a second version free
+  to drift from the original without anything noticing. Both scripts read the
+  same environment variable and fail with the exact filename if it is unset.
+
+```bash
+export UN_WPP_DIR="/path/to/your/UN WPP 2024"     # bash
+$env:UN_WPP_DIR = "C:\path\to\UN WPP 2024"        # PowerShell
+```
+
+### 3. Link only — redistribution restricted, download from source
+
+Check each provider's terms before redistributing any of these; none are
+included here, and none is read at runtime by the Python analysis.
+
+| Dataset | Source | Needed for |
+|---|---|---|
+| Poore & Nemecek (2018) supplementary data (`aaq0216_datas1/2.xls`) | <https://www.science.org/doi/10.1126/science.aaq0216> | Provenance for the GHG values transcribed into `GHG_SCENARIOS` in `build_carbon_intensity.py`. No script opens the file. |
+| Human Life-Table Database, `Mx_1x1` | <https://www.lifetable.de/> | Upstream mortality tables (already baked into `mortality2.rds`) |
+| NCD-RisC BMI and diabetes distributions | <https://ncdrisc.org/> | Upstream simulation inputs (already baked into `full_simulation_results8.rds`) |
+
+## Required Datasets (detail)
 
 ### `full_simulation_results8.rds`
 > **Location:** project root
@@ -313,10 +479,15 @@ Single-year-of-age, single-calendar-year mortality rate tables from the [Human L
 
 NCD-RisC BMI and diabetes distribution data, downloaded from the [NCD Risk Factor Collaboration](https://ncdrisc.org/). Required by the upstream R simulation (already pre-computed).
 
-### `UN/`
-> **Location:** `UN/`
+### UN World Population Prospects 2024
+> **Location:** anywhere — point `UN_WPP_DIR` at it. There is no `UN/` directory.
 
-UN World Population Prospects 2024 — population by single year of age and sex. Download from [UN Population Division](https://population.un.org/wpp/). Required by the upstream R simulation (already pre-computed).
+Population by single year of age and sex. Download from
+[UN Population Division](https://population.un.org/wpp/downloads). Read in place
+by `data_visualization/consumption_ghg.py` (both-sexes workbook) and
+`code/compute_child_energy.R` (male + female workbooks), and also an input to
+the upstream R simulation. See
+[External data](#external-data-three-buckets) for the exact filenames.
 
 ### `recategorize/`
 > **Location:** `recategorize/`
@@ -327,6 +498,61 @@ UN World Population Prospects 2024 — population by single year of age and sex.
 | `aaq0216_datas1.xls` | Poore & Nemecek (2018) supplementary data — farm-level observations |
 
 Download from the [Science supplementary materials](https://www.science.org/doi/10.1126/science.aaq0216) for Poore & Nemecek (2018).
+
+## Known gaps and warts
+
+Recorded deliberately. None of these affects a published number unless stated.
+
+**The simulation has no committed build script.** `full_simulation_results8.rds`
+is the input to every food-emissions figure, and the script that produced it
+(`Data_Cleaning9.8.R`) is archived in `legacy/R_scripts/` but is not wired to run
+against data in this repository. Its NCD-RisC and UN WPP inputs are not present.
+So the simulation is **not reproducible from a clean clone** — it is consumed as
+a fixed, committed artifact. Anyone re-deriving the population from source data
+must reconstruct that step independently.
+
+**`data_result/oecd_vs_worldbank_survivor_emissions.csv` is not reproducible.**
+It compares OECD demand-based factors against the older World Bank territorial
+ones, and the World Bank baseline file it needs
+(`mortality model total emissions_worldbank_backup.csv`) no longer exists in the
+repository or in any working copy. `consumption_ghg.py` now skips writing that
+table rather than silently regenerating it from OECD data against itself, which
+would report a uniform 0% change. The committed table is the record.
+
+**A 2–3 ULP float artifact in the mortality emissions file.** Regenerating
+`mortality model total emissions_oecd.csv` reproduces the committed
+`mortality model total emissions.csv` in 4528 of 4536 cells exactly; 8 cells
+(`total_emissions` and four `emissions_Y*`) differ by 2–3 units in the last
+place. Every input column is bit-identical and the computing functions are
+unchanged, so the committed artifact was written by a different library
+generation. This is the 15th significant figure and cannot reach a published
+number — confirmed by the sensitivity suite reproducing all 54 of its values
+exactly across the change.
+
+**Dependency direction is inverted between two packages.**
+`data_visualization/pipeline.py` imports `SCENARIOS` from
+`diet_sensitivity/scenarios.py`, so the lower-level package depends on the
+higher-level one. It is harmless — `scenarios.py` is pure data with no project
+imports, so there is no cycle — but the natural fix is to move the scenario
+definitions alongside the pipeline. Left alone deliberately: moving files
+silently breaks paths, and the arrangement works.
+
+**Two sensitivity scripts overlap.** `sensitivity_overview.py` and
+`sensitivity_suite.py` both run the P10, P90 and combined-conservative
+specifications. Neither subsumes the other: the overview covers all six
+specifications but only max uptake and no year-10 annual ratio, while the suite
+covers both uptake levels and the year-10 ratio for three specifications. They
+agree exactly where they overlap. Consolidating them would mean regenerating
+published numbers from new code, so they are left as they are.
+
+**`population_weighted` is a units switch, not a correctness flag.** Only the
+`True` path is valid for anything feeding the food:survivor ratio; see the
+docstring in `data_visualization/deterministic_mortality.py`.
+
+**`mortality model total emissions.csv` still carries emissions columns that
+nothing reads.** Since `load_mortality_emissions()` now points at the `_oecd`
+file, the emissions columns in the person-years file are vestigial. Whether to
+drop them or mark them is undecided.
 
 ## Legacy Code
 
@@ -341,6 +567,24 @@ This repository uses [Git Large File Storage](https://git-lfs.com/) for binary d
 - `*.rds` — R data files (`full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
 - `*.pkl` — Python pickle files (`final_df_imputed.pkl`)
 - `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables and OECD validation/comparison tables
+
+**Exceptions stored as ordinary git blobs**, not LFS. These are small text files
+that the analysis cannot run without, so they must survive a clone made without
+LFS configured. `.gitattributes` unsets the LFS filter for:
+
+- the four hand-built inputs (`FBS_Group_Mapping.csv`,
+  `faostat_country_mapping.csv`, `elasticity_supply.csv`,
+  `elasticity_demand.csv`)
+- `child_energy_requirement_lookup.csv`
+- `mortality model total emissions_oecd.csv`
+
+Note that `.gitattributes` patterns containing spaces must be double-quoted, or
+git reads only the first word as the pattern.
+
+`build_carbon_intensity.py` guards against the related failure: on a clone where
+LFS was never initialised, the tracked carbon-intensity CSVs materialise as
+~130-byte pointer stubs, which pandas would parse into a garbage one-column
+frame. `_assert_not_lfs_pointer()` raises a clear error instead.
 
 **For collaborators cloning the repo:**
 
