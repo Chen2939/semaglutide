@@ -512,9 +512,20 @@ Download from the [Science supplementary materials](https://www.science.org/doi/
 | `reference_headline_numbers.csv` | baseline food emissions, annual food savings, cumulative and year-10 food:survivor ratios, minimum-country ratio and country — both uptake levels |
 | `reference_sensitivity_suite.csv` | the P10 / P90 / combined-conservative suite: cumulative and year-10 ratios, minimum-country ratio, tipping counts — both uptake levels |
 
-Together they pin 47 numbers. A harness re-runs the pipeline across all seven
-diet × carbon-intensity configurations and compares against them, requiring
-agreement to exactly `0.0`.
+Together they pin 47 numbers.
+
+### Running it
+
+```bash
+python -m reference.metrics        # from the repository root
+```
+
+Needs the FAOSTAT bulk downloads in `Food data/` and the committed inputs; it
+does **not** need `UN_WPP_DIR`, since it reads the committed
+`mortality model total emissions_oecd.csv` rather than rebuilding it. Runs the
+pipeline for the four configurations the references cover — no-diet baseline on
+mean carbon intensity, the P10 and P90 bounds, and the combined-conservative
+case — and takes about two minutes. Exit status is 0 on pass, 1 on failure.
 
 **These files are a snapshot of what the current code produces. They are not a
 claim about final results.** They exist to answer one question: *did anything
@@ -534,13 +545,40 @@ So read a failure as **"something moved"**, not "something is broken". The
 distinction matters: the check has no opinion about which numbers are right, only
 about whether they are the same as last time.
 
-Two notes on precision. Comparison against these CSVs bottoms out at
-floating-point text round-trip: three of the 47 values differ from the in-memory
-computation by 1 unit in the last place, because a value like
-`6510.9065615889995` does not reload to the identical double. That is a property
-of CSV storage, not of the model. And the harness itself lives outside the
-repository (`cleanup_scratch/`), so only the reference values are tracked here;
-committing the harness is a separate decision.
+### Tolerance
+
+The check passes when every value agrees to a **relative difference of 1e-12 or
+better**, not bit-for-bit. Two things put an irreducible floor near the 16th
+significant figure: a reference stored as decimal text need not reload to the
+identical double (`6510.9065615889995` does not), and aggregate sums shift
+slightly between pandas and numpy versions. Requiring exact equality would make
+the check fail on a different machine for reasons that have nothing to do with
+the model.
+
+That costs no sensitivity. Observed agreement is around `1e-16` relative —
+roughly four orders of magnitude inside the tolerance — whereas any genuine
+change to the model moves these numbers by *many* orders of magnitude more. The
+smallest real correction made during this work shifted the headline figure by
+about 0.1%, or `1e-3` relative. Nothing meaningful can hide under `1e-12`. ISO
+codes and integer counts are compared exactly, with no tolerance at all.
+
+The check prints the worst absolute and worst relative difference on every run,
+so how close it actually came is always visible rather than reduced to
+pass/fail.
+
+### The frozen consolidation proof
+
+A second, one-time check proved that merging the two former pipelines into one
+`compute_food_savings()` changed nothing: it compared the merged function's full
+output — every column and row of `food_savings` and `result_df`, across all seven
+diet × carbon-intensity configurations — against a snapshot of the two original
+functions taken beforehand, and required exactly `0.0`.
+
+That question is settled, and the snapshot cannot be regenerated because the
+function it captured no longer exists. So `compare_merged.py` and
+`ref_snapshot.pkl` live on the **`seth_bug_fixes` audit branch**, under
+`outputs/fix3/`, rather than here. They are archived there, not runnable there:
+the merged function they test exists only on this branch.
 
 ## Known gaps and warts
 
