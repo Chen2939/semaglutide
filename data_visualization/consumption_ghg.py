@@ -20,6 +20,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
@@ -30,9 +31,25 @@ from .pipeline import ROOT, output_path
 
 
 OECD_FILE = ROOT / "oecd" / "consumption_ghg_2025.csv"
+
+# Input: the mortality model's person-year output. This script consumes the
+# diff_Y* columns only; it drops and recomputes every emissions column.
 MORTALITY_EMISSIONS_FILE = ROOT / "mortality model total emissions.csv"
+
+# Output: a distinct file. This script used to write back over
+# MORTALITY_EMISSIONS_FILE, which made the input and the output the same path.
+# That made run order load-bearing and silent: running it twice fed its own
+# output back in, and running deterministic_mortality.py afterwards replaced the
+# emissions columns with NaN placeholders. Separate paths make the dependency
+# explicit and the sequence order-insensitive.
+NEW_FILE = ROOT / "mortality model total emissions_oecd.csv"
+
+# Optional World Bank baseline, used only to produce the OECD-vs-World-Bank
+# comparison. It is NOT written by this script: auto-creating it from
+# MORTALITY_EMISSIONS_FILE would label already-rebuilt OECD data as the World
+# Bank baseline and yield a comparison of OECD against itself.
 BACKUP_FILE = ROOT / "mortality model total emissions_worldbank_backup.csv"
-NEW_FILE = ROOT / "mortality model total emissions.csv"
+
 COMPARISON_FILE = ROOT / "data_result" / "oecd_vs_worldbank_survivor_emissions.csv"
 PER_CAPITA_FILE = ROOT / "data_result" / "oecd_consumption_ghg_per_capita.csv"
 
@@ -60,9 +77,31 @@ def load_oecd_final_consumption_ghg(path: Path = OECD_FILE) -> pd.DataFrame:
     return filtered[["ISO", "Country", "TIME_PERIOD", "oecd_consumption_ghg_Mt"]]
 
 
+def un_wpp_path(filename: str) -> Path:
+    """Resolve a UN WPP 2024 workbook, read from wherever it already lives.
+
+    The WPP workbooks are large and are not redistributed in this repository, so
+    ``UN_WPP_DIR`` points at a local copy and the file is read in place. Copying
+    one into the tree would create a second version that can drift from the
+    source without anything noticing.
+
+    ``code/compute_child_energy.R`` reads the same environment variable for the
+    single-age male and female workbooks.
+    """
+    base = Path(os.environ.get("UN_WPP_DIR", ROOT / "UN"))
+    path = base / filename
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"UN WPP 2024 workbook not found:\n  {path}\n"
+            f"Set UN_WPP_DIR to the directory containing '{filename}'.\n"
+            "See the README (data sources) for the download."
+        )
+    return path
+
+
 def load_un_population_2022() -> pd.DataFrame:
     """Load 2022 total national population from UN WPP (all ages, both sexes)."""
-    path = ROOT / "UN" / "WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx"
+    path = un_wpp_path("WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx")
     pop = pd.read_excel(path, sheet_name=0, skiprows=16)
     pop = pop[pop["Year"] == 2022].copy()
     pop = pop.rename(columns={"Region, subregion, country or area *": "Country"})
@@ -239,18 +278,27 @@ def main() -> None:
         comparison_file=BACKUP_FILE if BACKUP_FILE.exists() else None,
     )
 
-    if not BACKUP_FILE.exists():
-        pd.read_csv(MORTALITY_EMISSIONS_FILE).to_csv(BACKUP_FILE, index=False)
-        print(f"Saved World Bank backup: {BACKUP_FILE}")
-
     rebuilt.to_csv(NEW_FILE, index=False)
     COMPARISON_FILE.parent.mkdir(exist_ok=True)
-    comparison.to_csv(COMPARISON_FILE, index=False)
     build_oecd_per_capita_table().to_csv(PER_CAPITA_FILE, index=False)
 
-    print(f"Updated survivor-emissions CSV: {NEW_FILE}")
-    print(f"Comparison table: {COMPARISON_FILE}")
+    print(f"Survivor-emissions CSV (OECD): {NEW_FILE}")
     print(f"OECD per-capita table: {PER_CAPITA_FILE}")
+
+    # The comparison is only meaningful against a genuine World Bank baseline.
+    # Without one, comparison_source falls back to the input file -- which is
+    # itself OECD-derived -- so the table would report a uniform 0% change.
+    # Skip it rather than overwrite a real comparison with zeros.
+    if BACKUP_FILE.exists():
+        comparison.to_csv(COMPARISON_FILE, index=False)
+        print(f"Comparison table: {COMPARISON_FILE}")
+    else:
+        print(
+            f"\nSkipped {COMPARISON_FILE.name}: no World Bank baseline at\n"
+            f"  {BACKUP_FILE}\n"
+            "  Without it the comparison would be OECD against itself (0% change).\n"
+            "  The committed comparison table is left untouched."
+        )
 
     usa = comparison[(comparison["ISO"] == "USA") & (comparison["scenario"] == "max_uptake")]
     if not usa.empty:

@@ -41,6 +41,7 @@ legacy/data/.Rhistory
 !mortality2.rds
 !final_df_imputed.pkl
 !mortality model total emissions.csv
+!mortality model total emissions_oecd.csv
 !API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls
 
 # === Legacy generated outputs directory ===

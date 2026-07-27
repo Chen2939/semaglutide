@@ -551,12 +551,20 @@ def compute_food_savings(
 
 
 def load_mortality_emissions():
-    """Load year-by-year survivor emissions from the Mortality Model CSV.
+    """Load year-by-year survivor emissions with OECD consumption-GHG factors.
 
-    Expects ``mortality model total emissions.csv`` generated with
-    ``population_weighted=True``.
+    Reads ``mortality model total emissions_oecd.csv``, written by
+    ``data_visualization.consumption_ghg``. That script takes the mortality
+    model's person-years from ``mortality model total emissions.csv`` (which must
+    be generated with ``population_weighted=True``) and attaches OECD
+    demand-based final-consumption emissions factors.
+
+    The two files are deliberately distinct: consumption_ghg used to write back
+    over its own input, which made the run order load-bearing and silent. Run
+    ``python -m data_visualization.consumption_ghg`` before any analysis script
+    if the person-years have changed. See the README for the run order.
     """
-    return pd.read_csv(ROOT / "mortality model total emissions.csv")
+    return pd.read_csv(ROOT / "mortality model total emissions_oecd.csv")
 
 
 def output_path(filename: str) -> Path:
