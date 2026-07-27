@@ -137,20 +137,18 @@ AGGREGATE_ITEMS = {
     "Miscellaneous",
 }
 
-def build_faostat_ghg_map(scenario="mean", dairy_raw_milk_basis=True):
+def build_faostat_ghg_map(scenario="mean"):
     """Build FAOSTAT item -> GHG mapping for the given scenario.
 
-    ``dairy_raw_milk_basis`` defaults to True (fix #2, now canonical): the
-    Dairy-group item ``Milk - Excluding Butter`` — whose FAOSTAT mass is in
+    The Dairy-group item ``Milk - Excluding Butter`` — whose FAOSTAT mass is in
     whole-milk equivalent — is assigned the raw-milk CI (``g["milk"]`` ≈ 3.15)
-    instead of the per-product milk+cheese blend (``g["dairy"]`` ≈ 4.04), which
-    would otherwise double-count cheese intensity against milk-equivalent mass.
-    This corrects a units mismatch, not a scenario assumption, so it applies to
-    mean/p10/p90 alike. Set False only to reproduce the legacy blend.
-    Butter/Cream (Fats-and-oils group) are left unchanged.
+    rather than a per-product milk+cheese blend (``g["dairy"]`` ≈ 4.04), which
+    would double-count cheese intensity against milk-equivalent mass. This is a
+    units correction, not a scenario assumption, so it applies to mean/p10/p90
+    alike. Butter/Cream (Fats-and-oils group) are left unchanged.
     """
     g = GHG_SCENARIOS[scenario]
-    milk_basis = g["milk"] if dairy_raw_milk_basis else g["dairy"]
+    milk_basis = g["milk"]
 
     # Proxy values that don't have a direct P&N product
     tea = 1.50 if scenario == "mean" else (0.75 if scenario == "p10" else 2.50)
@@ -280,19 +278,15 @@ def build_faostat_ghg_map(scenario="mean", dairy_raw_milk_basis=True):
 # Used when a country has no leaf-item data for a food group
 # ============================================================
 
-def compute_global_group_averages(scenario="mean", dairy_raw_milk_basis=True):
+def compute_global_group_averages(scenario="mean"):
     """Compute production-weighted P&N average per food group for a scenario.
 
-    ``dairy_raw_milk_basis`` defaults to True (fix #2, canonical): the Dairy
-    fallback uses raw milk only (whole-milk-equivalent basis) rather than a
-    milk+cheese production blend. Set False to reproduce the legacy blend.
+    The Dairy fallback uses raw milk only, matching the whole-milk-equivalent
+    basis of the FAOSTAT mass it is applied to, rather than a milk+cheese
+    production blend.
     """
     g = GHG_SCENARIOS[scenario]
-    dairy_products = (
-        [(_PROD_MILK, g["milk"])]
-        if dairy_raw_milk_basis
-        else [(470267, g["milk"]), (21191, g["cheese"])]
-    )
+    dairy_products = [(_PROD_MILK, g["milk"])]
     group_products = {
         "Cereals": [
             (482152, g["wheat"]), (194554, g["maize"]),
@@ -370,18 +364,16 @@ def _assert_not_lfs_pointer(path):
 # MAIN: Build country-specific carbon intensity
 # ============================================================
 
-def build_ci(scenario="mean", dairy_raw_milk_basis=True, out_path=None):
+def build_ci(scenario="mean", out_path=None):
     """Build country-specific carbon intensity for a given scenario.
 
-    Returns the result DataFrame and also writes to CSV. ``dairy_raw_milk_basis``
-    defaults to True (fix #2, now canonical): the Dairy group uses the raw-milk
-    CI. A default run therefore writes the canonical files
-    (``carbon_intensity.csv`` / ``_p10`` / ``_p90``) and reproduces them
-    bit-for-bit. Set it False only to reproduce the legacy milk+cheese blend.
-    ``out_path`` overrides the output filename entirely (e.g. to write
-    ``*_cireg`` comparison files without clobbering the canonical baselines).
+    Returns the result DataFrame and also writes to CSV. A default run writes
+    the canonical files (``carbon_intensity.csv`` / ``_p10`` / ``_p90``) and
+    reproduces them bit-for-bit. ``out_path`` overrides the output filename
+    entirely (e.g. to write comparison files without clobbering the canonical
+    baselines).
     """
-    faostat_ghg = build_faostat_ghg_map(scenario, dairy_raw_milk_basis)
+    faostat_ghg = build_faostat_ghg_map(scenario)
 
     mapping = pd.read_csv("Food data/FBS_Group_Mapping.csv")
     norm = pd.read_csv(
@@ -392,7 +384,7 @@ def build_ci(scenario="mean", dairy_raw_milk_basis=True, out_path=None):
     _assert_not_lfs_pointer("Food data/carbon_intensity.csv")
     old_ci = pd.read_csv("Food data/carbon_intensity.csv")
 
-    global_avg = compute_global_group_averages(scenario, dairy_raw_milk_basis)
+    global_avg = compute_global_group_averages(scenario)
     food_groups = [
         "Cereals", "Dairy", "Eggs", "Fats and oils", "Fish",
         "Fruit and vegetables", "Meat", "Other",
@@ -443,9 +435,9 @@ def build_ci(scenario="mean", dairy_raw_milk_basis=True, out_path=None):
     for fg in food_groups:
         result[fg] = result[fg].round(6)
 
-    # Determine output filename. Raw-milk dairy basis (fix #2) is canonical, so
-    # a default run writes the canonical filenames; pass out_path explicitly to
-    # write comparison variants without clobbering them.
+    # Determine output filename. A default run writes the canonical filenames;
+    # pass out_path explicitly to write comparison variants without clobbering
+    # them.
     if out_path is None:
         if scenario == "mean":
             out_path = "Food data/carbon_intensity.csv"

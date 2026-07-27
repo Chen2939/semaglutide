@@ -22,9 +22,9 @@ from scipy.optimize import root_scalar
 ROOT = Path(__file__).resolve().parent.parent
 
 # Single source of truth for the FAOSTAT parent-level aggregate items that
-# double-count their sub-items. build_carbon_intensity.py already excludes
-# these from its carbon-intensity weighting; the food-quantity step here must
-# apply the identical exclusion (fix #1).
+# double-count their sub-items. build_carbon_intensity.py excludes these from
+# its carbon-intensity weighting; the food-quantity step below applies the
+# identical exclusion.
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from build_carbon_intensity import AGGREGATE_ITEMS
@@ -265,8 +265,6 @@ def compute_food_savings(
     *,
     diet_scenario: Optional[str] = None,
     ci_file: str = "carbon_intensity.csv",
-    exclude_aggregates: bool = True,
-    all_ages_denominator: bool = True,
     child_energy_file: str = "child_energy_by_country.xlsx",
 ):
     """Run the Price Rebound equilibrium model and return per-country
@@ -295,22 +293,10 @@ def compute_food_savings(
         ``carbon_intensity_p10.csv`` or ``carbon_intensity_p90.csv``
         for sensitivity scenarios. An absolute path is used as-is, which lets
         callers pass a derived CI file generated outside ``Food data/``.
-    exclude_aggregates : bool
-        When True (default; fix #1), drop FAOSTAT parent-level aggregate
-        items (``AGGREGATE_ITEMS``) from the food-quantity step so they are
-        not summed alongside their own components. When False, reproduce the
-        legacy behaviour that double-counts these aggregates.
-    all_ages_denominator : bool
-        When True (default; fix #3), include the untreated child (0-17) energy
-        requirement pool in BOTH the baseline and treatment energy pools before
-        forming the demand-reduction fraction, so the fraction is normalised on
-        the all-ages population that actually consumes the all-ages FAOSTAT
-        supply the shock is applied to. When False, reproduce the legacy
-        adults-only fraction that overstates the reduction.
     child_energy_file : str
         Excel file inside ``Food data/`` with the per-country child (0-17)
-        energy pool (columns ``ISO3``, ``total_annual_child_kcal``). Only read
-        when ``all_ages_denominator`` is True.
+        energy pool (columns ``ISO3``, ``total_annual_child_kcal``), used to put
+        the demand-reduction fraction on an all-ages basis.
 
     Returns
     -------
@@ -363,10 +349,13 @@ def compute_food_savings(
         & (food_norm["Element"] == "Food")
         & (food_norm["ISO"].isin(countries_in_scope))
     ]
-    if exclude_aggregates:
-        # Fix #1: drop parent-level aggregate items before grouping so their
-        # tonnage is not summed on top of their own components.
-        food_norm = food_norm[~food_norm["Item"].isin(AGGREGATE_ITEMS)]
+    # Drop parent-level aggregate items before grouping so their tonnage is not
+    # summed on top of their own components. The FAOSTAT Food Balance Sheets
+    # carry both parents (e.g. "Meat", "Cereals - Excluding Beer") and their
+    # component items; summing both double-counts every aggregated group.
+    # build_carbon_intensity.py applies the identical exclusion when weighting
+    # carbon intensities, so AGGREGATE_ITEMS is shared between the two steps.
+    food_norm = food_norm[~food_norm["Item"].isin(AGGREGATE_ITEMS)]
     food_norm = pd.merge(
         food_norm,
         mapping.set_index("fbs_group")[["first_level_aggregation", "final_food_group"]],
@@ -417,32 +406,32 @@ def compute_food_savings(
         ["weighted_eer", "weighted_treatment_eer"]
     ].copy()
 
-    if all_ages_denominator:
-        # Fix #3: the summed weighted_(treatment_)eer are the national 18+ DAILY
-        # energy pools (eer = Mifflin BMR/day x PAL; weighting expands the sim to
-        # national 18+ headcounts). Children (0-17) are untreated but still
-        # consume food, so their energy requirement belongs UNCHANGED in both the
-        # baseline and treatment pools, diluting the reduction fraction from an
-        # adults-only basis to the all-ages basis that matches the all-ages
-        # FAOSTAT supply the shock is applied to. The child file carries a
-        # national ANNUAL kcal total, so /365 puts it on the adult daily basis.
-        child = pd.read_excel(ROOT / "Food data" / child_energy_file)
-        child_pool_daily = (
-            child.set_index("ISO3")["total_annual_child_kcal"] / 365.0
-        ).dropna()
-        cpd = sim_result_perc.index.get_level_values("ISO").map(child_pool_daily)
-        sim_result_perc["child_pool_daily"] = np.asarray(cpd, dtype=float)
-        sim_result_perc["expected_demand_reduction_percent"] = (
-            (sim_result_perc["weighted_treatment_eer"]
-             + sim_result_perc["child_pool_daily"])
-            / (sim_result_perc["weighted_eer"]
-               + sim_result_perc["child_pool_daily"])
-        ) - 1
-    else:
-        sim_result_perc["expected_demand_reduction_percent"] = (
-            sim_result_perc["weighted_treatment_eer"]
-            / sim_result_perc["weighted_eer"]
-        ) - 1
+    # All-ages denominator. The summed weighted_(treatment_)eer are the national
+    # 18+ DAILY energy pools (eer = Mifflin BMR/day x PAL; weighting expands the
+    # sim to national 18+ headcounts). Children (0-17) are untreated but still
+    # consume food, so their energy requirement belongs UNCHANGED in both the
+    # baseline and treatment pools, putting the reduction fraction on the
+    # all-ages basis that matches the all-ages FAOSTAT supply the shock is
+    # applied to. Normalising on adults alone would implicitly assume adults are
+    # 100% of national food consumption and overstate the reduction. The child
+    # file carries a national ANNUAL kcal total, so /365 puts it on the adult
+    # daily basis.
+    #
+    # child_energy_file is built by compute_child_energy.R from UN WPP 2024
+    # single-age populations x FAO/WHO/UNU (2004) moderate-activity energy
+    # requirements for ages 0-17. See the README for the input/output map.
+    child = pd.read_excel(ROOT / "Food data" / child_energy_file)
+    child_pool_daily = (
+        child.set_index("ISO3")["total_annual_child_kcal"] / 365.0
+    ).dropna()
+    cpd = sim_result_perc.index.get_level_values("ISO").map(child_pool_daily)
+    sim_result_perc["child_pool_daily"] = np.asarray(cpd, dtype=float)
+    sim_result_perc["expected_demand_reduction_percent"] = (
+        (sim_result_perc["weighted_treatment_eer"]
+         + sim_result_perc["child_pool_daily"])
+        / (sim_result_perc["weighted_eer"]
+           + sim_result_perc["child_pool_daily"])
+    ) - 1
 
     # ── Merge into one DataFrame (food groups × scenarios per country) ─
     merged = pd.merge(
@@ -470,27 +459,26 @@ def compute_food_savings(
         on="ISO", how="left",
     )
 
-    if all_ages_denominator:
-        # Hard guard: every country that carries a FAOSTAT food quantity (i.e.
-        # actually receives a demand shock) must have supplied a child pool. A
-        # silently missing child pool would leave that country on the inflated
-        # adults-only fraction -- invisible in aggregate output -- so raise
-        # rather than let it through (never fill zero).
-        shock = merged[merged["initial_eql_quantity"].notna()]
-        no_child = sorted(set(shock["ISO"].unique()) - set(child_pool_daily.index))
-        nan_delta = sorted(
-            shock.loc[
-                shock["expected_demand_reduction_percent"].isna(), "ISO"
-            ].unique()
+    # Hard guard: every country that carries a FAOSTAT food quantity (i.e.
+    # actually receives a demand shock) must have supplied a child pool. A
+    # silently missing child pool would leave that country on an adults-only
+    # fraction -- invisible in aggregate output -- so raise rather than let it
+    # through (never fill zero).
+    shock = merged[merged["initial_eql_quantity"].notna()]
+    no_child = sorted(set(shock["ISO"].unique()) - set(child_pool_daily.index))
+    nan_delta = sorted(
+        shock.loc[
+            shock["expected_demand_reduction_percent"].isna(), "ISO"
+        ].unique()
+    )
+    offenders = sorted(set(no_child) | set(nan_delta))
+    if offenders:
+        raise ValueError(
+            "All-ages denominator: no child energy pool for shocked "
+            f"country(ies) {offenders}. Refusing to proceed -- these would "
+            "fall back to an inflated adults-only demand shock. Add rows to "
+            f"'Food data/{child_energy_file}'."
         )
-        offenders = sorted(set(no_child) | set(nan_delta))
-        if offenders:
-            raise ValueError(
-                "Fix #3 all-ages denominator: no child energy pool for shocked "
-                f"country(ies) {offenders}. Refusing to proceed -- these would "
-                "revert to the inflated adults-only demand shock. Add rows to "
-                f"'Food data/{child_energy_file}'."
-            )
 
     # ── Apply diet-scenario calibrated shocks ─────────────────────────
     if multipliers:
