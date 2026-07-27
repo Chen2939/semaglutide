@@ -28,9 +28,13 @@ import numpy as np
 import pandas as pd
 
 from data_visualization.breakeven_analysis import compute_breakeven
-from data_visualization.pipeline import ROOT, load_mortality_emissions, output_path
+from data_visualization.pipeline import (
+    ROOT,
+    compute_food_savings,
+    load_mortality_emissions,
+    output_path,
+)
 
-from .pipeline import compute_food_savings_diet
 
 
 COMBINED_SCENARIOS = [
@@ -89,7 +93,7 @@ def run_combined_scenarios(mort: pd.DataFrame) -> pd.DataFrame:
         print(f"\n  -> {config['combined_scenario']}")
         print(f"     diet={config['diet_scenario']}, ci={ci_file}")
 
-        food_savings, _ = compute_food_savings_diet(
+        food_savings, _ = compute_food_savings(
             diet_scenario=config["diet_scenario"],
             ci_file=str(ci_file),
         )

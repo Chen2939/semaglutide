@@ -32,9 +32,13 @@ import numpy as np
 import pandas as pd
 
 from data_visualization.breakeven_analysis import compute_breakeven
-from data_visualization.pipeline import ROOT, load_mortality_emissions, output_path
+from data_visualization.pipeline import (
+    ROOT,
+    compute_food_savings,
+    load_mortality_emissions,
+    output_path,
+)
 
-from .pipeline import compute_food_savings_diet
 
 
 SCENARIO = "max_uptake"
@@ -80,7 +84,7 @@ def global_net_savings(
     valid_isos: set[str] | None = None,
 ) -> dict:
     """Compute global max-uptake net savings for one sensitivity setting."""
-    food, _ = compute_food_savings_diet(
+    food, _ = compute_food_savings(
         diet_scenario=diet_scenario,
         ci_file=str(ci_file),
     )
@@ -124,7 +128,9 @@ def build_tornado_results() -> pd.DataFrame:
 
     baseline = global_net_savings()
     # Keep country coverage fixed to central complete-data countries.
-    baseline_food, _ = compute_food_savings_diet("baseline_uniform", "carbon_intensity.csv")
+    baseline_food, _ = compute_food_savings(
+        diet_scenario="baseline_uniform", ci_file="carbon_intensity.csv"
+    )
     baseline_be = compute_breakeven(baseline_food, load_mortality_emissions())
     valid_isos = set(
         baseline_be[

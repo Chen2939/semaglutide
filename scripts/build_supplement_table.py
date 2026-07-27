@@ -390,7 +390,7 @@ def main():
         "CI_FILE is not the mean carbon-intensity file; update CI_SCENARIO_LABEL."
     )
 
-    food, detail = compute_food_savings(CI_FILE)
+    food, detail = compute_food_savings(ci_file=CI_FILE)
     sim = list(pyreadr.read_r(str(SIM_PATH)).values())[0]
 
     metrics = {sc: compute_scenario_metrics(sc, food, detail, sim) for sc in SCENARIOS}
