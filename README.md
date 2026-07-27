@@ -52,6 +52,10 @@ semaglutide/
 ├── data/
 │   └── child_energy_requirement_lookup.csv  # FAO/WHO/UNU (2004) requirement table (generated)
 │
+├── reference/                     # Reference snapshots for the reproduction check
+│   ├── reference_headline_numbers.csv
+│   └── reference_sensitivity_suite.csv
+│
 ├── figures/                       # Paper-ready figures (tracked in Git)
 ├── data_result/                   # Generated tabular analysis outputs (selected CSVs tracked)
 ├── Food data/                     # FAOSTAT bulk data (download), mappings + elasticities (tracked)
@@ -498,6 +502,45 @@ the upstream R simulation. See
 | `aaq0216_datas1.xls` | Poore & Nemecek (2018) supplementary data — farm-level observations |
 
 Download from the [Science supplementary materials](https://www.science.org/doi/10.1126/science.aaq0216) for Poore & Nemecek (2018).
+
+## Reproduction check
+
+`reference/` holds two snapshots of the model's headline outputs:
+
+| File | Contents |
+|---|---|
+| `reference_headline_numbers.csv` | baseline food emissions, annual food savings, cumulative and year-10 food:survivor ratios, minimum-country ratio and country — both uptake levels |
+| `reference_sensitivity_suite.csv` | the P10 / P90 / combined-conservative suite: cumulative and year-10 ratios, minimum-country ratio, tipping counts — both uptake levels |
+
+Together they pin 47 numbers. A harness re-runs the pipeline across all seven
+diet × carbon-intensity configurations and compares against them, requiring
+agreement to exactly `0.0`.
+
+**These files are a snapshot of what the current code produces. They are not a
+claim about final results.** They exist to answer one question: *did anything
+move?* A refactor, a dependency upgrade, or a change intended to be purely
+structural should reproduce them exactly, and if it does not, something changed
+that the author did not intend.
+
+**A deliberate methodological change is expected to fail this check.** Switching
+to a different carbon-intensity source, revising the demand-shock denominator, or
+changing an elasticity assumption *should* move these numbers — that is the
+change working. The correct response is not to loosen the comparison but to
+regenerate the reference files in their own visible commit, whose message records
+which numbers moved, by how much, and why. The reference files then describe the
+new state.
+
+So read a failure as **"something moved"**, not "something is broken". The
+distinction matters: the check has no opinion about which numbers are right, only
+about whether they are the same as last time.
+
+Two notes on precision. Comparison against these CSVs bottoms out at
+floating-point text round-trip: three of the 47 values differ from the in-memory
+computation by 1 unit in the last place, because a value like
+`6510.9065615889995` does not reload to the identical double. That is a property
+of CSV storage, not of the model. And the harness itself lives outside the
+repository (`cleanup_scratch/`), so only the reference values are tracked here;
+committing the harness is a separate decision.
 
 ## Known gaps and warts
 

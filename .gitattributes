@@ -13,6 +13,10 @@ elasticity_supply.csv -filter -diff -merge -text
 elasticity_demand.csv -filter -diff -merge -text
 child_energy_requirement_lookup.csv -filter -diff -merge -text
 
+# Reference snapshots for the reproduction check. Small plain text, and the
+# check is worthless if a clone cannot read them, so they are git blobs.
+reference/*.csv -filter -diff -merge -text
+
 # Survivor emissions with OECD factors, written by consumption_ghg.py. It is a
 # required pipeline input that a clean clone cannot rebuild, because the UN WPP
 # workbook it depends on is not redistributed here. Same reasoning as above:
