@@ -1,0 +1,116 @@
+fbs_group,first_level_aggregation,final_food_group
+Alcoholic Beverages,alcoholic beverages,Other
+Wine,alcoholic beverages,Other
+Beer,alcoholic beverages,Other
+"Beverages, Fermented",alcoholic beverages,Other
+"Beverages, Alcoholic",alcoholic beverages,Other
+"Alcohol, Non-Food",alcoholic beverages,Other
+Animal fats,animal fats and products,Fats and oils
+"Butter, Ghee",animal fats and products,Fats and oils
+Cream,animal fats and products,Fats and oils
+"Fats, Animals, Raw",animal fats and products,Fats and oils
+"Fish, Body Oil",animal fats and products,Fats and oils
+"Fish, Liver Oil",animal fats and products,Fats and oils
+"Aquatic Products, Other",aquatic products other and products,Fish
+Aquatic Plants,aquatic products other and products,Fish
+Cereals - Excluding Beer,cereals and products excluding beer,Cereals
+Wheat and products,cereals and products excluding beer,Cereals
+Rice and products,cereals and products excluding beer,Cereals
+Barley and products,cereals and products excluding beer,Cereals
+Maize and products,cereals and products excluding beer,Cereals
+Rye and products,cereals and products excluding beer,Cereals
+Oats,cereals and products excluding beer,Cereals
+Sorghum and products,cereals and products excluding beer,Cereals
+"Cereals, other",cereals and products excluding beer,Cereals
+Millet and products,cereals and products excluding beer,Cereals
+Eggs,eggs and products,Eggs
+"Fish, Seafood",fish seafood and products,Fish
+Freshwater Fish,fish seafood and products,Fish
+Demersal Fish,fish seafood and products,Fish
+Pelagic Fish,fish seafood and products,Fish
+"Marine Fish, Other",fish seafood and products,Fish
+Crustaceans,fish seafood and products,Fish
+Cephalopods,fish seafood and products,Fish
+"Molluscs, Other",fish seafood and products,Fish
+"Aquatic Animals, Others",fish seafood and products,Fish
+Fruits - Excluding Wine,fruits and products excluding wine,Fruit and vegetables
+"Oranges, Mandarines",fruits and products excluding wine,Fruit and vegetables
+"Lemons, Limes and products",fruits and products excluding wine,Fruit and vegetables
+"Citrus, Other",fruits and products excluding wine,Fruit and vegetables
+Bananas,fruits and products excluding wine,Fruit and vegetables
+Plantains,fruits and products excluding wine,Fruit and vegetables
+Apples and products,fruits and products excluding wine,Fruit and vegetables
+Pineapples and products,fruits and products excluding wine,Fruit and vegetables
+Grapefruit and products,fruits and products excluding wine,Fruit and vegetables
+Grapes and products (excl wine),fruits and products excluding wine,Fruit and vegetables
+"Fruits, other",fruits and products excluding wine,Fruit and vegetables
+Dates,fruits and products excluding wine,Fruit and vegetables
+Meat,meat (slaughtered) and products,Meat
+Bovine Meat,meat (slaughtered) and products,Meat
+Mutton & Goat Meat,meat (slaughtered) and products,Meat
+Pigmeat,meat (slaughtered) and products,Meat
+Poultry Meat,meat (slaughtered) and products,Meat
+"Meat, Other",meat (slaughtered) and products,Meat
+Milk - Excluding Butter,milk and products excluding butter,Dairy
+Miscellaneous,miscellaneous,Other
+Infant food,miscellaneous,Other
+Offals,offals,Meat
+"Offals, Edible",offals,Meat
+Oilcrops,oilcrops excluding products,Fats and oils
+Soyabeans,oilcrops excluding products,Fats and oils
+Groundnuts,oilcrops excluding products,Fats and oils
+Sunflower seed,oilcrops excluding products,Fats and oils
+Coconuts - Incl Copra,oilcrops excluding products,Fats and oils
+Rape and Mustardseed,oilcrops excluding products,Fats and oils
+Sesame seed,oilcrops excluding products,Fats and oils
+"Oilcrops, Other",oilcrops excluding products,Fats and oils
+Olives (including preserved),oilcrops excluding products,Fats and oils
+Cottonseed,oilcrops excluding products,Fats and oils
+Palm kernels,oilcrops excluding products,Fats and oils
+Pulses,pulses and products,Other
+Beans,pulses and products,Other
+Peas,pulses and products,Other
+"Pulses, Other and products",pulses and products,Other
+Spices,spices,Other
+Pepper,spices,Other
+Pimento,spices,Other
+"Spices, Other",spices,Other
+Cloves,spices,Other
+Starchy Roots,starchy roots and products,Cereals
+Cassava and products,starchy roots and products,Cereals
+Potatoes and products,starchy roots and products,Cereals
+Sweet potatoes,starchy roots and products,Cereals
+"Roots, Other",starchy roots and products,Cereals
+Yams,starchy roots and products,Cereals
+Stimulants,stimulants,Other
+Coffee and products,stimulants,Other
+Cocoa Beans and products,stimulants,Other
+Tea (including mate),stimulants,Other
+Sugar & Sweeteners,sugar and sweeteners,"Sweets, confectionery, and sweetened beverages"
+Sugar (Raw Equivalent),sugar and sweeteners,"Sweets, confectionery, and sweetened beverages"
+"Sweeteners, Other",sugar and sweeteners,"Sweets, confectionery, and sweetened beverages"
+Honey,sugar and sweeteners,"Sweets, confectionery, and sweetened beverages"
+Sugar non-centrifugal,sugar and sweeteners,"Sweets, confectionery, and sweetened beverages"
+Sugar Crops,sugar crops excluding products,"Sweets, confectionery, and sweetened beverages"
+Sugar cane,sugar crops excluding products,"Sweets, confectionery, and sweetened beverages"
+Sugar beet,sugar crops excluding products,"Sweets, confectionery, and sweetened beverages"
+Treenuts,treenuts and products,Other
+Nuts and products,treenuts and products,Other
+Vegetable Oils,vegetable oils and products,Fats and oils
+Soyabean Oil,vegetable oils and products,Fats and oils
+Groundnut Oil,vegetable oils and products,Fats and oils
+Rape and Mustard Oil,vegetable oils and products,Fats and oils
+Palm Oil,vegetable oils and products,Fats and oils
+Coconut Oil,vegetable oils and products,Fats and oils
+Sunflowerseed Oil,vegetable oils and products,Fats and oils
+Sesameseed Oil,vegetable oils and products,Fats and oils
+Olive Oil,vegetable oils and products,Fats and oils
+"Oilcrops Oil, Other",vegetable oils and products,Fats and oils
+Cottonseed Oil,vegetable oils and products,Fats and oils
+Maize Germ Oil,vegetable oils and products,Fats and oils
+Palmkernel Oil,vegetable oils and products,Fats and oils
+Ricebran Oil,vegetable oils and products,Fats and oils
+Vegetables,vegetables and products,Fruit and vegetables
+Tomatoes and products,vegetables and products,Fruit and vegetables
+"Vegetables, other",vegetables and products,Fruit and vegetables
+Onions,vegetables and products,Fruit and vegetables

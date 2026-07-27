@@ -1,3 +1,14 @@
 *.rds filter=lfs diff=lfs merge=lfs -text
 *.pkl filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
+
+# Small hand-built analysis inputs (group mapping, ISO mapping, elasticities;
+# under 7 KB each). Nothing in the model reproduces without them, so they are
+# stored as ordinary git blobs rather than LFS pointers and survive a clone
+# made without LFS. -text keeps bytes byte-exact. The bulk FAOSTAT inputs and
+# all *.rds / *.pkl data keep their LFS routing unchanged.
+FBS_Group_Mapping.csv -filter -diff -merge -text
+faostat_country_mapping.csv -filter -diff -merge -text
+elasticity_supply.csv -filter -diff -merge -text
+elasticity_demand.csv -filter -diff -merge -text
+child_energy_requirement_lookup.csv -filter -diff -merge -text

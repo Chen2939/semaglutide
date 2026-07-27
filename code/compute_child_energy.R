@@ -1,10 +1,17 @@
 # =============================================================================
-# Fix #3 support: total annual child (0-17) energy requirement by country.
+# Total annual child (0-17) energy requirement by country.
 #
 # For each of the in-scope high-income countries, computes the all-ages
-# under-18 daily energy-requirement pool needed to build the all-ages EER
-# denominator for the demand-shock correction (the adult 18+ pool comes from
-# the sim; this supplies the child block).
+# under-18 daily energy-requirement pool used to build the all-ages EER
+# denominator for the demand shock (the adult 18+ pool comes from the sim;
+# this supplies the child block). Consumed by
+# data_visualization.pipeline.compute_food_savings via
+# 'Food data/child_energy_by_country.xlsx'.
+#
+# NOTE: the FAO/WHO/UNU requirement figures below already have physical
+# activity level embedded, so no PAL multiplier is applied here -- the
+# calculation is population x kcal/day x 365. The adult side of the
+# denominator is Mifflin BMR x PAL. Do not apply PAL to children twice.
 #
 # Population source : UN WPP 2024 single-age files (same files the adult sim's
 #                     Data_Cleaning9.8.R reads; those drop 0-17 on import via a
@@ -13,9 +20,13 @@
 # Requirement source: FAO/WHO/UNU (2004) "Human energy requirements",
 #                     moderate physical activity, kcal/day. See lookup below.
 #
-# Output: outputs/fix3/child_energy_by_country.xlsx  (one row per country)
-#         outputs/fix3/child_energy_requirement_lookup.csv  (hardcoded table)
-# Commits nothing.
+# Output: Food data/child_energy_by_country.xlsx     (the pipeline input)
+#         data/child_energy_requirement_lookup.csv   (hardcoded table)
+#         data/child_energy_diagnostics.csv          (sanity checks)
+#
+# The xlsx is written straight to 'Food data/', where the pipeline reads it, so
+# there is no manual copy step that could leave the pipeline on a stale file.
+# Run from the repository root.
 # =============================================================================
 
 suppressPackageStartupMessages({
@@ -28,11 +39,31 @@ suppressPackageStartupMessages({
 })
 
 # ---- paths ------------------------------------------------------------------
-UN_DIR  <- "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data/UN"
+# UN_DIR must point at a local copy of the two UN WPP 2024 single-age population
+# workbooks. They are not redistributed in this repository (see the README for
+# the download); override with the UN_WPP_DIR environment variable rather than
+# editing this line.
+UN_DIR <- Sys.getenv("UN_WPP_DIR", unset = "UN")
 MALE_XLSX   <- file.path(UN_DIR, "WPP2024_POP_F01_2_POPULATION_SINGLE_AGE_MALE.xlsx")
 FEMALE_XLSX <- file.path(UN_DIR, "WPP2024_POP_F01_3_POPULATION_SINGLE_AGE_FEMALE.xlsx")
-OUT_DIR <- "C:/Users/sethw/repos/outputs/fix3"
+
+# Relative to the repository root; run this script from there.
+# The xlsx goes straight to the directory the pipeline reads, so a regenerated
+# pool cannot be left uncopied. The lookup and diagnostics are working files.
+OUT_DIR  <- "data"
+FOOD_DIR <- "Food data"
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
+if (!dir.exists(FOOD_DIR)) {
+  stop(sprintf("'%s' not found -- run this script from the repository root.", FOOD_DIR))
+}
+
+if (!file.exists(MALE_XLSX) || !file.exists(FEMALE_XLSX)) {
+  stop(sprintf(paste0(
+    "UN WPP 2024 single-age population workbooks not found under '%s'.\n",
+    "Set UN_WPP_DIR to the directory holding:\n  %s\n  %s\n",
+    "See the README for the download."),
+    UN_DIR, basename(MALE_XLSX), basename(FEMALE_XLSX)))
+}
 
 WPP_YEAR <- 2022  # matches Data_Cleaning9.8.R (sim population year)
 
@@ -173,7 +204,7 @@ out <- tibble(ISO3 = IN_SCOPE) %>%
 
 missing <- out$ISO3[is.na(out$total_annual_child_kcal)]
 
-write_xlsx(out, file.path(OUT_DIR, "child_energy_by_country.xlsx"))
+write_xlsx(out, file.path(FOOD_DIR, "child_energy_by_country.xlsx"))
 
 # =============================================================================
 # SANITY CHECKS -- printed only, not embedded in the output file.
@@ -234,7 +265,7 @@ cat(sprintf("max |total - (child + adult)| across countries = %.6g persons\n",
 cat(sprintf("(relative to total pop, worst = %.2e)\n",
             max(abs(chk$partition_gap) / chk$total_pop)))
 
-cat("\nWrote:\n  ", file.path(OUT_DIR, "child_energy_by_country.xlsx"),
+cat("\nWrote:\n  ", file.path(FOOD_DIR, "child_energy_by_country.xlsx"),
     "\n  ", file.path(OUT_DIR, "child_energy_requirement_lookup.csv"), "\n")
 
 # Save the diagnostics frame too (for the 18+ vs sim cross-check done separately)
