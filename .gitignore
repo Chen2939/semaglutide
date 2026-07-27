@@ -40,6 +40,9 @@ legacy/data/.Rhistory
 !full_simulation_results8.rds
 !mortality2.rds
 !final_df_imputed.pkl
+# Frozen pre-consolidation snapshot for the archived Step 1 proof. Not
+# regenerable: the function it captured was deleted by the consolidation.
+!/outputs/fix3/ref_snapshot.pkl
 !mortality model total emissions.csv
 !API_EN.GHG.CO2.PC.CE.AR5_DS2_en_excel_v2_3736.xls
 
