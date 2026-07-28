@@ -498,7 +498,7 @@ the upstream R simulation. See
 
 | File | Description |
 |---|---|
-| `aaq0216_datas2.xls` | Poore & Nemecek (2018) supplementary data — GHG emissions per kg of 43 food products and global production totals |
+| `aaq0216_datas2.xls` | Poore & Nemecek (2018) supplementary data — GHG emissions per kg of 43 food products ("Results - Retail Weight") and P&N food-and-waste supply volumes ("Results - Global Totals", column "Food and Waste ('000 t, 2009-11 avg.)"). The latter are the volumes entering the human food supply chain plus associated waste, not total production |
 | `aaq0216_datas1.xls` | Poore & Nemecek (2018) supplementary data — farm-level observations |
 
 Download from the [Science supplementary materials](https://www.science.org/doi/10.1126/science.aaq0216) for Poore & Nemecek (2018).

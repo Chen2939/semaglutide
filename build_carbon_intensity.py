@@ -26,8 +26,14 @@ import numpy as np
 # From aaq0216_datas2.xls "Results - Retail Weight" sheet
 #
 # Each product has three values: (p10, mean, p90)
-# Composite bovine/dairy/sugar values use the same production
-# weights from "Results - Global Totals" across all scenarios.
+#
+# The _PROD_* weights below are P&N food-and-waste supply volumes, taken
+# from the "Results - Global Totals" sheet of the same workbook, column
+# "Food and Waste ('000 t, 2009-11 avg.)". These are the volumes entering
+# the human food supply chain plus associated waste — NOT total production,
+# which for several oils is far larger because of non-food uses (biodiesel,
+# oleochemicals). All composites below use these same weights, applied
+# unchanged across all three scenarios.
 # ============================================================
 
 _PROD_BEEF_HERD = 40571
@@ -36,6 +42,11 @@ _PROD_MILK = 470267
 _PROD_CHEESE = 21191
 _PROD_CANE = 141702
 _PROD_BEET = 34038
+_PROD_SOYBEAN_OIL = 24148
+_PROD_PALM_OIL = 16691
+_PROD_SUNFLOWER_OIL = 9554
+_PROD_RAPESEED_OIL = 10311
+_PROD_OLIVE_OIL = 2997
 
 def _composite(prod_a, val_a, prod_b, val_b):
     return (prod_a * val_a + prod_b * val_b) / (prod_a + prod_b)
@@ -154,8 +165,21 @@ def build_faostat_ghg_map(scenario="mean"):
     tea = 1.50 if scenario == "mean" else (0.75 if scenario == "p10" else 2.50)
     honey = 1.00 if scenario == "mean" else (0.50 if scenario == "p10" else 2.00)
     infant = 3.00 if scenario == "mean" else (1.50 if scenario == "p10" else 5.00)
-    oilcrops_avg = (g["soybean_oil"] + g["palm_oil"] + g["sunflower_oil"]
-                    + g["rapeseed_oil"] + g["olive_oil"]) / 5
+    # Supply-weighted mean of the five P&N oil products, using the same
+    # food-and-waste supply weights as the bovine/dairy/sugar composites
+    # above ("Results - Global Totals", column "Food and Waste ('000 t,
+    # 2009-11 avg.)"). Each scenario weights its own values. Previously an
+    # unweighted mean, which gave every product equal influence regardless
+    # of the volume actually entering the food supply.
+    _oil_products = [
+        (_PROD_SOYBEAN_OIL, g["soybean_oil"]),
+        (_PROD_PALM_OIL, g["palm_oil"]),
+        (_PROD_SUNFLOWER_OIL, g["sunflower_oil"]),
+        (_PROD_RAPESEED_OIL, g["rapeseed_oil"]),
+        (_PROD_OLIVE_OIL, g["olive_oil"]),
+    ]
+    oilcrops_avg = (sum(p * v for p, v in _oil_products)
+                    / sum(p for p, _ in _oil_products))
 
     return {
         # --- Cereals ---
@@ -274,16 +298,19 @@ def build_faostat_ghg_map(scenario="mean"):
     }
 
 # ============================================================
-# Global fallback: production-weighted group averages from P&N
+# Global fallback: supply-weighted group averages from P&N
 # Used when a country has no leaf-item data for a food group
 # ============================================================
 
 def compute_global_group_averages(scenario="mean"):
-    """Compute production-weighted P&N average per food group for a scenario.
+    """Compute a supply-weighted P&N average per food group for a scenario.
+
+    Weights are P&N food-and-waste supply volumes ("Results - Global Totals",
+    column "Food and Waste ('000 t, 2009-11 avg.)"), not total production.
 
     The Dairy fallback uses raw milk only, matching the whole-milk-equivalent
     basis of the FAOSTAT mass it is applied to, rather than a milk+cheese
-    production blend.
+    supply blend.
     """
     g = GHG_SCENARIOS[scenario]
     dairy_products = [(_PROD_MILK, g["milk"])]
@@ -298,9 +325,9 @@ def compute_global_group_averages(scenario="mean"):
         "Eggs": [(63489, g["eggs"])],
         "Fats and oils": [
             (11827, g["groundnut"]), (15296, g["nut"]),
-            (11853, g["tofu"]), (24148, g["soybean_oil"]),
-            (16691, g["palm_oil"]), (9554, g["sunflower_oil"]),
-            (10311, g["rapeseed_oil"]), (2997, g["olive_oil"]),
+            (11853, g["tofu"]), (_PROD_SOYBEAN_OIL, g["soybean_oil"]),
+            (_PROD_PALM_OIL, g["palm_oil"]), (_PROD_SUNFLOWER_OIL, g["sunflower_oil"]),
+            (_PROD_RAPESEED_OIL, g["rapeseed_oil"]), (_PROD_OLIVE_OIL, g["olive_oil"]),
         ],
         "Fish": [(45223, g["fish"]), (10633, g["shrimp"])],
         "Fruit and vegetables": [
