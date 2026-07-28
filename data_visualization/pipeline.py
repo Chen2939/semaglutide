@@ -80,6 +80,9 @@ def load_kcal_shares(countries_in_scope) -> pd.DataFrame:
     -------
     DataFrame with columns: ISO, final_food_group, kcal_share
         Shares sum to 1.0 per ISO.  Countries with no kcal data are absent.
+
+    Parent-level aggregates are excluded, as in the tonnage step, so the
+    shares are not distorted in favour of the groups that have a parent item.
     """
     norm = pd.read_csv(
         ROOT / "Food data" / "FoodBalanceSheets_E_All_Data_(Normalized)"
@@ -94,6 +97,13 @@ def load_kcal_shares(countries_in_scope) -> pd.DataFrame:
         & (kcal["Element"] == "Food supply (kcal/capita/day)")
         & (kcal["ISO"].isin(countries_in_scope))
     ]
+    # Drop parent-level aggregate items before grouping, for the same reason the
+    # tonnage step does: the Food Balance Sheets carry both parents and their
+    # components, so summing both double-counts every group that has a parent.
+    # Dairy and Eggs have no parent item and would be counted once while the
+    # other seven groups were counted twice, understating their calorie shares
+    # and leaving the calibrated multipliers no longer averaging to 1.
+    kcal = kcal[~kcal["Item"].isin(AGGREGATE_ITEMS)]
     kcal = pd.merge(
         kcal,
         mapping.set_index("fbs_group")[["final_food_group"]],
