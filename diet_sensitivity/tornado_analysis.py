@@ -11,7 +11,8 @@ intensity, pharmaceutical emissions folded into net food savings, and 0%
 annual decline in survivor per-capita GHG factors.
 
 Sensitivity ranges:
-  1. Meat carbon intensity: Meat P10 to Meat P90, other foods mean.
+  1. Carbon intensity: all foods P10 to all foods P90, each end scored
+     against the survivor-emissions file built from the same intensities.
   2. Diet preference: cereals/sweets shift to fatty foods decrease more.
   3. Survivor-emissions decline: 0% to 2% annual decline.
 
@@ -45,7 +46,13 @@ SCENARIO = "max_uptake"
 
 
 def build_meat_ci_file(source_ci: str, output_name: str) -> Path:
-    """Create a carbon-intensity file with only Meat changed from mean."""
+    """Create a carbon-intensity file with only Meat changed from mean.
+
+    UNCONSUMED. The carbon-intensity axis moved from meat-only to all-food
+    P10/P90, so nothing calls this any more. Kept because retiring it -- and
+    deleting the derived files it writes into ``data_result/`` -- is separate
+    cleanup, not part of the basis change.
+    """
     mean_ci = pd.read_csv(ROOT / "Food data" / "carbon_intensity.csv")
     source = pd.read_csv(ROOT / "Food data" / source_ci)
 
@@ -82,13 +89,21 @@ def global_net_savings(
     ci_file: str | Path = "carbon_intensity.csv",
     survivor_decline_rate: float = 0.0,
     valid_isos: set[str] | None = None,
+    ci_scenario: str = "mean",
 ) -> dict:
-    """Compute global max-uptake net savings for one sensitivity setting."""
+    """Compute global max-uptake net savings for one sensitivity setting.
+
+    ``ci_scenario`` selects the survivor-emissions file, and must match the
+    carbon intensities ``ci_file`` carries: the survivor factor's P&N food
+    add-back is priced with those same intensities.
+    """
     food, _ = compute_food_savings(
         diet_scenario=diet_scenario,
         ci_file=str(ci_file),
     )
-    mort = adjust_survivor_decline(load_mortality_emissions(), survivor_decline_rate)
+    mort = adjust_survivor_decline(
+        load_mortality_emissions(ci_scenario), survivor_decline_rate
+    )
     be = compute_breakeven(food, mort)
 
     sub = be[
@@ -115,23 +130,27 @@ def global_net_savings(
     }
 
 
-def build_tornado_results() -> pd.DataFrame:
-    """Run tornado endpoints and return a tidy results table."""
-    meat_p10 = build_meat_ci_file(
-        "carbon_intensity_p10.csv",
-        "carbon_intensity_meat_p10.csv",
-    )
-    meat_p90 = build_meat_ci_file(
-        "carbon_intensity_p90.csv",
-        "carbon_intensity_meat_p90.csv",
-    )
+def build_tornado_results(ci_scenario: str = "mean") -> pd.DataFrame:
+    """Run tornado endpoints and return a tidy results table.
 
-    baseline = global_net_savings()
+    ``ci_scenario`` sets the survivor basis for the central reference and for
+    any endpoint that does not override it.  Endpoints on a carbon-intensity
+    axis carry their own ``ci_scenario`` in their spec, so each end of that axis
+    is scored against the survivor file built from its own intensities.
+    """
+    baseline = global_net_savings(ci_scenario=ci_scenario)
     # Keep country coverage fixed to central complete-data countries.
     baseline_food, _ = compute_food_savings(
         diet_scenario="baseline_uniform", ci_file="carbon_intensity.csv"
     )
-    baseline_be = compute_breakeven(baseline_food, load_mortality_emissions())
+    # DELIBERATELY PINNED TO MEAN -- do not parameterise this call.
+    # This builds valid_isos, the fixed country set every endpoint is scored on.
+    # If it followed ci_scenario, a P10 or P90 endpoint could admit or drop
+    # countries relative to the others and the axes would no longer be
+    # comparable: a bar would move because its country set changed, not because
+    # its parameter did. The mean-basis complete-data set is the common
+    # denominator by design.
+    baseline_be = compute_breakeven(baseline_food, load_mortality_emissions("mean"))
     valid_isos = set(
         baseline_be[
             (baseline_be["scenario"] == SCENARIO)
@@ -143,11 +162,15 @@ def build_tornado_results() -> pd.DataFrame:
 
     sensitivity_specs = [
         {
-            "parameter": "Meat carbon intensity",
-            "low_label": "Meat P10",
-            "high_label": "Meat P90",
-            "low": {"ci_file": meat_p10},
-            "high": {"ci_file": meat_p90},
+            # All-food carbon intensity, not meat-only. Each end carries its own
+            # ci_scenario so the survivor side is priced with the same
+            # intensities as the food side; a P90 food bar scored against a
+            # mean survivor basis would overstate the net saving.
+            "parameter": "Carbon intensity (all foods)",
+            "low_label": "All foods P10",
+            "high_label": "All foods P90",
+            "low": {"ci_file": "carbon_intensity_p10.csv", "ci_scenario": "p10"},
+            "high": {"ci_file": "carbon_intensity_p90.csv", "ci_scenario": "p90"},
         },
         {
             "parameter": "Diet preference",
@@ -167,8 +190,13 @@ def build_tornado_results() -> pd.DataFrame:
 
     rows = []
     for spec in sensitivity_specs:
-        low = global_net_savings(valid_isos=valid_isos, **spec["low"])
-        high = global_net_savings(valid_isos=valid_isos, **spec["high"])
+        # The run's ci_scenario is the default; a spec endpoint may override it.
+        low = global_net_savings(
+            valid_isos=valid_isos, **{"ci_scenario": ci_scenario, **spec["low"]}
+        )
+        high = global_net_savings(
+            valid_isos=valid_isos, **{"ci_scenario": ci_scenario, **spec["high"]}
+        )
         rows.append(
             {
                 "parameter": spec["parameter"],

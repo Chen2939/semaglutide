@@ -349,6 +349,50 @@ independent of the food fixes).
 
 ---
 
+## Known stale outputs
+
+Survivor emissions moved to the Poore & Nemecek food basis, and the survivor
+path became carbon-intensity-aware. The outputs below are still on the
+**pre-change survivor basis** and do not match the code that produces them.
+
+| Script | Stale output |
+| --- | --- |
+| `diet_sensitivity/analysis.py` | `data_result/diet_sensitivity_results.csv`, `data_result/diet_sensitivity_ratio_comparison.csv` |
+| `drug_effect/analysis.py` | `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv` |
+| `data_visualization/generate_dashboard_figure.py` | `figures/country_dashboard.png` |
+| `data_visualization/generate_waterfall_figure.py` | `data_result/global_emissions_waterfall.csv`, `figures/global_emissions_waterfall.png` |
+| `reference/metrics.py` | reference snapshot — already expected-failing for two prior reasons |
+
+**These are deliberately not regenerated in this commit.** They are terminal
+outputs: nothing in the pipeline reads them, so leaving them stale cannot
+propagate a wrong number into anything else. They will move again when the
+break-even extension and the survivor-decline fix land, so regenerating now
+would burn a full pipeline pass to produce numbers that are superseded before
+they are used. One regeneration pass after those changes covers all of these
+plus the reference metrics.
+
+`reference/metrics.py` additionally carries a stale *configuration*, not just
+stale values: its `combined_conservative` row still names the derived
+meat-only carbon-intensity file, which production retired in favour of
+all-food P10. See the comment at its `run_configurations()`. That must be
+reconciled in the same pass.
+
+**Not stale — food-side only, unaffected by the survivor basis:**
+
+- `data_result/drug_emissions_by_country.csv` — a function of treated-user
+  counts from the simulation alone (`drug_footprint.py:33-46`); reads neither
+  food savings nor survivor emissions.
+- `figures/food_group_breakdown.png` — built from `result_df`, which the
+  survivor change leaves bit-identical.
+
+Both were verified unchanged by the food-side check that accompanied the
+basis change: `actual_reduction`, `expected_demand_reduction_percent` and all
+food-savings columns reproduced at exactly 0.0 across the mean, P10 and P90
+carbon-intensity scenarios.
+
+
+---
+
 ## How to reproduce
 
 ```

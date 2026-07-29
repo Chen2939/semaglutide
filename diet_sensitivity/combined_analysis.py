@@ -5,13 +5,14 @@ This stacks two conservative assumptions reviewers may ask about:
 
 1. Diet composition shifts toward cereals/sweets while meat decreases less
    (``cereal_sweets_up``).
-2. Meat carbon intensity is set to the P10 value, while all other food groups
-   keep the central/mean carbon intensity.
+2. Carbon intensity is set to the P10 value for ALL food groups, not just meat.
+   Each cell is scored against the survivor-emissions file built from its own
+   carbon intensities, so both sides of the comparison move together.
 
 Outputs:
   data_result/combined_sensitivity_results.csv
   data_result/combined_sensitivity_ratio_comparison.csv
-  data_result/carbon_intensity_meat_p10.csv
+  (carbon intensities come from Food data/carbon_intensity_p10.csv)
   figures/combined_sensitivity_lowest_ratio_countries.png
 
 Usage:
@@ -21,6 +22,7 @@ Usage:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -43,30 +45,39 @@ COMBINED_SCENARIOS = [
         "label": "Uniform baseline",
         "diet_scenario": "baseline_uniform",
         "ci_file": "carbon_intensity.csv",
+        "ci_scenario": "mean",
     },
     {
         "combined_scenario": "cereal_sweets_up_mean_ci",
         "label": "Cereals/sweets shift",
         "diet_scenario": "cereal_sweets_up",
         "ci_file": "carbon_intensity.csv",
+        "ci_scenario": "mean",
     },
     {
-        "combined_scenario": "cereal_sweets_up_meat_p10_ci",
-        "label": "Cereals/sweets + low-meat CI",
+        "combined_scenario": "cereal_sweets_up_p10_ci",
+        "label": "Cereals/sweets + all-food P10 CI",
         "diet_scenario": "cereal_sweets_up",
-        "ci_file": None,  # Filled in after derived CI file is created.
+        "ci_file": "carbon_intensity_p10.csv",
+        "ci_scenario": "p10",
     },
 ]
 
 SCENARIO_COLORS = {
     "baseline_uniform_mean_ci": "#4c78a8",
     "cereal_sweets_up_mean_ci": "#d62728",
-    "cereal_sweets_up_meat_p10_ci": "#7f3c8d",
+    "cereal_sweets_up_p10_ci": "#7f3c8d",
 }
 
 
 def build_meat_p10_ci_file() -> Path:
-    """Create a derived carbon-intensity file with only Meat set to P10."""
+    """Create a derived carbon-intensity file with only Meat set to P10.
+
+    UNCONSUMED. The combined-conservative cell moved from a meat-only P10 to an
+    all-food P10 assumption, so nothing calls this any more. Kept because
+    retiring it -- and deleting the derived file it writes into ``data_result/``
+    -- is separate cleanup, not part of the basis change.
+    """
     mean_ci = pd.read_csv(ROOT / "Food data" / "carbon_intensity.csv")
     p10_ci = pd.read_csv(ROOT / "Food data" / "carbon_intensity_p10.csv")
 
@@ -83,29 +94,79 @@ def build_meat_p10_ci_file() -> Path:
     return out
 
 
-def run_combined_scenarios(mort: pd.DataFrame) -> pd.DataFrame:
-    """Run each combined sensitivity scenario and return stacked results."""
-    meat_p10_file = build_meat_p10_ci_file()
+# ── The combined-conservative cell ────────────────────────────────────
+#
+# This one specification is named in three separate modules -- here, in
+# sensitivity_overview.py and in sensitivity_suite.py -- each with its own
+# config literal. Three copies of a definition drift: a change to one is not a
+# change to the others, and nothing complains, so two scripts silently report a
+# different scenario under the same label. The definition below is canonical and
+# each call site asserts against it, so drift fails loudly at run time instead of
+# surfacing as an unexplained disagreement between two tables.
+#
+# The assertion below compares the (diet, ci_file) pair only. It does NOT check
+# the scenario key or the human label, so renaming the cell without renaming its
+# label is a drift it cannot catch -- keep the key, the label and this spec in
+# step by hand.
+COMBINED_CONSERVATIVE_DIET = "cereal_sweets_up"
+COMBINED_CONSERVATIVE_CI_FILE = "carbon_intensity_p10.csv"
+COMBINED_CONSERVATIVE_CI_SCENARIO = "p10"
+
+
+def combined_conservative_spec() -> tuple[str, str]:
+    """The canonical (diet_scenario, ci_file) pair for combined conservative."""
+    return COMBINED_CONSERVATIVE_DIET, COMBINED_CONSERVATIVE_CI_FILE
+
+
+def assert_combined_conservative(diet: str, ci_file: str | Path, where: str) -> None:
+    """Raise if a call site's combined-conservative cell has drifted."""
+    exp_diet, exp_ci = combined_conservative_spec()
+    got = (diet, Path(ci_file).name)
+    expected = (exp_diet, Path(exp_ci).name)
+    if got != expected:
+        raise ValueError(
+            f"Combined-conservative definition in {where} has drifted.\n"
+            f"  expected {expected}\n"
+            f"  got      {got}\n"
+            "All three definitions (combined_analysis.py, sensitivity_overview.py, "
+            "sensitivity_suite.py) must resolve to the same (diet, ci_file) pair."
+        )
+
+
+def run_combined_scenarios(mort: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Run each combined sensitivity scenario and return stacked results.
+
+    Each cell is scored against the survivor-emissions file built from its own
+    carbon intensities. ``mort`` is ignored and kept only so existing callers
+    do not break; pairing every cell with one frame is the basis mismatch this
+    change removes.
+    """
     all_results = []
+    mort_cache: Dict[str, pd.DataFrame] = {}
 
     for config in COMBINED_SCENARIOS:
-        ci_file = config["ci_file"] or meat_p10_file
+        ci_file = config["ci_file"]
+        if config["combined_scenario"] == "cereal_sweets_up_p10_ci":
+            assert_combined_conservative(
+                config["diet_scenario"], ci_file, "combined_analysis.py"
+            )
+        ci_scenario = config["ci_scenario"]
         print(f"\n  -> {config['combined_scenario']}")
-        print(f"     diet={config['diet_scenario']}, ci={ci_file}")
+        print(f"     diet={config['diet_scenario']}, ci={ci_file}, "
+              f"survivor={ci_scenario}")
+
+        if ci_scenario not in mort_cache:
+            mort_cache[ci_scenario] = load_mortality_emissions(ci_scenario)
 
         food_savings, _ = compute_food_savings(
             diet_scenario=config["diet_scenario"],
             ci_file=str(ci_file),
         )
-        be = compute_breakeven(food_savings, mort)
+        be = compute_breakeven(food_savings, mort_cache[ci_scenario])
         be["combined_scenario"] = config["combined_scenario"]
         be["combined_label"] = config["label"]
         be["diet_scenario"] = config["diet_scenario"]
-        be["ci_assumption"] = (
-            "meat_p10_other_mean"
-            if config["combined_scenario"] == "cereal_sweets_up_meat_p10_ci"
-            else "mean"
-        )
+        be["ci_assumption"] = ci_scenario
         all_results.append(be)
 
     return pd.concat(all_results, ignore_index=True)
@@ -228,7 +289,7 @@ def plot_lowest_ratio_countries(results: pd.DataFrame, n_countries: int = 15) ->
     offsets = {
         "baseline_uniform_mean_ci": -height,
         "cereal_sweets_up_mean_ci": 0.0,
-        "cereal_sweets_up_meat_p10_ci": height,
+        "cereal_sweets_up_p10_ci": height,
     }
 
     fig, ax = plt.subplots(figsize=(11, max(6, len(country_order) * 0.38)))
@@ -293,13 +354,13 @@ def plot_lowest_ratio_countries(results: pd.DataFrame, n_countries: int = 15) ->
     return out
 
 
-def main() -> None:
+def main(ci_scenario: str = "mean") -> None:
     print("=" * 88)
     print("COMBINED CONSERVATIVE SENSITIVITY")
-    print("Diet shift to cereals/sweets + low meat carbon intensity")
+    print("Diet shift to cereals/sweets + all-food P10 carbon intensity")
     print("=" * 88)
 
-    mort = load_mortality_emissions()
+    mort = load_mortality_emissions(ci_scenario)
     be_all = run_combined_scenarios(mort)
     results = build_results_table(be_all, mort)
 

@@ -268,6 +268,106 @@ def build_diet_shocks(
     )
 
 
+# ── Survivor food factor (Poore & Nemecek basis) ──────────────────────
+#
+# Survivor emissions are charged an OECD demand-based per-capita factor whose
+# food component is priced at national inventory rates, while the food-savings
+# side of the same analysis prices food with Poore & Nemecek -- roughly double
+# per kilo. This builds the P&N-basis food footprint of one treated survivor so
+# the OECD food bundle can be swapped out for it downstream.
+#
+# Three things are easy to get wrong here and each produces a plausible number:
+#
+#  1. The energy denominator and numerator both use BASELINE ``eer``, never
+#     ``treatment_eer``. The demand shock already carries the reduction; a
+#     treated eer here would apply it a second time.
+#  2. The energy pool is DAILY kcal and the footprint is ANNUAL tonnes, so the
+#     quotient is already tonnes/year per kcal/day. There is no 365 anywhere.
+#  3. The footprint is rebuilt from whichever carbon-intensity file the caller
+#     passed, so it moves with the P10/P90 sensitivity scenarios instead of
+#     being pinned to the mean.
+
+
+def _survivor_food_factor(
+    result_df: pd.DataFrame,
+    sim_result: pd.DataFrame,
+    sim_result_perc: pd.DataFrame,
+) -> pd.DataFrame:
+    """Per ISO × scenario P&N food footprint of one treated survivor.
+
+    Parameters
+    ----------
+    result_df : DataFrame
+        The row-level (country × food group × scenario) frame, already joined
+        to ``carbon_intensity_t``.
+    sim_result : DataFrame
+        The raw simulation rows, carrying ``weighted_eer`` (= weighting × eer).
+    sim_result_perc : DataFrame
+        Indexed by (ISO, scenario), carrying ``weighted_eer`` and
+        ``child_pool_daily``.
+
+    Returns
+    -------
+    DataFrame with columns: ISO, scenario, pn_food_footprint,
+        energy_pool_daily, mean_eer_treated, food_factor, survivor_food_t,
+        pop_treated, pop_adult.
+    """
+    # National P&N food footprint: the same carbon intensities the savings side
+    # uses, applied to BASELINE tonnage rather than the reduction.  min_count=1
+    # keeps a country with no FAOSTAT tonnage as NaN instead of a silent zero.
+    pn_food_footprint = (
+        (result_df["initial_eql_quantity"] * result_df["carbon_intensity_t"])
+        .groupby([result_df["ISO"], result_df["scenario"]])
+        .sum(min_count=1)
+        .rename("pn_food_footprint")
+    )
+
+    # All-ages daily energy pool -- the same adults + children denominator the
+    # demand shock is normalised on, reused rather than rebuilt.
+    energy_pool_daily = (
+        sim_result_perc["weighted_eer"] + sim_result_perc["child_pool_daily"]
+    ).rename("energy_pool_daily")
+
+    treated = sim_result.loc[sim_result["adheres_to_treatment"]]
+    treated_grouped = treated.groupby(["ISO", "scenario"])
+    pop_treated = treated_grouped["weighting"].sum().rename("pop_treated")
+    mean_eer_treated = (
+        treated_grouped["weighted_eer"].sum() / pop_treated
+    ).rename("mean_eer_treated")
+    pop_adult = (
+        sim_result.groupby(["ISO", "scenario"])["weighting"]
+        .sum()
+        .rename("pop_adult")
+    )
+
+    factor = pd.concat(
+        [energy_pool_daily, mean_eer_treated, pop_treated, pop_adult], axis=1
+    ).join(pn_food_footprint, how="left")
+
+    # tonnes/year ÷ kcal/day → tonnes/year per kcal/day.  Not per-day; do not
+    # rescale by 365.
+    factor["food_factor"] = (
+        factor["pn_food_footprint"] / factor["energy_pool_daily"]
+    )
+    factor["survivor_food_t"] = (
+        factor["food_factor"] * factor["mean_eer_treated"]
+    )
+
+    return factor.reset_index()[
+        [
+            "ISO",
+            "scenario",
+            "pn_food_footprint",
+            "energy_pool_daily",
+            "mean_eer_treated",
+            "food_factor",
+            "survivor_food_t",
+            "pop_treated",
+            "pop_adult",
+        ]
+    ]
+
+
 # ── Full pipeline ─────────────────────────────────────────────────────
 
 
@@ -557,24 +657,105 @@ def compute_food_savings(
     if diet_scenario is not None:
         food_savings["diet_scenario"] = diet_scenario
 
+    # Carried on .attrs rather than returned: every caller unpacks exactly two
+    # values, so a third return would break all of them for a quantity almost
+    # none of them want.
+    result_df.attrs["survivor_food_factor"] = _survivor_food_factor(
+        result_df, sim_result, sim_result_perc
+    )
+
     return food_savings, result_df
 
 
-def load_mortality_emissions():
+# Carbon-intensity sensitivity scenarios the survivor food factor is built for.
+# The factor must be rebuilt inside each one -- pinning it to the mean would
+# leave the P10/P90 runs pricing survivor food at central intensities while
+# pricing the food savings at the sensitivity intensities.
+SURVIVOR_CI_SCENARIOS: Dict[str, str] = {
+    "mean": "carbon_intensity.csv",
+    "p10": "carbon_intensity_p10.csv",
+    "p90": "carbon_intensity_p90.csv",
+}
+
+
+def build_survivor_food_factor(
+    ci_scenarios: Optional[Dict[str, str]] = None,
+) -> pd.DataFrame:
+    """Build and write the per ISO × scenario × ci_scenario survivor food factor.
+
+    Writes ``data_result/survivor_food_factor.csv``.  Reads nothing the
+    price-rebound pipeline does not already read, and writes no other output.
+    """
+    if ci_scenarios is None:
+        ci_scenarios = SURVIVOR_CI_SCENARIOS
+
+    frames = []
+    for label, ci in ci_scenarios.items():
+        print(f"  survivor food factor: ci_scenario={label} ({ci})")
+        _, result_df = compute_food_savings(ci_file=ci)
+        frame = result_df.attrs["survivor_food_factor"].copy()
+        frame.insert(2, "ci_scenario", label)
+        frames.append(frame)
+
+    out = (
+        pd.concat(frames, ignore_index=True)
+        .sort_values(["ISO", "scenario", "ci_scenario"])
+        .reset_index(drop=True)
+    )
+    path = output_path("survivor_food_factor.csv")
+    out.to_csv(path, index=False)
+    print(f"Survivor food factor: {path}  ({len(out)} rows)")
+    return out
+
+
+# Survivor emissions are written once per carbon-intensity scenario, because the
+# per-capita factor now carries a P&N food add-back that is built from that
+# scenario's carbon intensities.  The mean file keeps the original unsuffixed
+# name, so every reader that does not ask for a scenario is unaffected.
+SURVIVOR_EMISSIONS_FILES: Dict[str, str] = {
+    "mean": "mortality model total emissions_oecd.csv",
+    "p10": "mortality model total emissions_oecd_p10.csv",
+    "p90": "mortality model total emissions_oecd_p90.csv",
+}
+
+
+def survivor_emissions_path(ci_scenario: str = "mean") -> Path:
+    """Path to the survivor-emissions CSV for one carbon-intensity scenario."""
+    if ci_scenario not in SURVIVOR_EMISSIONS_FILES:
+        raise ValueError(
+            f"Unknown ci_scenario {ci_scenario!r}. "
+            f"Choose from: {sorted(SURVIVOR_EMISSIONS_FILES)}"
+        )
+    return ROOT / SURVIVOR_EMISSIONS_FILES[ci_scenario]
+
+
+def load_mortality_emissions(ci_scenario: str = "mean"):
     """Load year-by-year survivor emissions with OECD consumption-GHG factors.
 
-    Reads ``mortality model total emissions_oecd.csv``, written by
+    Reads the survivor-emissions CSV for ``ci_scenario``, written by
     ``data_visualization.consumption_ghg``. That script takes the mortality
     model's person-years from ``mortality model total emissions.csv`` (which must
     be generated with ``population_weighted=True``) and attaches OECD
     demand-based final-consumption emissions factors.
+
+    ``ci_scenario`` must match the carbon-intensity file the food-savings side of
+    the same comparison is run with. The survivor factor's P&N food add-back is
+    priced with those intensities, so pairing (say) P90 food savings with the
+    mean survivor file compares two different bases -- the exact defect this
+    parameter exists to prevent.
 
     The two files are deliberately distinct: consumption_ghg used to write back
     over its own input, which made the run order load-bearing and silent. Run
     ``python -m data_visualization.consumption_ghg`` before any analysis script
     if the person-years have changed. See the README for the run order.
     """
-    return pd.read_csv(ROOT / "mortality model total emissions_oecd.csv")
+    path = survivor_emissions_path(ci_scenario)
+    if not path.is_file():
+        raise FileNotFoundError(
+            f"Survivor emissions file not found:\n  {path}\n"
+            "Build it with: python -m data_visualization.consumption_ghg"
+        )
+    return pd.read_csv(path)
 
 
 def output_path(filename: str) -> Path:
@@ -589,3 +770,15 @@ def output_path(filename: str) -> Path:
     p = ROOT / ("figures" if suffix in figure_suffixes else "data_result")
     p.mkdir(exist_ok=True)
     return p / filename
+
+
+if __name__ == "__main__":
+    # Redirected stdout on Windows falls back to cp1252, which cannot encode the
+    # non-ASCII this script prints. Set UTF-8 on the streams here rather than at
+    # module level, so importing this module never mutates global stream state.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
+    build_survivor_food_factor()

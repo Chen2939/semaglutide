@@ -14,7 +14,10 @@ specification and each uptake level it reports:
 Specifications:
   P10                   uniform diet, carbon_intensity_p10.csv
   P90                   uniform diet, carbon_intensity_p90.csv
-  combined_conservative cereals/sweets diet shift, mean CI with Meat at P10
+  combined_conservative cereals/sweets diet shift, carbon_intensity_p10.csv
+
+Each specification is scored against the survivor-emissions file built from
+its own carbon intensities, so both sides of every ratio share a basis.
 
 ``diet_sensitivity.sensitivity_overview`` covers the same specifications for
 max uptake only and reports no year-10 annual ratio, so the two scripts
@@ -30,6 +33,7 @@ Usage:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Dict
 
 import numpy as np
 import pandas as pd
@@ -41,7 +45,7 @@ from data_visualization.pipeline import (
     output_path,
 )
 
-from .combined_analysis import build_meat_p10_ci_file
+from .combined_analysis import assert_combined_conservative
 
 SCENARIOS = ["max_uptake", "mod_uptake"]
 
@@ -83,7 +87,11 @@ def min_and_tipping(be: pd.DataFrame, sc: str):
 
 
 def run(diet: str, ci: str | Path, label: str, mort: pd.DataFrame) -> dict:
-    """Run one specification and summarise both uptake levels."""
+    """Run one specification and summarise both uptake levels.
+
+    ``mort`` must be the survivor-emissions frame built from the same carbon
+    intensities as ``ci``.
+    """
     print(f"[{label}] diet={diet}, ci={Path(ci).name}")
     fs, _ = compute_food_savings(diet_scenario=diet, ci_file=str(ci))
     be = compute_breakeven(fs, mort, include_drug=True)
@@ -99,22 +107,43 @@ def run(diet: str, ci: str | Path, label: str, mort: pd.DataFrame) -> dict:
     return out
 
 
-def build_results(mort: pd.DataFrame) -> pd.DataFrame:
-    """Run every specification and return the tidy suite table."""
-    meat_p10 = build_meat_p10_ci_file()
+def build_results(mort: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Run every specification and return the tidy suite table.
+
+    Every specification here is a carbon-intensity variant, so each is scored
+    against the survivor-emissions file built from its own intensities.
+    ``mort`` is ignored and kept only so existing callers do not break.
+    """
     configs = [
-        ("baseline_uniform", "carbon_intensity_p10.csv", "P10"),
-        ("baseline_uniform", "carbon_intensity_p90.csv", "P90"),
-        ("cereal_sweets_up", str(meat_p10), "combined_conservative"),
+        ("baseline_uniform", "carbon_intensity_p10.csv", "P10", "p10"),
+        ("baseline_uniform", "carbon_intensity_p90.csv", "P90", "p90"),
+        (
+            "cereal_sweets_up",
+            "carbon_intensity_p10.csv",
+            "combined_conservative",
+            "p10",
+        ),
     ]
-    res = [run(d, c, l, mort) for d, c, l in configs]
+    assert_combined_conservative(
+        configs[2][0], configs[2][1], "sensitivity_suite.py"
+    )
+
+    mort_cache: Dict[str, pd.DataFrame] = {}
+    res = []
+    for diet, ci, label, ci_scenario in configs:
+        if ci_scenario not in mort_cache:
+            mort_cache[ci_scenario] = load_mortality_emissions(ci_scenario)
+        r = run(diet, ci, label, mort_cache[ci_scenario])
+        r["ci_scenario"] = ci_scenario
+        res.append(r)
 
     rows = []
     for r in res:
         for sc in SCENARIOS:
             d = r[sc]
             rows.append({
-                "scenario_spec": r["label"], "uptake": sc,
+                "scenario_spec": r["label"], "ci_scenario": r["ci_scenario"],
+                "uptake": sc,
                 "cum_ratio_10yr": d["cum10"], "annual_ratio_y10": d["y10"],
                 "min_country_ratio": d["min_ratio"], "min_country_iso": d["min_iso"],
                 "min_country_name": d["min_country"],
@@ -138,8 +167,8 @@ def print_table(results: pd.DataFrame) -> None:
               f"{r['n_tipping_countries']:>9}{r['n_complete_countries']:>5}")
 
 
-def main() -> None:
-    mort = load_mortality_emissions()
+def main(ci_scenario: str = "mean") -> None:
+    mort = load_mortality_emissions(ci_scenario)
     results = build_results(mort)
     print_table(results)
     out = output_path("sensitivity_suite.csv")

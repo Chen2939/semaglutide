@@ -31,6 +31,14 @@ import matplotlib.ticker as mticker
 from .drug_footprint import build_drug_emissions
 from .pipeline import compute_food_savings, load_mortality_emissions, output_path
 
+# Carbon-intensity file per scenario, paired with the survivor-emissions file of
+# the same name. Both sides of the comparison must move together.
+CI_FILES = {
+    "mean": "carbon_intensity.csv",
+    "p10": "carbon_intensity_p10.csv",
+    "p90": "carbon_intensity_p90.csv",
+}
+
 
 def compute_breakeven(food_savings, mort, include_drug: bool = True):
     """For each (ISO, scenario), find the year where cumulative food savings
@@ -529,18 +537,21 @@ def plot_breakeven_publication(
     return str(out_png)
 
 
-def main():
+def main(ci_scenario: str = "mean"):
     print("=" * 65)
     print("BREAK-EVEN ANALYSIS")
     print("Food-emission savings vs. survivor emissions from semaglutide")
     print("(Food savings are net of pharmaceutical production emissions)")
     print("=" * 65)
 
+    ci_file = CI_FILES[ci_scenario]
     print("\n[1/4] Computing annual food-emission savings...")
-    food_savings, _ = compute_food_savings()
+    food_savings, _ = compute_food_savings(ci_file=ci_file)
 
-    print("[2/4] Loading mortality-model emissions...")
-    mort = load_mortality_emissions()
+    # The survivor file must match the carbon intensities the food side just
+    # used: its P&N food add-back is priced with the same intensities.
+    print(f"[2/4] Loading mortality-model emissions (ci={ci_scenario})...")
+    mort = load_mortality_emissions(ci_scenario)
 
     print("[3/4] Computing break-even (folding in drug emissions)...")
     be_df = compute_breakeven(food_savings, mort, include_drug=True)

@@ -6,7 +6,10 @@ This script summarizes the sensitivity analyses currently implemented:
 1. Uniform baseline with mean carbon intensity.
 2. Diet-composition sensitivities with mean carbon intensity.
 3. Full food carbon-intensity P10/P90 sensitivities.
-4. Combined conservative case: cereals/sweets diet shift + Meat P10 CI.
+4. Combined conservative case: cereals/sweets diet shift + all-food P10 CI.
+
+Every cell is scored against the survivor-emissions file built from its own
+carbon intensities, so the food side and the survivor side always share a basis.
 
 Pharmaceutical emissions are folded into baseline net food savings through
 ``compute_breakeven(..., include_drug=True)``.
@@ -23,6 +26,7 @@ Usage:
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
@@ -36,7 +40,7 @@ from data_visualization.pipeline import (
     output_path,
 )
 
-from .combined_analysis import build_meat_p10_ci_file
+from .combined_analysis import assert_combined_conservative
 
 
 OVERVIEW_SCENARIOS = [
@@ -46,6 +50,7 @@ OVERVIEW_SCENARIOS = [
         "group": "Baseline",
         "diet_scenario": "baseline_uniform",
         "ci_file": "carbon_intensity.csv",
+        "ci_scenario": "mean",
         "color": "#4c78a8",
     },
     {
@@ -54,6 +59,7 @@ OVERVIEW_SCENARIOS = [
         "group": "Diet composition",
         "diet_scenario": "fatty_food_down",
         "ci_file": "carbon_intensity.csv",
+        "ci_scenario": "mean",
         "color": "#2ca02c",
     },
     {
@@ -62,6 +68,7 @@ OVERVIEW_SCENARIOS = [
         "group": "Diet composition",
         "diet_scenario": "cereal_sweets_up",
         "ci_file": "carbon_intensity.csv",
+        "ci_scenario": "mean",
         "color": "#d62728",
     },
     {
@@ -70,6 +77,7 @@ OVERVIEW_SCENARIOS = [
         "group": "Carbon intensity",
         "diet_scenario": "baseline_uniform",
         "ci_file": "carbon_intensity_p10.csv",
+        "ci_scenario": "p10",
         "color": "#8ecae6",
     },
     {
@@ -78,34 +86,51 @@ OVERVIEW_SCENARIOS = [
         "group": "Carbon intensity",
         "diet_scenario": "baseline_uniform",
         "ci_file": "carbon_intensity_p90.csv",
+        "ci_scenario": "p90",
         "color": "#023047",
     },
     {
-        "overview_scenario": "cereal_sweets_up_meat_p10_ci",
-        "label": "Cereals/sweets + low-meat CI",
+        "overview_scenario": "cereal_sweets_up_p10_ci",
+        "label": "Cereals/sweets + all-food P10 CI",
         "group": "Combined conservative",
         "diet_scenario": "cereal_sweets_up",
-        "ci_file": None,
+        "ci_file": "carbon_intensity_p10.csv",
+        "ci_scenario": "p10",
         "color": "#7f3c8d",
     },
 ]
 
 
-def run_overview_scenarios(mort: pd.DataFrame) -> pd.DataFrame:
-    """Run all overview scenarios and return country-level ratios."""
-    meat_p10_file = build_meat_p10_ci_file()
+def run_overview_scenarios(mort: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Run all overview scenarios and return country-level ratios.
+
+    Each cell is scored against the survivor-emissions file built from its own
+    carbon intensities. ``mort`` is ignored and kept only so existing callers do
+    not break.
+    """
     all_results = []
+    mort_cache: Dict[str, pd.DataFrame] = {}
 
     for config in OVERVIEW_SCENARIOS:
-        ci_file = config["ci_file"] or meat_p10_file
+        ci_file = config["ci_file"]
+        if config["overview_scenario"] == "cereal_sweets_up_p10_ci":
+            assert_combined_conservative(
+                config["diet_scenario"], ci_file, "sensitivity_overview.py"
+            )
+        ci_scenario = config["ci_scenario"]
         print(f"\n  -> {config['label']}")
-        print(f"     diet={config['diet_scenario']}, ci={ci_file}")
+        print(f"     diet={config['diet_scenario']}, ci={ci_file}, "
+              f"survivor={ci_scenario}")
+
+        if ci_scenario not in mort_cache:
+            mort_cache[ci_scenario] = load_mortality_emissions(ci_scenario)
 
         food_savings, _ = compute_food_savings(
             diet_scenario=config["diet_scenario"],
             ci_file=str(ci_file),
         )
-        be = compute_breakeven(food_savings, mort)
+        be = compute_breakeven(food_savings, mort_cache[ci_scenario])
+        be["ci_scenario"] = ci_scenario
         be["overview_scenario"] = config["overview_scenario"]
         be["overview_label"] = config["label"]
         be["sensitivity_group"] = config["group"]
@@ -282,13 +307,13 @@ def print_summary(summary: pd.DataFrame) -> None:
         )
 
 
-def main() -> None:
+def main(ci_scenario: str = "mean") -> None:
     print("=" * 96)
     print("ALL SENSITIVITY OVERVIEW")
     print("Current sensitivities compared against OECD-updated baseline")
     print("=" * 96)
 
-    mort = load_mortality_emissions()
+    mort = load_mortality_emissions(ci_scenario)
     results = run_overview_scenarios(mort)
     summary = summarize_max_uptake(results)
     print_summary(summary)

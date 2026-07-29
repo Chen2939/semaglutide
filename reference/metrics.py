@@ -238,6 +238,23 @@ def run_configurations() -> dict:
     from diet_sensitivity.combined_analysis import build_meat_p10_ci_file
 
     meat_p10 = build_meat_p10_ci_file()
+    # STALE CONFIGURATION -- reconcile before regenerating reference metrics.
+    #
+    # The combined_conservative row below still names the derived meat-only
+    # carbon-intensity file (mean intensities with only Meat replaced by P10).
+    # Stage 4C retired that definition: production now defines
+    # combined_conservative as cereal_sweets_up x ALL-FOOD P10
+    # (Food data/carbon_intensity_p10.csv), scored against the p10 survivor
+    # basis. The three production definitions -- combined_analysis.py,
+    # sensitivity_overview.py and sensitivity_suite.py -- agree with each other
+    # and are held in step by
+    # combined_analysis.assert_combined_conservative(); that assertion does not
+    # reach into reference/, so this copy drifted silently.
+    #
+    # These configurations are also still run against a single mean-basis
+    # survivor frame (see main() below), which no longer matches the CI-aware
+    # survivor path. Both must be reconciled in the same pass when the
+    # reference snapshot is regenerated.
     configs = [
         ("main",                  None,               "carbon_intensity.csv"),
         ("uniform_p10",           "baseline_uniform", "carbon_intensity_p10.csv"),
