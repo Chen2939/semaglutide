@@ -1,0 +1,7 @@
+generated: 2026-07-29 09:04:09.241691
+source: full_simulation_results8.rds mtime: 2026-07-22 10:10:22.50429
+rows: 1890000
+treated defined as: adheres_to_treatment == TRUE
+definitional check: 5721/229442 max (2.49%), 3167/120982 mod (2.62%)
+  adherent but treatment_eer >= eer; matches N(0.118,0.06) negative tail (2.46%)
+  no rows non-adherent with treatment_eer < eer
