@@ -18,6 +18,24 @@ Metric definitions are transcribed from the verification scripts that produced
 the reference numbers, so what is measured here is computed identically to them.
 Those scripts, and the frozen pre-consolidation comparison that used them, are
 on the seth_bug_fixes audit branch.
+
+Status: the references are stale on this branch
+-----------------------------------------------
+`python -m reference.metrics` currently fails, and that is expected. Two
+committed changes moved the numbers after these snapshots were taken:
+
+    6e826a4  Fix aggregate double-count in load_kcal_shares' calorie-share
+             weights
+    be44eb4  Weight oilcrops composite by P&N food-and-waste supply volumes
+
+The snapshots have deliberately not been regenerated. A survivor-emissions
+change is planned, and refreshing now would mean doing it again straight
+afterwards -- two reference commits describing the same intermediate state. So
+the regeneration is being held and will be done once, after that change lands.
+
+Until then, read a failure here as the known staleness above rather than a new
+regression. See the README section "Reproduction check" for the policy and the
+reasoning.
 """
 from __future__ import annotations
 

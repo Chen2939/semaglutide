@@ -545,6 +545,27 @@ So read a failure as **"something moved"**, not "something is broken". The
 distinction matters: the check has no opinion about which numbers are right, only
 about whether they are the same as last time.
 
+### Current status — the references are stale
+
+`python -m reference.metrics` fails on this branch right now. This is expected,
+not a regression: two committed changes moved the headline numbers after the
+snapshots were taken.
+
+| Commit | Change |
+|---|---|
+| `6e826a4` | Fix aggregate double-count in `load_kcal_shares`' calorie-share weights |
+| `be44eb4` | Weight the oilcrops composite by P&N food-and-waste supply volumes |
+
+The references have deliberately not been regenerated yet. A survivor-emissions
+change is planned, and regenerating now would mean regenerating again
+immediately afterwards — two reference commits describing the same intermediate
+state. The snapshots will be refreshed **once**, after that change lands, in the
+single visible commit described above.
+
+Until then, treat a failure here as the known staleness. Differences confined to
+what those two commits touched are accounted for; anything beyond them is worth
+investigating.
+
 ### Tolerance
 
 The check passes when every value agrees to a **relative difference of 1e-12 or
