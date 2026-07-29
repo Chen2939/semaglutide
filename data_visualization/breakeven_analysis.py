@@ -653,4 +653,14 @@ def main():
 
 
 if __name__ == "__main__":
+    # Redirected stdout on Windows falls back to cp1252, which cannot encode the
+    # non-ASCII this script prints. Set UTF-8 on the streams here rather than at
+    # module level, so importing this module never mutates global stream state.
+    import sys
+
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+
     main()
