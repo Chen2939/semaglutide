@@ -366,10 +366,9 @@ path became carbon-intensity-aware. The outputs below are still on the
 **These are deliberately not regenerated in this commit.** They are terminal
 outputs: nothing in the pipeline reads them, so leaving them stale cannot
 propagate a wrong number into anything else. They will move again when the
-break-even extension and the survivor-decline fix land, so regenerating now
-would burn a full pipeline pass to produce numbers that are superseded before
-they are used. One regeneration pass after those changes covers all of these
-plus the reference metrics.
+break-even extension lands, so regenerating now would burn a full pipeline pass
+to produce numbers that are superseded before they are used. One regeneration
+pass after that change covers all of these plus the reference metrics.
 
 `reference/metrics.py` additionally carries a stale *configuration*, not just
 stale values: its `combined_conservative` row still names the derived
@@ -390,6 +389,86 @@ basis change: `actual_reduction`, `expected_demand_reduction_percent` and all
 food-savings columns reproduced at exactly 0.0 across the mean, P10 and P90
 carbon-intensity scenarios.
 
+
+---
+
+## Survivor GHG decline applies to non-food only
+
+**What was wrong.** The annual decline was applied to the whole per-capita
+survivor factor. Post-basis-change that factor is
+`oecd_nonfood_ghg_t_per_capita + food_add_back_t_per_capita`, so the decline
+was declining food as well. The food-savings side of the same comparison holds
+carbon intensity constant across all ten years, so the same food sat on two
+different trajectories: falling on the survivor side, flat on the savings side.
+
+**Correct behavior.** Only the non-food component declines; food is held flat,
+on the grounds that food emissions are difficult-to-abate and plateau while
+other sectors decarbonise. `emissions_factor_Y0` is unchanged — it remains the
+undeclined sum, and year 0 was never declined.
+
+The decline had three near-identical implementations. It now has one:
+`pipeline.adjust_survivor_decline`, beside `load_mortality_emissions`. The
+tornado's local copy was deleted and the call site rewired; the inert copy in
+`rebuild_mortality_emissions` was corrected in place rather than left as a
+landmine for the first caller to pass a nonzero rate. The two components are
+carried into the three survivor-emissions CSVs (36 → 38 columns, appended so no
+pre-existing column changes position) with an assertion that they sum to the
+factor and that their null patterns agree.
+
+**Direction — this change is CONSERVATIVE.** No prior note in this repository
+recorded a direction; if one exists elsewhere calling it anti-conservative, that
+is backwards. Holding food flat *removes* a discount the old code applied to the
+food share of the factor (37.7% of it for the USA), so every year-1..10 factor
+is **larger** than before. The survivor charge rises and the food:survivor ratio
+falls.
+
+Measured, USA max_uptake, mean CI, 2%/yr:
+
+| quantity | before | after | movement |
+|---|--:|--:|--:|
+| survivor emissions, 10-yr cum (Mt) | 144.944598 | 153.235993 | **+8.291395 (+5.72%)** |
+| net food savings, 10-yr (Mt) | 283.478483 | 283.478483 | 0 (bit-identical) |
+| ratio food:survivor | 1.955771 | 1.849947 | **−0.105824 (−5.41%)** |
+
+The effect compounds with year — +0.77% at year 1 to +8.44% at year 10 — because
+the withheld discount is `food × (1 − (1 − r)^t)`. Year 10 closes exactly:
+`food × (1 − 0.98^10) = 1.494174` Mt of factor.
+
+**Implementation note.** The per-year factor is written as
+`Y0 − nonfood × (1 − (1 − r)^t)`, not the algebraically identical
+`nonfood × (1 − r)^t + food`. The two forms differ in float rounding, and the
+second one breaks the null check: `pandas.read_csv` defaults to
+`float_precision=None` (the fast `xstrtod` converter), which parses 26 cells of
+these three columns one ULP away from an exact `strtod`. The file text is
+exactly round-trippable — Python's `float()` reproduces the identity — so the
+components sum to the factor in memory but not always after a read, and
+re-deriving the sum moved 20 rows by 1–2 ULP at `decline_rate=0.0`, where the
+decline must be an exact no-op. The anchored form makes `(1 − (1 − 0.0)^t)`
+exactly `0.0`, so year 1–10 factors are `Y0` bit-for-bit regardless of the
+parser. Both copies use the anchored form; comments in both say not to
+"simplify" it back.
+
+**Verification.** Every gate was declared before its run.
+- Plumbing no-op: all 36 pre-existing columns of all three survivor CSVs
+  bit-identical to the committed versions, compared as raw field text against
+  the HEAD blobs (LFS-smudged, OID-verified) — 13,608 cells, 0 differing.
+- Verbatim move no-op: function body byte-identical (661 bytes) across the move,
+  and `sensitivity_tornado_results.csv` reproduced byte-for-byte.
+- Arithmetic null: the shared function at `decline_rate=0.0` differs from the
+  old whole-factor form on 0 rows of 126 under the anchored form (20 rows at
+  1–2 ULP under the re-derived form).
+- Table-wide null: all seven tornado runs forced to 0.0 — the decline function
+  is called unconditionally for the baseline and all six axis endpoints, not
+  just the decline arm — gives 27 of 30 cells bit-identical, with the 3 cells
+  fed by the 0.02 endpoint landing on their predicted values (high equals its
+  own low bit-exactly, range exactly 0.0).
+
+**Still divergent, queued:** `Mortality Model.ipynb` (~line 2488) carries a
+third copy, still in the whole-factor form at rate 0.0. Left untouched
+deliberately: it is out of the execution path. It also writes the wide
+22-emissions-column schema and knows nothing of the two component columns, so
+re-running it would restore the removed columns *and* reintroduce the old
+decline. Queued action: a "DO NOT RUN — superseded" cell at the top.
 
 ---
 

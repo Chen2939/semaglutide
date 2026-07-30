@@ -758,6 +758,62 @@ def load_mortality_emissions(ci_scenario: str = "mean"):
     return pd.read_csv(path)
 
 
+def adjust_survivor_decline(mort: pd.DataFrame, decline_rate: float) -> pd.DataFrame:
+    """Apply an annual decline to the NON-FOOD part of the survivor factor.
+
+    The decline used to apply to the whole per-capita factor, which post-basis-
+    change is ``oecd_nonfood_ghg_t_per_capita + food_add_back_t_per_capita``, so
+    it declined food too. Food emissions are difficult-to-abate and plateau while
+    other sectors decarbonise (Smith, Vaughan & Forster), and the food-savings
+    side of the same comparison holds carbon intensity constant across all ten
+    years -- so declining the survivor's food put the same food on two different
+    trajectories. Food is now held flat and only non-food declines.
+
+    ``emissions_factor_Y0`` is unchanged: it remains the undeclined sum, and year
+    0 is not declined either way.
+    """
+    required = ["oecd_nonfood_ghg_t_per_capita", "food_add_back_t_per_capita"]
+    missing = [c for c in required if c not in mort.columns]
+    if missing:
+        raise KeyError(
+            f"Survivor frame is missing {missing}. The decline applies to the "
+            "non-food component only, so the food/non-food split is required. "
+            "Rebuild with: python -m data_visualization.consumption_ghg"
+        )
+
+    adjusted = mort.copy()
+    adjusted["total_emissions"] = 0.0
+    for year in range(1, 11):
+        factor_col = f"emissions_factor_Y{year}"
+        emissions_col = f"emissions_Y{year}"
+        # DO NOT "simplify" this to nonfood * (1 - decline_rate) ** year + food.
+        # The two are algebraically identical -- nf*q + fd == (nf + fd) - nf*(1-q)
+        # -- but this form anchors years 1-10 to the committed
+        # emissions_factor_Y0 instead of re-deriving the sum from the two
+        # separately-parsed components, and that difference is measurable.
+        #
+        # pandas read_csv defaults to float_precision=None (the fast xstrtod
+        # converter), which parses 26 cells of these three columns to a double
+        # one ULP off what an exact strtod gives. The file text itself is exactly
+        # round-trippable -- Python's float() reproduces the identity -- so the
+        # components sum to the factor in memory but not always after a read.
+        # Re-deriving therefore moved 20 rows by 1-2 ULP at decline_rate=0.0,
+        # where the decline must be an exact no-op. Here (1 - (1-0.0)**year) is
+        # exactly 0.0, so the factor is emissions_factor_Y0 untouched, bit for
+        # bit, whatever the parser did.
+        #
+        # Food is held flat implicitly: it is whatever Y0 - nonfood leaves. The
+        # food column is required by the guard above but never read here, so do
+        # not go looking for the term that holds it constant -- there isn't one.
+        adjusted[factor_col] = adjusted["emissions_factor_Y0"] - (
+            adjusted["oecd_nonfood_ghg_t_per_capita"]
+            * (1 - (1 - decline_rate) ** year)
+        )
+        adjusted[emissions_col] = adjusted[f"diff_Y{year}"] * adjusted[factor_col]
+        adjusted["total_emissions"] = adjusted["total_emissions"] + adjusted[emissions_col]
+    return adjusted
+
+
 def output_path(filename: str) -> Path:
     """Return the standard output path for generated results.
 

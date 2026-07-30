@@ -35,6 +35,7 @@ import pandas as pd
 from data_visualization.breakeven_analysis import compute_breakeven
 from data_visualization.pipeline import (
     ROOT,
+    adjust_survivor_decline,
     compute_food_savings,
     load_mortality_emissions,
     output_path,
@@ -67,21 +68,6 @@ def build_meat_ci_file(source_ci: str, output_name: str) -> Path:
     out = output_path(output_name)
     derived.to_csv(out, index=False)
     return out
-
-
-def adjust_survivor_decline(mort: pd.DataFrame, decline_rate: float) -> pd.DataFrame:
-    """Apply an annual decline to per-capita survivor-emissions factors."""
-    adjusted = mort.copy()
-    adjusted["total_emissions"] = 0.0
-    for year in range(1, 11):
-        factor_col = f"emissions_factor_Y{year}"
-        emissions_col = f"emissions_Y{year}"
-        adjusted[factor_col] = adjusted["emissions_factor_Y0"] * (
-            (1 - decline_rate) ** year
-        )
-        adjusted[emissions_col] = adjusted[f"diff_Y{year}"] * adjusted[factor_col]
-        adjusted["total_emissions"] = adjusted["total_emissions"] + adjusted[emissions_col]
-    return adjusted
 
 
 def global_net_savings(

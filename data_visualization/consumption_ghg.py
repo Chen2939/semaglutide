@@ -96,6 +96,14 @@ ISIC_SECTIONS = tuple("ABCDEFGHIJKLMNOPQRST")
 # filter is selecting the wrong slice, not that the data are noisy.
 STRUCTURAL_TOLERANCE_MT = 0.005
 
+# The factor's two components are carried into the survivor-emissions file next
+# to the sum they make up. They are built by one addition (nonfood + food) in
+# build_oecd_per_capita_table, so the residual is expected to be exactly zero,
+# not merely small; the tolerance is a floor against a future reassociation of
+# that expression rather than a real error budget. Factors are of order 1-30
+# t/person, so this is ~1e-13 relative.
+COMPONENT_SUM_TOLERANCE = 1e-12
+
 
 def _load_oecd_by_activity(path: Path = OECD_FILE) -> pd.DataFrame:
     """Load 2022 final-consumption GHG in Mt CO2e, one column per ACTIVITY."""
@@ -381,8 +389,10 @@ def rebuild_mortality_emissions(
     Parameters
     ----------
     decline_rate:
-        Annual multiplicative decline applied after year 0.  The corrected
-        central analysis uses 0.0 (constant 2022 OECD factors).
+        Annual multiplicative decline applied after year 0, to the NON-FOOD
+        component only; the food add-back is held flat.  The corrected central
+        analysis uses 0.0 (constant 2022 OECD factors), where the two forms
+        coincide exactly.
     old_file:
         Existing survivor-emissions CSV, used as the source of mortality
         person-year diffs.
@@ -414,7 +424,25 @@ def rebuild_mortality_emissions(
             ],
             errors="ignore",
         ),
-        per_capita[["ISO", "scenario", "oecd_consumption_ghg_t_per_capita"]],
+        # The two components of the factor travel with it. The survivor decline
+        # applies to non-food only -- food emissions are difficult-to-abate and
+        # plateau while other sectors decarbonise -- so the consumer of this file
+        # needs the split, not just the sum it used to get here.
+        #
+        # These come from build_oecd_per_capita_table above, which is called once
+        # per ci_scenario. Do NOT source them from
+        # data_result/oecd_consumption_ghg_per_capita.csv instead: that file is
+        # written from a single default (mean) call, so joining it would give the
+        # p10 and p90 mortality files mean-basis components without failing.
+        per_capita[
+            [
+                "ISO",
+                "scenario",
+                "oecd_consumption_ghg_t_per_capita",
+                "oecd_nonfood_ghg_t_per_capita",
+                "food_add_back_t_per_capita",
+            ]
+        ],
         on=["ISO", "scenario"],
         how="left",
     )
@@ -434,11 +462,73 @@ def rebuild_mortality_emissions(
     merged = merged.rename(
         columns={"oecd_consumption_ghg_t_per_capita": "emissions_factor_Y0"}
     )
+
+    # The widened join is new surface: three columns now arrive where one did,
+    # and nothing downstream would notice if the components did not belong to the
+    # sum they are carried alongside. Assert the identity instead of trusting it.
+    nonfood_null = merged["oecd_nonfood_ghg_t_per_capita"].isna()
+    food_null = merged["food_add_back_t_per_capita"].isna()
+    factor_null = merged["emissions_factor_Y0"].isna()
+
+    # Null patterns first, because the sum check has to skip null rows and a bare
+    # .notna() filter would also skip a row whose factor went NaN for some other
+    # reason -- masking exactly the mismatch this is here to catch. Rows can be
+    # legitimately null two ways: an ISO absent from the OECD/population join
+    # (all three null), or a country with no P&N add-back (AGO is one: food and
+    # therefore the factor are null, non-food is not). Both are covered by
+    # requiring the factor to be null exactly when a component is.
+    expected_null = nonfood_null | food_null
+    if not factor_null.equals(expected_null):
+        bad = merged.loc[factor_null != expected_null, ["ISO", "scenario"]]
+        raise ValueError(
+            "Survivor factor null pattern does not match its components for "
+            f"{len(bad)} row(s): "
+            + ", ".join(f"{r.ISO}/{r.scenario}" for r in bad.itertuples())
+            + ". The factor must be NaN exactly when a component is."
+        )
+
+    present = ~expected_null
+    residual = (
+        merged.loc[present, "oecd_nonfood_ghg_t_per_capita"]
+        + merged.loc[present, "food_add_back_t_per_capita"]
+        - merged.loc[present, "emissions_factor_Y0"]
+    ).abs()
+    worst = float(residual.max()) if len(residual) else 0.0
+    if worst > COMPONENT_SUM_TOLERANCE:
+        raise ValueError(
+            "Survivor factor components do not sum to the factor: worst "
+            f"residual {worst:.3e} t/person over {int(present.sum())} rows "
+            f"(tolerance {COMPONENT_SUM_TOLERANCE:.0e}). The join brought in "
+            "components from a different basis than the sum."
+        )
+    print(
+        f"  Component check: nonfood + food == factor on {int(present.sum())} "
+        f"rows, worst residual {worst:.3e} t/person; "
+        f"{int(expected_null.sum())} null row(s) skipped, null patterns agree"
+    )
+
     merged["total_emissions"] = 0.0
     for year in range(1, 11):
         factor_col = f"emissions_factor_Y{year}"
         emissions_col = f"emissions_Y{year}"
-        merged[factor_col] = merged["emissions_factor_Y0"] * ((1 - decline_rate) ** year)
+        # Non-food declines, food is held flat -- the same correction as
+        # pipeline.adjust_survivor_decline, which is the live implementation. This
+        # path is inert (main() passes 0.0), but leaving the old whole-factor form
+        # here would be a landmine for the first caller to pass a nonzero rate.
+        #
+        # Written in the same anchored form as the shared function, deliberately:
+        # DO NOT "simplify" to nonfood * (1 - decline_rate) ** year + food. The
+        # two are algebraically identical, but this one subtracts the abated part
+        # of non-food from emissions_factor_Y0 rather than re-deriving the sum
+        # from its components, so at decline_rate=0.0 the factor is Y0 bit for
+        # bit. The components are in memory here, so the pandas float-parser
+        # artifact documented in pipeline.adjust_survivor_decline cannot arise on
+        # this path -- but one form in both places is worth more than a local
+        # optimisation, since these two must not drift again.
+        merged[factor_col] = merged["emissions_factor_Y0"] - (
+            merged["oecd_nonfood_ghg_t_per_capita"]
+            * (1 - (1 - decline_rate) ** year)
+        )
         merged[emissions_col] = merged[f"diff_Y{year}"] * merged[factor_col]
         merged["total_emissions"] = merged["total_emissions"] + merged[emissions_col]
 
@@ -455,6 +545,13 @@ def rebuild_mortality_emissions(
             for year in range(1, 11)
             for col in (f"emissions_factor_Y{year}", f"emissions_Y{year}")
         ],
+        # Appended, not slotted in beside emissions_factor_Y0 where they belong
+        # semantically. Grouping them with the sum would shift the position of
+        # every emissions column after it; appending leaves all 36 pre-existing
+        # columns at their existing index, so any reader doing positional access
+        # is unaffected by the widening.
+        "oecd_nonfood_ghg_t_per_capita",
+        "food_add_back_t_per_capita",
     ]
     rebuilt = merged[ordered_cols]
 
