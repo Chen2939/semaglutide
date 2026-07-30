@@ -69,7 +69,12 @@ semaglutide/
 ```
 
 There is no `UN/` directory: the UN WPP workbooks are read from wherever they
-already live, via the `UN_WPP_DIR` environment variable. See
+already live, via the `UN_WPP_DIR` environment variable. Point it at the
+directory containing
+`WPP2024_POP_F01_1_POPULATION_SINGLE_AGE_BOTH_SEXES.xlsx` — with the variable
+unset the code falls back to `<repo>/UN`, which does not exist, and fails with
+the exact filename it wanted. Download the 2024 vintage from
+<https://population.un.org/wpp/>. See
 [External data](#external-data-three-buckets).
 
 ## Reproducing the paper's numbers

@@ -118,3 +118,7 @@ legacy/data/.Rhistory
 # Python virtual environments
 venv/
 __pycache__/
+
+# Machine-local agent setup notes. Only useful on this machine, so publishing it
+# buys nothing; it is read automatically at the start of every session.
+CLAUDE.md
