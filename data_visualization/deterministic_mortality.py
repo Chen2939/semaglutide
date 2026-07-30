@@ -8,6 +8,22 @@ semaglutide survival probabilities over a 10-year horizon. Human Life-Table
 
     q = 1 - exp(-Mx)
 
+Mortality source
+----------------
+The rates come from ``final_df_imputed.pkl``'s own ``mortality_rate`` column,
+which covers all 63 modelled countries. They are **not** read from
+``mortality2.rds``.
+
+``mortality2.rds`` is the raw 41-country Human Life-Table extract — an *input*
+to the imputation, not its output. This module used to look rates up from it
+while taking the population from the pickle, which reached past the imputation
+step to its own source: the 22 countries absent from the HLD extract fell through
+the ``.fillna(0)`` below to a zero hazard, i.e. immortality, and were written out
+with ``diff_Y*`` identically zero. The pickle's column is the imputed version the
+manuscript methods describe (regional median by age and sex, then global median
+for that age-sex cohort, then a 0.00001 floor), produced by cell 5 of
+``Mortality Model.ipynb``.
+
 Outputs are **person-years only**:
 
   mortality model total emissions.csv
@@ -40,13 +56,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-import pyreadr
 
 from .pipeline import ROOT, output_path
 
 
 SIMULATION_FILE = ROOT / "final_df_imputed.pkl"
-MORTALITY_FILE = ROOT / "mortality2.rds"
 OUTPUT_FILE = ROOT / "mortality model total emissions.csv"
 PREVIOUS_OUTPUT_FILE = ROOT / "mortality model total emissions_pre_deterministic_backup.csv"
 COMPARISON_FILE = output_path("deterministic_mortality_comparison.csv")
@@ -85,23 +99,66 @@ def get_raw_bmi_hazard_ratio(bmi: pd.Series) -> np.ndarray:
     )
 
 
-def load_inputs() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Load simulated population and mortality lookup data."""
-    sim = pd.read_pickle(SIMULATION_FILE)
-    mortality = list(pyreadr.read_r(str(MORTALITY_FILE)).values())[0]
-    return sim, mortality
+def load_inputs() -> pd.DataFrame:
+    """Load the simulated population, which carries its own mortality rates."""
+    return pd.read_pickle(SIMULATION_FILE)
+
+
+# Ages the modelled population spans, and therefore the range the rate lookup
+# must cover with no holes. Adherers top out at 74, so a horizon beyond 15 years
+# would walk them past 89 and off the end of this table -- see the ceiling note in
+# CHANGES.md before extending it.
+LOOKUP_AGE_MIN = 18
+LOOKUP_AGE_MAX = 89
+
+
+def build_mortality_map(df_input: pd.DataFrame) -> pd.Series:
+    """``(ISO, age, Sex) -> mortality_rate``, built from the simulation frame.
+
+    The join key is lowercase ``age``. The frame also carries a capital ``Age``,
+    which is null on 42.86% of rows: it is the right-hand key left behind by the
+    notebook's merge against the 41-country HLD extract, so it is null on exactly
+    the countries that extract lacks. Keying on it would silently drop them.
+
+    Coverage is asserted rather than assumed -- a hole here becomes a zero rate
+    downstream, which is indistinguishable from immortality.
+    """
+    lookup = df_input[["ISO", "age", "Sex", "mortality_rate"]].drop_duplicates()
+    key = ["ISO", "age", "Sex"]
+    dupes = lookup.duplicated(subset=key).sum()
+    if dupes:
+        raise ValueError(
+            f"mortality_rate is not single-valued: {dupes} (ISO, age, Sex) keys "
+            "carry more than one rate."
+        )
+
+    isos = df_input["ISO"].unique()
+    sexes = df_input["Sex"].unique()
+    ages = range(LOOKUP_AGE_MIN, LOOKUP_AGE_MAX + 1)
+    expected = len(isos) * len(sexes) * len(ages)
+    have = set(map(tuple, lookup[key].to_numpy()))
+    missing = [
+        (i, float(a), s) for i in isos for a in ages for s in sexes
+        if (i, float(a), s) not in have
+    ]
+    if missing:
+        raise ValueError(
+            f"mortality_rate lookup has {len(missing)} holes over "
+            f"{len(isos)} ISO x ages {LOOKUP_AGE_MIN}-{LOOKUP_AGE_MAX} x "
+            f"{len(sexes)} sexes ({expected} cells). First few: {missing[:5]}"
+        )
+    return lookup.set_index(key)["mortality_rate"]
 
 
 def run_deterministic_mortality(
     df_input: pd.DataFrame,
-    mortality_lookup: pd.DataFrame,
+    *,
     benefit_reduction: float = 0.5,
     population_weighted: bool = True,
 ) -> pd.DataFrame:
     """Compute expected additional survivor person-years by country/scenario."""
     individual = compute_individual_survival_diffs(
         df_input,
-        mortality_lookup,
         benefit_reduction=benefit_reduction,
         population_weighted=population_weighted,
     )
@@ -120,11 +177,36 @@ def run_deterministic_mortality(
 
 def compute_individual_survival_diffs(
     df_input: pd.DataFrame,
-    mortality_lookup: pd.DataFrame,
+    *,
     benefit_reduction: float = 0.5,
     population_weighted: bool = True,
+    horizon: int = 10,
+    survival_columns: bool = False,
+    extra_columns: tuple[str, ...] = (),
 ) -> pd.DataFrame:
-    """Compute deterministic survival differences for each simulated row."""
+    """Compute deterministic survival differences for each simulated row.
+
+    The mortality lookup is built from ``df_input`` itself. It used to be a second
+    positional parameter, which is why everything after it is keyword-only now: a
+    stale ``f(sim, mortality)`` call would otherwise bind the old lookup frame to
+    ``benefit_reduction`` and run silently. It raises ``TypeError`` instead.
+
+    ``horizon``, ``survival_columns`` and ``extra_columns`` exist so the
+    survival-weighting of the food-side demand shock can reuse this loop rather
+    than keep a second copy of it. All three default to the original behaviour:
+    ``horizon=10`` produces exactly the ``diff_Y0``-``diff_Y10`` the headline
+    person-years output is built from.
+
+    ``survival_columns`` additionally returns the raw (unweighted) treatment- and
+    baseline-world survival probabilities as ``p_sg_Y{t}`` / ``p_bl_Y{t}``.
+    ``extra_columns`` carries further ``df_input`` columns through untouched.
+
+    The per-year count of rows whose (ISO, age+t, Sex) mortality lookup missed is
+    recorded on ``.attrs["missing_lookups"]`` and the boolean masks on
+    ``.attrs["missing_masks"]``. A miss is filled with a zero rate below, which
+    is indistinguishable from immortality, so the count is the coverage check on
+    any horizon extension -- it must be read, not assumed.
+    """
     base = df_input[
         [
             "age",
@@ -135,6 +217,7 @@ def compute_individual_survival_diffs(
             "bmi",
             "new_bmi",
             "adheres_to_treatment",
+            *extra_columns,
         ]
     ].copy()
     base["baseline_bmi_hr"] = get_raw_bmi_hazard_ratio(base["bmi"])
@@ -143,21 +226,51 @@ def compute_individual_survival_diffs(
         base["semaglutide_bmi_hr"] / base["baseline_bmi_hr"] - 1
     )
 
-    mortality_map = mortality_lookup.set_index(["ISO", "Age", "Sex"])["mortality_rate"]
+    mortality_map = build_mortality_map(df_input)
+    treated = base["adheres_to_treatment"].to_numpy(dtype=bool)
     p_bl = np.ones(len(base), dtype=float)
     p_sg = np.ones(len(base), dtype=float)
 
     diff_cols = {"diff_Y0": np.zeros(len(base), dtype=float)}
-    for year in range(1, 11):
+    missing_lookups: dict[int, int] = {}
+    missing_masks: dict[int, np.ndarray] = {}
+    for year in range(1, horizon + 1):
         current_age = base["age"] + year
         lookup_frame = base[["ISO", "Sex"]].assign(current_age=current_age)
-        mx = pd.merge(
+        raw_mx = pd.merge(
             lookup_frame,
             mortality_map,
             left_on=["ISO", "current_age", "Sex"],
             right_index=True,
             how="left",
-        )["mortality_rate"].fillna(0).to_numpy(dtype=float)
+        )["mortality_rate"]
+        missing = raw_mx.isna().to_numpy()
+        missing_masks[year] = missing
+        missing_lookups[year] = int(missing.sum())
+
+        # fillna(0) is retained: non-adherent rows are walked past age 89 at
+        # longer horizons and a zero rate there is harmless, because their
+        # hazard ratio is unchanged so p_sg == p_bl and the difference is zero
+        # either way. On a TREATED row it is not harmless -- a zero rate makes
+        # that row immortal in both worlds and silently contributes nothing,
+        # which is exactly how 27 countries came to be written out with
+        # diff_Y* identically zero. So the fill is guarded where it can do
+        # damage rather than trusted everywhere.
+        damaging = missing & treated
+        if damaging.any():
+            offenders = (
+                base.loc[damaging, ["ISO", "age", "Sex"]]
+                .assign(lookup_age=lambda d: d["age"] + year)
+                .drop_duplicates(["ISO", "lookup_age", "Sex"])
+            )
+            raise KeyError(
+                f"Year {year}: {int(damaging.sum())} treated rows have no "
+                f"mortality rate for their (ISO, age+{year}, Sex). Filling zero "
+                "would make them immortal. Missing keys "
+                f"({len(offenders)} distinct): "
+                f"{offenders.head(10).to_dict('records')}"
+            )
+        mx = raw_mx.fillna(0).to_numpy(dtype=float)
 
         benefit_mask = current_age.to_numpy() < 75
         sg_mx = np.where(
@@ -174,9 +287,15 @@ def compute_individual_survival_diffs(
         if population_weighted:
             diff = diff * base["weighting"].to_numpy()
         diff_cols[f"diff_Y{year}"] = diff
+        if survival_columns:
+            diff_cols[f"p_sg_Y{year}"] = p_sg.copy()
+            diff_cols[f"p_bl_Y{year}"] = p_bl.copy()
 
     diffs = pd.DataFrame(diff_cols)
-    return pd.concat([base.reset_index(drop=True), diffs], axis=1)
+    out = pd.concat([base.reset_index(drop=True), diffs], axis=1)
+    out.attrs["missing_lookups"] = missing_lookups
+    out.attrs["missing_masks"] = missing_masks
+    return out
 
 
 def save_comparison(new_output: pd.DataFrame) -> None:
@@ -205,8 +324,8 @@ def main() -> None:
         pd.read_csv(OUTPUT_FILE).to_csv(PREVIOUS_OUTPUT_FILE, index=False)
         print(f"Saved previous mortality output backup: {PREVIOUS_OUTPUT_FILE}")
 
-    sim, mortality = load_inputs()
-    deterministic = run_deterministic_mortality(sim, mortality)
+    sim = load_inputs()
+    deterministic = run_deterministic_mortality(sim)
     deterministic.to_csv(OUTPUT_FILE, index=False)
     save_comparison(deterministic)
 

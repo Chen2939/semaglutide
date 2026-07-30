@@ -89,7 +89,7 @@ clone can skip steps 1–2 entirely and go straight to step 3.
 ```bash
 # 1. Survivor person-years  (only if the mortality model changed)
 python -m data_visualization.deterministic_mortality
-#    reads  final_df_imputed.pkl, mortality2.rds
+#    reads  final_df_imputed.pkl   (population AND its imputed mortality_rate)
 #    writes mortality model total emissions.csv   (person-years only)
 
 # 2. Attach OECD emissions factors  (only if step 1 was run)
@@ -154,11 +154,11 @@ Arguments are keyword-only on purpose. Both uptake levels (`max_uptake`,
 |---|---|---|
 | `build_carbon_intensity.py` | FAOSTAT FBS, `FBS_Group_Mapping.csv`, `faostat_country_mapping.csv`, hardcoded P&N values | `Food data/carbon_intensity{,_p10,_p90}.csv` |
 | `code/compute_child_energy.R` | `$UN_WPP_DIR` male + female WPP workbooks | `Food data/child_energy_by_country.xlsx`, `data/child_energy_requirement_lookup.csv`, `data/child_energy_diagnostics.csv` |
-| `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl`, `mortality2.rds` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
+| `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
 | `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results8.rds`, `..._oecd.csv` | *(library — no outputs)* |
 | `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
-| `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed.pkl`, `mortality2.rds` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
+| `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed.pkl` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
 | `data_visualization/generate_*_figure.py` | pipeline | `figures/*.png` (+ waterfall CSVs) |
 | `diet_sensitivity/analysis.py` | pipeline, 3 diet scenarios | `data_result/diet_sensitivity_results.csv`, `..._ratio_comparison.csv`, 2 figures |
 | `diet_sensitivity/combined_analysis.py` | pipeline, mean + P10 CI | `data_result/combined_sensitivity_results.csv`, `..._ratio_comparison.csv`, `carbon_intensity_meat_p10.csv` |
@@ -207,7 +207,7 @@ Run the deterministic expected-value mortality model:
 python -m data_visualization.deterministic_mortality
 ```
 
-- Loads `final_df_imputed.pkl` and `mortality2.rds`
+- Loads `final_df_imputed.pkl`, taking both the population and its imputed `mortality_rate` column from that one file — all 63 modelled countries
 - Replaces the old stochastic Monte Carlo headline calculation with deterministic expected survival probabilities over 10 years
 - Converts Human Life-Table `Mx` rates to annual death probabilities using `q = 1 - exp(-Mx)`
 - Computes person-years saved under both uptake scenarios
@@ -221,12 +221,18 @@ For manuscript text that needs starting treated users (`Y`), average BMI-driven 
 python -m data_visualization.survivor_manuscript_numbers
 ```
 
-This helper uses the same deterministic mortality function and `mortality2.rds` lookup as the headline mortality output. It writes `data_result/survivor_manuscript_numbers.csv` and `data_result/survivor_manuscript_top_countries.csv`.
+This helper uses the same deterministic mortality function and the same mortality lookup as the headline mortality output — both read `final_df_imputed.pkl`'s `mortality_rate` column. They must not diverge on that choice, or the manuscript numbers stop describing the headline output.
 
 Current reconciled manuscript numbers:
 
 - Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `2.94 million`, cumulative 10-year person-years saved `15.75 million`
 - Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.55 million`, cumulative 10-year person-years saved `8.32 million`
+
+> **These survivor numbers are stale.** They were computed over the 36 countries
+> the old 41-country HLD lookup covered. The mortality source has since moved to
+> the pickle's imputed column, which covers all 63, and a survival-weighting
+> change to the food side is queued behind it. They will be refreshed once, after
+> both land, rather than twice.
 
 The legacy notebook path:
 - Loads `full_simulation_results8.rds`, `mortality2.rds`, and `HLD/Mx_1x1/` life tables
@@ -400,7 +406,8 @@ blobs rather than LFS pointers so they survive a clone made without LFS.
 | `data/child_energy_requirement_lookup.csv` | FAO/WHO/UNU table hardcoded in the R script |
 | `mortality model total emissions.csv` | mortality-model person-years (LFS) |
 | `mortality model total emissions_oecd.csv` | generated; needs UN WPP, so not rebuildable from a clean clone |
-| `full_simulation_results8.rds`, `final_df_imputed.pkl`, `mortality2.rds` | upstream simulation output (LFS) |
+| `full_simulation_results8.rds`, `final_df_imputed.pkl` | upstream simulation output (LFS) |
+| `mortality2.rds` | raw 41-country HLD extract; provenance for the imputation, not read at runtime (LFS) |
 | `oecd/consumption_ghg_2025.csv` | OECD extract (LFS) |
 
 ### 2. Documented download — public and redistributable, too large to ship
@@ -437,7 +444,7 @@ included here, and none is read at runtime by the Python analysis.
 | Dataset | Source | Needed for |
 |---|---|---|
 | Poore & Nemecek (2018) supplementary data (`aaq0216_datas1/2.xls`) | <https://www.science.org/doi/10.1126/science.aaq0216> | Provenance for the GHG values transcribed into `GHG_SCENARIOS` in `build_carbon_intensity.py`. No script opens the file. |
-| Human Life-Table Database, `Mx_1x1` | <https://www.lifetable.de/> | Upstream mortality tables (already baked into `mortality2.rds`) |
+| Human Life-Table Database, `Mx_1x1` | <https://www.lifetable.de/> | Upstream mortality tables. Extracted into `mortality2.rds` for the 41 countries HLD covers; the remaining 22 of the 63 modelled countries were imputed from those, and the imputed result is what `final_df_imputed.pkl` carries |
 | NCD-RisC BMI and diabetes distributions | <https://ncdrisc.org/> | Upstream simulation inputs (already baked into `full_simulation_results8.rds`) |
 
 ## Required Datasets (detail)
@@ -447,10 +454,46 @@ included here, and none is read at runtime by the Python analysis.
 
 Full synthetic population output from `Data_Cleaning9.8.R`. Contains ~945,000 simulated individuals with baseline/treated BMI, caloric intake, demographics, and population weights for ~200 countries. Required by both notebooks.
 
+### `final_df_imputed.pkl`
+> **Location:** project root
+
+The modelled population *and its mortality rates*. This is the single input to
+`deterministic_mortality.py` and `survivor_manuscript_numbers.py`: the
+`mortality_rate` column is a complete, single-valued function of
+`(ISO, age, Sex)` over 63 countries × ages 18–89 × 2 sexes — 9,072 cells, no
+gaps, asserted at load.
+
+Those rates are **imputed**, by cell 5 of `Mortality Model.ipynb`: regional
+median stratified by age and sex, then the global median for that age–sex cohort,
+then a `0 → 0.00001` floor. That is the procedure the manuscript methods
+describe. Use the lowercase `age` column as the join key. The frame also carries
+a capital `Age`, null on 42.86% of rows: it is the right-hand key left behind by
+the notebook's merge against the 41-country HLD extract, so it is null on exactly
+the countries that extract lacks, and joining on it silently drops them.
+
+> **Reproducibility gap, stated plainly.** The pickle is committed, but the only
+> script that regenerates it is `Mortality Model.ipynb`, which this repository
+> marks superseded and does not run. So the imputation is consumed as a fixed
+> artifact and cannot currently be rebuilt from source. This is a known state,
+> recorded rather than fixed.
+
 ### `mortality2.rds`
 > **Location:** project root
 
-Pre-computed mortality model output from `Mortality_model2.R`. Contains country-level mortality rates and hazard ratio assignments. Required by `Mortality Model.ipynb`.
+The **raw 41-country Human Life-Table extract**, written by `Mortality_model2.R`
+after it drops territorial subdivisions and truncates ISO codes. 41 countries is
+simply HLD's coverage.
+
+It is an **input to the imputation, not a model input**, and no live script reads
+it. It is retained for provenance: it is the record of which countries have real
+measured mortality rather than imputed ones. Do not restore it as a lookup — a
+model keyed on it silently zeroes the 22 modelled countries HLD lacks, which is
+indistinguishable from immortality and was a live defect until the source swap.
+
+`final_df_imputed.rds` — the older R-side vintage of the same imputation, built
+on `full_simulation_results6` with a single scenario, a region+income tier and a
+Seychelles special case — is superseded by the pickle and differs from it on 19
+countries. Do not use it for anything.
 
 ### `oecd/consumption_ghg_2025.csv`
 > **Location:** `oecd/`
@@ -553,22 +596,24 @@ about whether they are the same as last time.
 ### Current status — the references are stale
 
 `python -m reference.metrics` fails on this branch right now. This is expected,
-not a regression: two committed changes moved the headline numbers after the
+not a regression: three committed changes moved the headline numbers after the
 snapshots were taken.
 
 | Commit | Change |
 |---|---|
 | `6e826a4` | Fix aggregate double-count in `load_kcal_shares`' calorie-share weights |
 | `be44eb4` | Weight the oilcrops composite by P&N food-and-waste supply volumes |
+| *(this commit)* | Take mortality rates from the pickle's imputed column, restoring 27 zeroed countries — moves the survivor side of every ratio |
 
-The references have deliberately not been regenerated yet. A survivor-emissions
-change is planned, and regenerating now would mean regenerating again
-immediately afterwards — two reference commits describing the same intermediate
-state. The snapshots will be refreshed **once**, after that change lands, in the
-single visible commit described above.
+The references have deliberately not been regenerated yet. A survival-weighting
+change to the food-side demand shock is queued directly behind the mortality
+source swap, and regenerating now would mean regenerating again immediately
+afterwards — two reference commits describing the same intermediate state. The
+snapshots will be refreshed **once**, after that change lands, in the single
+visible commit described above.
 
 Until then, treat a failure here as the known staleness. Differences confined to
-what those two commits touched are accounted for; anything beyond them is worth
+what those three commits touched are accounted for; anything beyond them is worth
 investigating.
 
 ### Tolerance
@@ -626,15 +671,32 @@ repository or in any working copy. `consumption_ghg.py` now skips writing that
 table rather than silently regenerating it from OECD data against itself, which
 would report a uniform 0% change. The committed table is the record.
 
-**A 2–3 ULP float artifact in the mortality emissions file.** Regenerating
-`mortality model total emissions_oecd.csv` reproduces the committed
-`mortality model total emissions.csv` in 4528 of 4536 cells exactly; 8 cells
-(`total_emissions` and four `emissions_Y*`) differ by 2–3 units in the last
-place. Every input column is bit-identical and the computing functions are
-unchanged, so the committed artifact was written by a different library
-generation. This is the 15th significant figure and cannot reach a published
-number — confirmed by the sensitivity suite reproducing all 54 of its values
-exactly across the change.
+**The mortality imputation is not reproducible from a clean clone.**
+`final_df_imputed.pkl` carries the `mortality_rate` column the whole survivor
+side is built on, and the only script that regenerates it is cell 5 of
+`Mortality Model.ipynb` — which this repository marks superseded and does not
+run. So the imputation is consumed as a fixed, committed artifact, exactly as the
+simulation above is. Anyone re-deriving mortality from source must redo the
+regional-median → global-median → 1e-5-floor step independently, against the
+41-country `mortality2.rds` extract.
+
+**A 1–2 ULP float artifact in the mortality person-years file.** Running
+`deterministic_mortality.py` reproduces the committed
+`mortality model total emissions.csv` in 1381 of 1512 cells exactly; 131 cells
+differ by 1–2 units in the last place, worst relative difference `3.685e-16`.
+Every input column is bit-identical, so the committed artifact was written by a
+different library generation. Measured by running the pre- and post-change
+functions in one process: both differ from the committed blob *identically*, which
+is what establishes that the gap belongs to the blob and not to any code change.
+Any bit-for-bit gate on this file must therefore be anchored to what the code
+produces, not to the committed text, or it inherits a ULP floor that has nothing
+to do with the model. This is the 16th significant figure and cannot reach a
+published number.
+
+The same artifact was previously recorded here as "2–3 ULP, 8 of 4536 cells",
+measured when the file still carried 22 emissions columns and was compared
+against `..._oecd.csv`. The figures above supersede it: the file is person-years
+only now, so the comparison is 126 × 12.
 
 **Dependency direction is inverted between two packages.**
 `data_visualization/pipeline.py` imports `SCENARIOS` from
@@ -675,6 +737,11 @@ checkout: `HLD/`, `Lancet/` and the UN WPP inputs it needs are all absent, and
 executing a notebook blind would be worse than leaving it. Anyone regenerating
 mortality from the notebook must slim its output to the four column groups above
 before the downstream scripts will behave as documented.
+
+Note the awkward consequence: the same notebook is the **only** producer of the
+`mortality_rate` imputation in `final_df_imputed.pkl` that the survivor side now
+depends on. It is simultaneously superseded as an output producer and
+load-bearing as an input producer. Both facts are true and neither is fixed here.
 
 ## Legacy Code
 

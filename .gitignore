@@ -110,6 +110,10 @@ legacy/data/.Rhistory
 !/Food data/elasticity_demand.csv
 !/Food data/child_energy_by_country.xlsx
 
+# Run logs from the diagnostics scripts. The scripts are the record; their
+# stdout is regenerable and machine-specific.
+diagnostics/*.log
+
 # IDE/editor files
 .idea/
 .ipynb_checkpoints/

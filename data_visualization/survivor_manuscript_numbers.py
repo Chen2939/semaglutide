@@ -8,6 +8,11 @@ This reports the concise X/Y-style quantities requested for manuscript text:
   - expected additional survivors alive at year 10
   - cumulative additional survivor person-years over 10 years
 
+It shares ``deterministic_mortality``'s survival machinery and therefore its
+mortality source: ``final_df_imputed.pkl``'s own imputed ``mortality_rate``
+column, covering all 63 countries. The two must not diverge on that choice or
+the manuscript numbers stop describing the headline output.
+
 Usage:
     python -m data_visualization.survivor_manuscript_numbers
 """
@@ -26,10 +31,9 @@ TOP_COUNTRIES_FILE = output_path("survivor_manuscript_top_countries.csv")
 
 def build_manuscript_numbers() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Compute scenario summary and top-country manuscript survivor numbers."""
-    sim, mortality = load_inputs()
+    sim = load_inputs()
     individual = compute_individual_survival_diffs(
         sim,
-        mortality,
         population_weighted=True,
     )
     diff_cols = [f"diff_Y{year}" for year in range(1, 11)]

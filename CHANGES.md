@@ -472,6 +472,137 @@ decline. Queued action: a "DO NOT RUN — superseded" cell at the top.
 
 ---
 
+## Mortality rates come from the imputed column, not the raw HLD extract
+
+**What was wrong.** `deterministic_mortality.py` took the population from
+`final_df_imputed.pkl` but looked mortality rates up from `mortality2.rds`. Those
+two files are different stages of the same pipeline:
+`Mortality_model2.R` extracts the Human Life-Table `Mx_1x1` tables, drops
+territorial subdivisions and truncates ISO codes, giving **`mortality2.rds` — 41
+countries**, which is simply HLD's coverage. Cell 4 of `Mortality Model.ipynb`
+merges that onto the 63-country population with
+`right_on=['ISO','Age','Sex']`, cell 5 imputes the 22 unmatched countries
+(regional median stratified by age and sex → global median for that age–sex
+cohort → a `0 → 0.00001` floor) and writes `final_df_imputed.pkl`.
+
+So the lookup reached *past* the imputation to its own input. The merge in
+`compute_individual_survival_diffs` returned NaN for every country HLD lacks, and
+`.fillna(0)` turned that into a zero hazard — arithmetically immortality, since
+`p_bl = p_sg = exp(0) = 1` and the survival difference is exactly zero. **27 of 63
+countries were written out with `diff_Y0`–`diff_Y10` identically 0.0**, and the
+downstream `total_survivor_emissions_10yr > 0` filter then dropped them, which is
+where break-even's "36 complete-data countries" came from. Nothing warned.
+
+The capital `Age` column in the pickle is the leftover right-hand merge key from
+cell 4, which is why it is null on 42.86% of rows — on exactly the countries the
+extract lacks. Keying on it drops them a second, independent way.
+
+**Correct behavior.** The lookup is built from the simulation frame's own
+`mortality_rate` column via a new `build_mortality_map()`, keyed on lowercase
+`age`. That column is the imputation the manuscript methods describe, and it is a
+complete single-valued function of `(ISO, age, Sex)` over 63 ISO × ages 18–89 × 2
+sexes = 9,072 cells — asserted at build time, not assumed. `mortality2.rds` is no
+longer read; it is retained as the provenance record of which countries have
+measured rather than imputed rates. `survivor_manuscript_numbers.py` shares the
+same machinery and moved with it.
+
+`.fillna(0)` is kept, because non-adherent rows are legitimately walked past age
+89 at longer horizons and a zero rate is inert for them — their hazard ratio is
+unchanged, so `p_sg == p_bl` and their contribution is zero either way. It is now
+**guarded**: a missing rate on a *treated* row raises with the offending
+`(ISO, age+t, Sex)` keys. That is the specific silent path that produced the 27
+zeroed countries, so it gets a check that fails loudly rather than a comment.
+
+**Direction — the survivor charge RISES.** Restoring 27 countries adds
+person-years that were being counted as zero:
+
+| quantity | before | after | movement |
+|---|--:|--:|--:|
+| person-years saved, 10-yr, max (M) | 15.747011 | 16.829833 | **+1.082822 (+6.88%)** |
+| person-years saved, 10-yr, mod (M) | 8.324684 | 8.891283 | **+0.566599 (+6.81%)** |
+| extra survivors at year 10, max (M) | 2.940404 | 3.147531 | **+0.207127 (+7.04%)** |
+| extra survivors at year 10, mod (M) | 1.550409 | 1.659044 | **+0.108635 (+7.01%)** |
+| survivor emissions, 10-yr cum, max (Mt) | 264.846 | 273.300 | **+8.454 (+3.19%)** |
+| survivor emissions, 10-yr cum, mod (Mt) | 140.195 | 144.626 | **+4.431 (+3.16%)** |
+| countries qualifying (person-years > 0 **and** both factor components) | 36 | 41 | **+5** |
+
+The emissions rise (+3.19%) is smaller than the person-years rise (+6.88%)
+because only 5 of the 27 restored countries carry an OECD demand-based per-capita
+factor: **ARE, CYP, MLT, ROU, SAU**. The other 22 now have non-zero person-years
+but still no factor, so they contribute nothing. That is a separate coverage gap
+in the OECD input and is untouched here.
+
+The effect on the food:survivor ratio is **not** stated, because it is not
+computed: a survival-weighting correction to the food-side demand shock is queued
+directly behind this change, and the ratio is only meaningful once both have
+landed. Reporting it twice from two intermediate states would be worse than
+reporting it once.
+
+**Implementation note.** Everything after `df_input` on
+`compute_individual_survival_diffs` and `run_deterministic_mortality` is now
+keyword-only. The mortality lookup used to be the second positional parameter, so
+a stale `f(sim, mortality)` call would otherwise have bound a DataFrame to
+`benefit_reduction` and run silently on a wrong benefit; it raises `TypeError`
+instead. The same defence `compute_food_savings` already carries, for the same
+reason.
+
+`compute_individual_survival_diffs` also gained `horizon`, `survival_columns` and
+`extra_columns`, all defaulting to current behaviour. They exist so the queued
+food-side survival weighting reuses this loop rather than keeping a second copy —
+this pipeline has had near-identical copies of the same arithmetic in three
+modules before. The per-year missing-lookup counts and masks are exposed on
+`.attrs` so coverage is readable rather than inferred.
+
+**The age-89 lookup ceiling is a hard data-coverage bound.** The map covers ages
+18–89 (`LOOKUP_AGE_MIN` / `LOOKUP_AGE_MAX`). Treated adherers span 18–74, so they
+reach 89 at a 15-year horizon and fall off the table at year 16, where the
+guarded `.fillna(0)` would raise rather than silently grant immortality. **Any
+horizon extension past 15 years needs more mortality data, not a code change.**
+
+**Verification.** Every gate was declared before its run
+(`diagnostics/verify_mortality_source_swap.py`).
+- Coverage: the map is 9,072 cells over 63 × 72 × 2 with no holes, asserted at
+  build time.
+- Guard silent where it should be: 0 treated rows miss a lookup in any year 1–10.
+  The non-adherent misses it deliberately tolerates run 15,862 at year 1 to
+  252,000 at year 10.
+- Premise behind keeping the fill: 0 of 1,539,576 non-adherent rows change their
+  hazard ratio. Stated first as `new_bmi == bmi`, which **failed** on 230,520
+  rows; diagnosed rather than relaxed — those rows carry `individual_effect == 0`
+  and `weight_diff == 0`, and `new_bmi` differs from `bmi` by at most `2.1e-16`
+  relative (one ULP) from recomputing BMI off an unchanged weight, with an
+  identical hazard band on all 230,520. Exact BMI equality was never the
+  load-bearing condition; a zero hazard change is, and it holds exactly.
+- **Partition, against the pre-change function run on the same inputs in the same
+  process.** The change must move exactly three disjoint sets and nothing else:
+  32 HLD countries with no floored cells → **exactly 0.0**; EST, ISL, LUX, SVN →
+  small, from the 22 `(ISO, age, Sex)` cells where the extract holds `0.0` and the
+  pickle holds the floored `1e-5` (EST 1 cell, ISL 10, LUX 8, SVN 3, all ages
+  18–38), max relative movement `1.447e-04`; the 27 previously zeroed → non-zero.
+  Result: 31 ISO moved, exactly 4 + 27, no fifth country. The partition survives
+  into the survivor-emissions file: 32 countries bit-for-bit identical, 4 moved by
+  ≤ 1.0001×, 5 off zero.
+- The reference for that gate is the **pre-change function**, not the committed
+  CSV. The committed blob already differs from what the pre-change code produces
+  on 131 of 1512 cells at 1–2 ULP (worst relative `3.685e-16`); both the old and
+  new functions differ from it identically, which is what establishes the gap
+  belongs to the blob. Anchoring to it would have put a ULP floor under the
+  exactly-0.0 bucket. See the corrected wart entry in the README.
+
+**Regenerated:** `mortality model total emissions.csv`,
+`mortality model total emissions_oecd{,_p10,_p90}.csv`,
+`data_result/deterministic_mortality_comparison.csv`.
+
+**Deliberately not regenerated:** break-even, the tornado, the diet ×
+carbon-intensity grid, the diet-sensitivity module, every figure script,
+`reference/metrics.py`, and `survivor_manuscript_numbers`. All of them depend on
+food savings, which the queued survival-weighting change moves next; they get one
+regeneration pass afterwards rather than two. The manuscript survivor numbers
+quoted in the README (2.94 M survivors at year 10, 15.75 M person-years) are left
+at their old 36-country values with a stale-pending note, for the same reason.
+
+---
+
 ## How to reproduce
 
 ```
@@ -488,4 +619,23 @@ PYTHONUTF8=1 C:\Python314\python.exe outputs\fix3\verify_delta.py
 # two-copies port (bit-for-bit) + sensitivity suite
 PYTHONUTF8=1 C:\Python314\python.exe outputs\fix3\proof_port.py
 PYTHONUTF8=1 C:\Python314\python.exe outputs\compare_sensitivity_fix3.py
+```
+
+Mortality source swap. The partition gate needs the pre-change function to
+compare against; it is not left in the tree, so extract it first and delete it
+afterwards:
+
+```
+git show <rev-before-this-commit>:data_visualization/deterministic_mortality.py \
+    > data_visualization/_head_dm.py
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.verify_mortality_source_swap
+rm data_visualization/_head_dm.py
+
+# then the two production runs, in this order
+PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.deterministic_mortality
+UN_WPP_DIR=... PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.consumption_ghg
+
+# coverage read straight off the regenerated CSVs, no model run
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.readout_survivor_coverage
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.compare_survivor_totals
 ```
