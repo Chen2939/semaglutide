@@ -48,6 +48,7 @@ semaglutide/
 ├── scripts/
 │   └── build_supplement_table.py  # Supplementary results table
 │
+├── gdp_share_of_global_economy.R  # Share of 2022 world GDP covered by the modelled country sets
 ├── code/
 │   └── compute_child_energy.R     # Builds the child (0-17) energy pool from UN WPP + FAO/WHO/UNU
 ├── data/
@@ -128,6 +129,9 @@ python -m diet_sensitivity.sensitivity_suite
 python -m diet_sensitivity.tornado_analysis
 python -m drug_effect.analysis
 python scripts/build_supplement_table.py
+
+# 6. Share of world GDP covered  (needs step 5's break-even output)
+Rscript gdp_share_of_global_economy.R
 ```
 
 Run everything from the repository root; several scripts resolve inputs
@@ -173,6 +177,7 @@ uses it for.
 |---|---|---|
 | `build_carbon_intensity.py` | FAOSTAT FBS, `FBS_Group_Mapping.csv`, `faostat_country_mapping.csv`, hardcoded P&N values | `Food data/carbon_intensity{,_p10,_p90}.csv` |
 | `code/compute_child_energy.R` | `$UN_WPP_DIR` male + female WPP workbooks | `Food data/child_energy_by_country.xlsx`, `data/child_energy_requirement_lookup.csv`, `data/child_energy_diagnostics.csv` |
+| `gdp_share_of_global_economy.R` | `World Bank/World_Bank_National_GDP.csv`, `data_result/net_emissions_with_drug.csv`, `mortality model total emissions_oecd.csv` | `data_result/gdp_share_of_global_economy.csv` |
 | `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
 | `data_visualization/survival_weighting.py` | `final_df_imputed.pkl` | `data_result/food_shock_survival_weight.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
@@ -441,6 +446,48 @@ this lowers the 10-year ratio from **1.893×** (gross food / survivor) to
 **1.847×** ((food − drug) / survivor); under moderate uptake, from 1.832× to
 1.787×. No complete-data country tips into net positive emissions in the
 baseline specification.
+
+### Step 10 — Share of the global economy covered
+
+```bash
+Rscript gdp_share_of_global_economy.R      # from the repository root
+```
+
+Serves one sentence in the manuscript: what share of the world economy the
+modelled countries account for. Reports two sets, both **derived from the
+committed model outputs** rather than listed:
+
+| Set | Definition | Current |
+|---|---|--:|
+| Complete-data subset | positive food savings **and** survivor emissions — what every ratio is computed over | **58.96%** of 2022 world GDP, N = 40 |
+| Food-data sample | positive food savings, regardless of survivor coverage | **59.72%** of 2022 world GDP, N = 53 |
+
+Shares are of World Bank *GDP (current US$)*, indicator `NY.GDP.MKTP.CD`, from
+`World Bank/World_Bank_National_GDP.csv`. Nominal dollars are correct here: both
+numerator and denominator are the same year, so the price level cancels. Constant
+dollars would only matter for a comparison across years.
+
+**Why it derives the sets instead of listing them.** It used to hardcode a
+35-country subset plus two exclusion lists. All three went stale the moment the
+mortality source changed — the subset is now 40, and the five countries that had no
+life table (ARE, CYP, MLT, ROU, SAU) are precisely the ones that gained one. The
+stale version would have reported **56.92%** for a set the model no longer uses, a
+2.04 percentage-point understatement, with nothing to signal it. The sets are now
+read from `net_emissions_with_drug.csv` using the same filter break-even applies,
+so changing which countries are excluded needs no edit here.
+
+Exclusion reasons are derived too, from the survivor-emissions file, because a
+country can miss a ratio for want of an OECD per-capita factor or for want of
+mortality data and the distinction matters when writing up the limitation. It
+warns rather than guesses if a country is excluded for a reason it cannot
+classify, and errors if the two uptake scenarios disagree on the sets — the
+manuscript quotes a single share, so that would need a decision rather than a
+silent choice.
+
+Currently all 13 excluded countries lack an **OECD factor**; none lacks mortality.
+A further 10 have survivor data but no food savings (AND, ASM, BMU, BRN, GRL, GUY,
+NRU, PRI, SGP, TWN) and so fall outside both sets — reported as a coverage note,
+with their GDP in neither share.
 
 ## Setup
 

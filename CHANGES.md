@@ -894,6 +894,57 @@ now resolved.
 
 ---
 
+## GDP-share script derives its country sets instead of hardcoding them
+
+**What was wrong.** `gdp_share_of_global_economy.R` serves one manuscript
+sentence — what share of the world economy the modelled countries cover — and
+hardcoded three ISO lists to do it: a 35-country complete-data subset, a
+13-country "missing OECD factor" list and a 5-country "missing life table" list.
+
+All three went stale the moment the mortality source changed. The complete-data
+subset is now **40**, and the five countries that had no life table — ARE, CYP,
+MLT, ROU, SAU — are **exactly** the ones that gained one. Nothing connected the
+script to that, so it would have gone on reporting a share for a country set the
+model no longer uses, with no signal that it had drifted.
+
+**Numerical effect.** The stale lists give **56.92%** of 2022 world GDP over 35
+countries. The derived sets give **58.96%** over 40 — a **+2.04 percentage-point**
+understatement, of which Saudi Arabia alone is 1.20 pp. The food-data sample is
+unchanged at **59.72%** over 53, since none of the five was ever missing food data.
+
+**Correct behaviour.** Both sets are read from `net_emissions_with_drug.csv` using
+the same filter break-even and every downstream aggregate applies — positive food
+savings, positive survivor emissions, finite ratio — kept in one function here so
+the two definitions cannot drift apart. Change which countries are excluded
+anywhere upstream and this script follows without an edit.
+
+Exclusion reasons are derived too, from the survivor-emissions file: a country can
+fail to reach a ratio for want of an OECD per-capita factor or for want of
+mortality data, and which it is matters when writing the limitation up. Currently
+all 13 excluded countries lack an OECD factor and none lacks mortality — the
+5-country mortality exclusion the old script encoded no longer exists.
+
+**Guards, because a silently wrong share is the failure mode here.** It errors if
+either input CSV is absent, naming the command that builds it; errors if the two
+uptake scenarios disagree on the country sets, since the manuscript quotes a single
+number and that would need a decision rather than a silent choice; warns if a
+country is excluded for a reason it cannot classify rather than filing it under a
+default; and warns that the totals are *understated* if any country has no GDP
+match, rather than reporting a quiet sum over NAs. It also reports the 10
+countries that have survivor data but no food savings (AND, ASM, BMU, BRN, GRL,
+GUY, NRU, PRI, SGP, TWN), which belong in neither share.
+
+**Verification.** Run against the regenerated outputs: 53 rows, 0 missing GDP
+matches, no warnings, derived sets 53/40/13 matching what
+`net_emissions_with_drug.csv` and the survivor file independently report. The
+per-country table and both totals are printed, so the manuscript number is
+visible rather than inferred.
+
+Documented in the README as step 10, including why it derives rather than lists
+and what the stale version would have said.
+
+---
+
 ## How to reproduce
 
 ```
