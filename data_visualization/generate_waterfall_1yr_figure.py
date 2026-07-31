@@ -250,7 +250,9 @@ def plot_waterfall(components: pd.DataFrame) -> str:
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=9)
-    ax.set_ylabel("Mt CO$_2$eq over 1 year", fontsize=10)
+    # "Year 1" rather than "1 year": under survival weighting the annual saving
+    # is not constant, so this is the first year of the series, not a typical one.
+    ax.set_ylabel("Mt CO$_2$eq in year 1", fontsize=10)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.set_ylim(0, max(hi for _, hi in levels) * 1.16)
     ax.tick_params(axis="both", labelsize=9)

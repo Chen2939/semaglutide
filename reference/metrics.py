@@ -120,17 +120,29 @@ HEAD_COLS = {
 }
 
 
+# Which row of the headline snapshot is the live reproduction target. Earlier rows
+# are kept for provenance; this names the one the check compares against, so
+# refreshing the snapshot is a data change plus a one-line label change rather
+# than an edit scattered through the file.
+ACTIVE_RUN = "survival_weighted"
+
+
 def canonical_targets() -> list[tuple[str, float]]:
     """The recorded reproduction target, at full committed precision."""
-    head = pd.read_csv(HEADLINE_CSV)
-    head = head[head["run"] == "corrected_fix3"].set_index("scenario")
+    head = pd.read_csv(HEADLINE_CSV, float_precision="round_trip")
+    head = head[head["run"] == ACTIVE_RUN].set_index("scenario")
+    if head.empty:
+        raise SystemExit(
+            f"{HEADLINE_CSV.name} has no rows for run={ACTIVE_RUN!r}. "
+            "Regenerate with: python -m reference.metrics --write"
+        )
     out = [("baseline food emissions (Mt)",
             float(head["baseline_food_emissions_mt"].iloc[0]))]
     for sc in SCENARIOS:
         for col, lab in HEAD_COLS.items():
             out.append((f"{lab} [{sc}]", float(head.loc[sc, col])))
         out.append((f"min-country iso [{sc}]", head.loc[sc, "min_country_iso"]))
-    suite = pd.read_csv(SUITE_CSV)
+    suite = pd.read_csv(SUITE_CSV, float_precision="round_trip")
     for _, e in suite.iterrows():
         k = f"{e['scenario_spec']} [{e['uptake']}]"
         out += [
@@ -144,14 +156,31 @@ def canonical_targets() -> list[tuple[str, float]]:
     return out
 
 
-def measure(snap: dict, mort) -> dict:
-    """Compute every canonical metric from a snapshot dict of pipeline outputs."""
+def measure(snap: dict) -> dict:
+    """Compute every canonical metric from a snapshot dict of pipeline outputs.
+
+    Each configuration is scored against the survivor frame for ITS OWN
+    carbon-intensity scenario, taken from the ``ci_scenario`` recorded on the
+    snapshot. This used to take one mean-basis ``mort`` frame and reuse it for all
+    four, which stopped being right when the survivor factor became CI-aware: its
+    P&N food add-back is priced with the same intensities as the food side, so
+    pairing P10 food savings with a mean survivor frame compares two bases.
+    """
     from data_visualization.breakeven_analysis import compute_breakeven
+    from data_visualization.pipeline import load_mortality_emissions
+
+    mort_cache: dict[str, object] = {}
+
+    def mort_for(label: str):
+        ci = snap[label]["ci_scenario"]
+        if ci not in mort_cache:
+            mort_cache[ci] = load_mortality_emissions(ci)
+        return mort_cache[ci]
 
     got: dict = {}
     rdf = snap["main"]["result_df"]
     fs = snap["main"]["food_savings"]
-    be = compute_breakeven(fs, mort, include_drug=True)
+    be = compute_breakeven(fs, mort_for("main"), include_drug=True)
     got["baseline food emissions (Mt)"] = baseline_food_emissions_mt(rdf)
     sav = total_food_savings_mt(fs)
     for sc in SCENARIOS:
@@ -166,7 +195,9 @@ def measure(snap: dict, mort) -> dict:
     spec_map = {"P10": "uniform_p10", "P90": "uniform_p90",
                 "combined_conservative": "combined_conservative"}
     for spec, label in spec_map.items():
-        be_s = compute_breakeven(snap[label]["food_savings"], mort, include_drug=True)
+        be_s = compute_breakeven(
+            snap[label]["food_savings"], mort_for(label), include_drug=True
+        )
         for sc in SCENARIOS:
             k = f"{spec} [{sc}]"
             rat = ratios_for_scenario(be_s, sc)
@@ -235,47 +266,115 @@ def report(got: dict, title: str) -> bool:
 def run_configurations() -> dict:
     """Run the pipeline for every configuration the reference values cover."""
     from data_visualization.pipeline import compute_food_savings
-    from diet_sensitivity.combined_analysis import build_meat_p10_ci_file
 
-    meat_p10 = build_meat_p10_ci_file()
-    # STALE CONFIGURATION -- reconcile before regenerating reference metrics.
+    # combined_conservative is cereal_sweets_up x ALL-FOOD P10, scored against the
+    # p10 survivor basis -- the production definition, which
+    # combined_analysis.py, sensitivity_overview.py and sensitivity_suite.py all
+    # share and combined_analysis.assert_combined_conservative() holds in step.
+    # This copy used to name the derived meat-only carbon-intensity file, a
+    # definition production retired; that assertion does not reach into
+    # reference/, so it drifted silently. Reconciled here.
     #
-    # The combined_conservative row below still names the derived meat-only
-    # carbon-intensity file (mean intensities with only Meat replaced by P10).
-    # Stage 4C retired that definition: production now defines
-    # combined_conservative as cereal_sweets_up x ALL-FOOD P10
-    # (Food data/carbon_intensity_p10.csv), scored against the p10 survivor
-    # basis. The three production definitions -- combined_analysis.py,
-    # sensitivity_overview.py and sensitivity_suite.py -- agree with each other
-    # and are held in step by
-    # combined_analysis.assert_combined_conservative(); that assertion does not
-    # reach into reference/, so this copy drifted silently.
-    #
-    # These configurations are also still run against a single mean-basis
-    # survivor frame (see main() below), which no longer matches the CI-aware
-    # survivor path. Both must be reconciled in the same pass when the
-    # reference snapshot is regenerated.
+    # ci_scenario pairs each configuration with its own survivor frame; see
+    # measure().
     configs = [
-        ("main",                  None,               "carbon_intensity.csv"),
-        ("uniform_p10",           "baseline_uniform", "carbon_intensity_p10.csv"),
-        ("uniform_p90",           "baseline_uniform", "carbon_intensity_p90.csv"),
-        ("combined_conservative", "cereal_sweets_up", str(meat_p10)),
+        ("main",                  None,               "carbon_intensity.csv",     "mean"),
+        ("uniform_p10",           "baseline_uniform", "carbon_intensity_p10.csv", "p10"),
+        ("uniform_p90",           "baseline_uniform", "carbon_intensity_p90.csv", "p90"),
+        ("combined_conservative", "cereal_sweets_up", "carbon_intensity_p10.csv", "p10"),
     ]
     snap = {}
-    for label, diet, ci in configs:
-        print(f"  [{label}] diet={diet}, ci={Path(ci).name}", flush=True)
+    for label, diet, ci, ci_scenario in configs:
+        print(f"  [{label}] diet={diet}, ci={Path(ci).name}, "
+              f"survivor={ci_scenario}", flush=True)
         fs, rdf = compute_food_savings(diet_scenario=diet, ci_file=ci)
-        snap[label] = {"food_savings": fs, "result_df": rdf}
+        snap[label] = {
+            "food_savings": fs, "result_df": rdf, "ci_scenario": ci_scenario,
+        }
     return snap
 
 
-def main() -> int:
+def write_references(snap: dict) -> None:
+    """Regenerate both reference snapshots from a fresh pipeline run.
+
+    Appends a new ``run`` row named ACTIVE_RUN to the headline snapshot, keeping
+    earlier rows for provenance, and replaces the sensitivity suite outright (it
+    has no run column). Values are written at full repr precision so the check can
+    hold a 1e-12 tolerance rather than a rounding-limited one.
+
+    Existed as a manual step before: there was no writer, so refreshing the
+    snapshot meant hand-editing the CSVs, which is how a stale configuration
+    survived in here unnoticed. Regenerating is now one command.
+    """
+    from data_visualization.breakeven_analysis import compute_breakeven
     from data_visualization.pipeline import load_mortality_emissions
 
+    rdf = snap["main"]["result_df"]
+    fs = snap["main"]["food_savings"]
+    be = compute_breakeven(
+        fs, load_mortality_emissions(snap["main"]["ci_scenario"]), include_drug=True
+    )
+    base_mt = baseline_food_emissions_mt(rdf)
+    sav = total_food_savings_mt(fs)
+
+    head_rows = []
+    for sc in SCENARIOS:
+        rat = ratios_for_scenario(be, sc)
+        mr, mi, mc, _ntip, nval = min_and_tipping(be, sc)
+        head_rows.append({
+            "run": ACTIVE_RUN,
+            "scenario": sc,
+            "baseline_food_emissions_mt": base_mt,
+            "total_annual_food_savings_mt": sav[sc],
+            "cum_food_to_survivor_ratio_10yr": rat["cum_ratio_10yr"],
+            "annual_food_to_survivor_ratio_y10": rat["annual_ratio_y10"],
+            "min_country_ratio_10yr": mr,
+            "min_country_iso": mi,
+            "min_country_name": mc,
+            "n_complete_countries": nval,
+        })
+    existing = pd.read_csv(HEADLINE_CSV, float_precision="round_trip")
+    existing = existing[existing["run"] != ACTIVE_RUN]
+    pd.concat([existing, pd.DataFrame(head_rows)], ignore_index=True).to_csv(
+        HEADLINE_CSV, index=False
+    )
+    print(f"Wrote {HEADLINE_CSV.name} (run={ACTIVE_RUN})")
+
+    spec_map = {"P10": "uniform_p10", "P90": "uniform_p90",
+                "combined_conservative": "combined_conservative"}
+    suite_rows = []
+    for spec, label in spec_map.items():
+        be_s = compute_breakeven(
+            snap[label]["food_savings"],
+            load_mortality_emissions(snap[label]["ci_scenario"]),
+            include_drug=True,
+        )
+        for sc in SCENARIOS:
+            rat = ratios_for_scenario(be_s, sc)
+            mr, mi, mc, ntip, nval = min_and_tipping(be_s, sc)
+            suite_rows.append({
+                "scenario_spec": spec,
+                "uptake": sc,
+                "cum_ratio_10yr": rat["cum_ratio_10yr"],
+                "annual_ratio_y10": rat["annual_ratio_y10"],
+                "min_country_ratio": mr,
+                "min_country_iso": mi,
+                "min_country_name": mc,
+                "n_tipping_countries": ntip,
+                "n_complete_countries": nval,
+            })
+    pd.DataFrame(suite_rows).to_csv(SUITE_CSV, index=False)
+    print(f"Wrote {SUITE_CSV.name}")
+
+
+def main(write: bool = False) -> int:
     print("Running the pipeline for the reference configurations "
           "(about two minutes)...")
     snap = run_configurations()
-    got = measure(snap, load_mortality_emissions())
+    if write:
+        write_references(snap)
+        print()
+    got = measure(snap)
     print()
     ok = report(got, "REPRODUCTION CHECK — recomputed vs reference snapshot")
     return 0 if ok else 1
@@ -290,4 +389,4 @@ if __name__ == "__main__":
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8")
 
-    sys.exit(main())
+    sys.exit(main(write="--write" in sys.argv[1:]))

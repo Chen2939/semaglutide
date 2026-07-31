@@ -145,7 +145,8 @@ def print_global_summary(results: pd.DataFrame):
 
             total_food = valid["annual_food_savings_t"].sum()
             total_mort = valid["total_survivor_emissions_10yr"].sum()
-            ratio_10yr = total_food * 10 / total_mort
+            # Sum of the per-year series, not annual x 10.
+            ratio_10yr = valid["total_food_savings_10yr"].sum() / total_mort
 
             label_u = "Max (95%)" if uptake_s == "max_uptake" else "Mod (50%)"
             print(
@@ -175,6 +176,7 @@ def print_scenario_change_vs_baseline(results: pd.DataFrame):
         valid = sub[np.isfinite(sub["ratio_food_to_mort"]) & (sub["annual_food_savings_t"] > 0)]
         baseline_vals[uptake_s] = {
             "food": valid["annual_food_savings_t"].sum(),
+            "food_10yr": valid["total_food_savings_10yr"].sum(),
             "mort": valid["total_survivor_emissions_10yr"].sum(),
         }
 
@@ -189,11 +191,13 @@ def print_scenario_change_vs_baseline(results: pd.DataFrame):
         if valid.empty:
             continue
         new_food = valid["annual_food_savings_t"].sum()
+        new_food_10yr = valid["total_food_savings_10yr"].sum()
         new_mort = valid["total_survivor_emissions_10yr"].sum()
         base = baseline_vals["max_uptake"]
 
         delta_food = (new_food - base["food"]) / 1e6
-        delta_ratio = (new_food * 10 / new_mort) - (base["food"] * 10 / base["mort"])
+        # Both ratios use summed series, not annual x 10.
+        delta_ratio = (new_food_10yr / new_mort) - (base["food_10yr"] / base["mort"])
         direction = "↑ more savings" if delta_food > 0 else "↓ fewer savings"
 
         print(
@@ -319,12 +323,14 @@ def plot_global_scenario_comparison(results: pd.DataFrame):
             if valid.empty:
                 continue
             annual_food = valid["annual_food_savings_t"].sum()
+            food_10yr = valid["total_food_savings_10yr"].sum()
             survivor_10yr = valid["total_survivor_emissions_10yr"].sum()
             rows.append({
                 "diet_scenario": diet_s,
                 "scenario": uptake_s,
                 "annual_food_savings_Mt": annual_food / 1e6,
-                "ratio_food_to_mort": annual_food * 10 / survivor_10yr,
+                # Sum of the per-year series, not annual x 10.
+                "ratio_food_to_mort": food_10yr / survivor_10yr,
             })
 
     summary = pd.DataFrame(rows)

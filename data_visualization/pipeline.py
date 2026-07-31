@@ -376,6 +376,9 @@ def compute_food_savings(
     diet_scenario: Optional[str] = None,
     ci_file: str = "carbon_intensity.csv",
     child_energy_file: str = "child_energy_by_country.xlsx",
+    survival_weighted: bool = True,
+    horizon: int = 10,
+    survival_weight: Optional[pd.DataFrame] = None,
 ):
     """Run the Price Rebound equilibrium model and return per-country
     annual food-emission savings plus a detailed result DataFrame.
@@ -407,15 +410,36 @@ def compute_food_savings(
         Excel file inside ``Food data/`` with the per-country child (0-17)
         energy pool (columns ``ISO3``, ``total_annual_child_kcal``), used to put
         the demand-reduction fraction on an all-ages basis.
+    survival_weighted : bool
+        Scale the demand shock by ``pi(t)``, the difference-weighted mean
+        treatment-world survival, so patients who die stop contributing a food
+        saving. See ``data_visualization.survival_weighting``. ``False``
+        reproduces the legacy single-solve behaviour, where every treated patient
+        eats less forever.
+    horizon : int
+        Years of the per-year series to solve, when ``survival_weighted``.
+    survival_weight : DataFrame, optional
+        Pre-built ``pi`` table, wide by year, indexed by (ISO, scenario), used
+        instead of reading the committed artefact. The injection point for
+        sensitivity runs and for the ``pi == 1`` null check.
 
     Returns
     -------
     food_savings : DataFrame
-        Columns: ISO, Country, scenario, annual_food_savings_t
+        Columns: ISO, Country, scenario, annual_food_savings_t, and
+        annual_food_savings_t_Y1..Y{horizon} when ``survival_weighted``
         (plus diet_scenario when ``diet_scenario`` was given).
+
+        ``annual_food_savings_t`` is the **year-1** saving. Under survival
+        weighting the annual saving is no longer constant, so a single number has
+        to mean a particular year; year 1 keeps every existing single-value
+        consumer correct for the quantity it already reports, and moves it only
+        by ``pi(1)``, which is about 0.5%. Anything cumulative must sum the
+        series -- ``annual * 10`` is wrong once the series varies.
     result_df : DataFrame
         Row-level detail (country × food-group × scenario) with
-        carbon_savings_t and all intermediate columns.
+        carbon_savings_t and all intermediate columns, on the **year-1** solve,
+        plus ``actual_reduction_Y{t}`` and ``carbon_savings_t_Y{t}`` per year.
     """
     if diet_scenario is not None and diet_scenario not in SCENARIOS:
         raise ValueError(
@@ -617,33 +641,109 @@ def compute_food_savings(
             )
             merged = merged.drop(columns=["diet_shock_pct"])
 
-    # ── Solve new equilibrium ─────────────────────────────────────────
+    # ── Survival weighting of the shock ───────────────────────────────
+    #
+    # The shock as built above carries no survival probability, i.e. it assumes
+    # every treated patient is alive in every year. Patients who die despite the
+    # drug are dead in both worlds and eat nothing in either, so their food saving
+    # must stop being counted. pi(t) is the difference-weighted mean
+    # treatment-world survival and the corrected shock is delta * pi(t).
+    #
+    # Only the NUMERATOR is weighted. The denominator of delta stays on the 2022
+    # baseline energy pool, because that is the basis of the observed FAOSTAT
+    # tonnage the shock is applied to.
+    #
+    # This does NOT touch _survivor_food_factor. That handles a different group of
+    # people -- the additional survivors, who are alive only because of the drug
+    # and eat a full diet nobody would otherwise have eaten. Both are real and
+    # they do not overlap.
     result_df = merged.copy()
-    result_df["expected_demand_reduction"] = (
-        result_df["initial_eql_quantity"]
-        * result_df["expected_demand_reduction_percent"]
-    )
-    result_df[["P_eq_new", "Q_eql_new"]] = result_df.apply(
-        _compute_equilibrium, axis=1
-    )
-    result_df["actual_reduction"] = (
-        result_df["Q_eql_new"] - result_df["initial_eql_quantity"]
-    )
-    result_df["rebound_effect"] = (
-        result_df["actual_reduction"] - result_df["expected_demand_reduction"]
-    )
-    result_df["rebound_effect_percent"] = (
-        -1 * result_df["rebound_effect"] / result_df["expected_demand_reduction"]
-    )
+    base_shock = result_df["expected_demand_reduction_percent"].copy()
+
+    years = list(range(1, horizon + 1)) if survival_weighted else [1]
+    if survival_weighted:
+        if survival_weight is None:
+            from .survival_weighting import load_food_shock_survival_weight
+
+            survival_weight = load_food_shock_survival_weight(horizon=horizon)
+        # Same shape of guard as the child-energy pool above: a country that
+        # receives a shock but has no pi would silently keep the unweighted shock,
+        # which is invisible in aggregate output.
+        shocked = set(
+            result_df.loc[result_df["initial_eql_quantity"].notna(), "ISO"].unique()
+        )
+        have = set(survival_weight.index.get_level_values("ISO"))
+        offenders = sorted(shocked - have)
+        if offenders:
+            raise ValueError(
+                f"Survival weighting: no pi for shocked country(ies) {offenders}. "
+                "Refusing to proceed -- these would fall back to an unweighted "
+                "shock in which nobody ever dies. Rebuild with: "
+                "python -m data_visualization.survival_weighting"
+            )
+        idx = pd.MultiIndex.from_arrays(
+            [result_df["ISO"], result_df["scenario"]], names=["ISO", "scenario"]
+        )
+        pi_by_year = {
+            y: survival_weight[y].reindex(idx).to_numpy(dtype=float) for y in years
+        }
+    else:
+        pi_by_year = {1: np.ones(len(result_df), dtype=float)}
 
     result_df = pd.merge(
         result_df,
         carbon_intensity[["ISO", "final_food_group", "carbon_intensity_t"]],
         how="left", on=["ISO", "final_food_group"],
     )
-    result_df["carbon_savings_t"] = (
-        result_df["actual_reduction"] * result_df["carbon_intensity_t"]
+
+    # The equilibrium is re-solved per year rather than the year-1 answer being
+    # scaled by pi(t). The solve is near-linear in delta, so scaling is close --
+    # measured at 0.06% on the global aggregate and up to 0.14% on a single row at
+    # pi = 0.86 -- but that is the same order as the smallest real correction this
+    # model has recorded, and the exact route costs about 0.4 s per extra year
+    # against a 33 s call. Accuracy is the cheaper option here.
+    per_year = {}
+    for year in years:
+        result_df["expected_demand_reduction_percent"] = base_shock * pi_by_year[year]
+        result_df["expected_demand_reduction"] = (
+            result_df["initial_eql_quantity"]
+            * result_df["expected_demand_reduction_percent"]
+        )
+        solved = result_df.apply(_compute_equilibrium, axis=1)
+        actual = solved["Q_eql_new"] - result_df["initial_eql_quantity"]
+        per_year[year] = {
+            "P_eq_new": solved["P_eq_new"],
+            "Q_eql_new": solved["Q_eql_new"],
+            "actual_reduction": actual,
+            "expected_demand_reduction": result_df["expected_demand_reduction"].copy(),
+            "expected_demand_reduction_percent": result_df[
+                "expected_demand_reduction_percent"
+            ].copy(),
+            "carbon_savings_t": actual * result_df["carbon_intensity_t"],
+        }
+
+    # The unsuffixed columns are year 1, so every consumer that wants a single
+    # year keeps working and keeps meaning something.
+    first = per_year[1]
+    for col, values in first.items():
+        result_df[col] = values
+    result_df["rebound_effect"] = (
+        result_df["actual_reduction"] - result_df["expected_demand_reduction"]
     )
+    result_df["rebound_effect_percent"] = (
+        -1 * result_df["rebound_effect"] / result_df["expected_demand_reduction"]
+    )
+    if survival_weighted:
+        for year in years:
+            result_df[f"actual_reduction_Y{year}"] = per_year[year]["actual_reduction"]
+            result_df[f"carbon_savings_t_Y{year}"] = per_year[year]["carbon_savings_t"]
+            # The pre-rebound ("naive") reduction is needed per year too: the
+            # 10-year waterfall decomposes naive into rebound plus actual, and all
+            # three legs have to be summed over the same declining series.
+            result_df[f"expected_demand_reduction_Y{year}"] = per_year[year][
+                "expected_demand_reduction"
+            ]
+
     if diet_scenario is not None:
         result_df["diet_scenario"] = diet_scenario
 
@@ -654,6 +754,24 @@ def compute_food_savings(
         .reset_index()
         .rename(columns={"carbon_savings_t": "annual_food_savings_t"})
     )
+    if survival_weighted:
+        for year in years:
+            series = (
+                result_df.groupby(["ISO", "Country", "scenario"])[
+                    f"carbon_savings_t_Y{year}"
+                ]
+                .sum()
+                .abs()
+                .reset_index()
+                .rename(
+                    columns={
+                        f"carbon_savings_t_Y{year}": f"annual_food_savings_t_Y{year}"
+                    }
+                )
+            )
+            food_savings = pd.merge(
+                food_savings, series, on=["ISO", "Country", "scenario"], how="left"
+            )
     if diet_scenario is not None:
         food_savings["diet_scenario"] = diet_scenario
 

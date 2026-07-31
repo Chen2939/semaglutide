@@ -22,3 +22,8 @@ reference/*.csv -filter -diff -merge -text
 # workbook it depends on is not redistributed here. Same reasoning as above:
 # stored as a blob so it survives a clone made without LFS.
 "mortality model total emissions_oecd.csv" -filter -diff -merge -text
+
+# Survival weights for the food shock, written by survival_weighting.py. Same
+# reasoning: compute_food_savings raises without it, so it must survive a clone
+# made without LFS. Small (about 106 KB) and plain text.
+data_result/food_shock_survival_weight.csv -filter -diff -merge -text

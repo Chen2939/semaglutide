@@ -176,7 +176,7 @@ def compute_scenario_metrics(scenario, food, detail, sim):
 # `stages` says which of before/after are populated; the rest get an em-dash.
 ROWS = [
     {
-        "label": "Calories reduced (kcal/yr)",
+        "label": "Calories reduced (kcal/yr, t=0)",
         "unit": "kcal/yr",
         "before_key": "calories_kcal_yr",
         "after_key": None,  # rebound acts on tonnage downstream, not calories
@@ -188,7 +188,7 @@ ROWS = [
         ),
     },
     {
-        "label": "Food tonnage reduced (Mt)",
+        "label": "Food tonnage reduced (Mt, t=0)",
         "unit": "Mt",
         "before_key": "tonnage_before_Mt",
         "after_key": "tonnage_after_Mt",
@@ -200,7 +200,7 @@ ROWS = [
         ),
     },
     {
-        "label": "Emissions reduced (MtCO2e, mean CI)",
+        "label": "Emissions reduced (MtCO2e, mean CI, t=0)",
         "unit": "MtCO2e",
         "before_key": "emissions_before_Mt",
         "after_key": "emissions_after_Mt",
@@ -390,7 +390,15 @@ def main():
         "CI_FILE is not the mean carbon-intensity file; update CI_SCENARIO_LABEL."
     )
 
-    food, detail = compute_food_savings(ci_file=CI_FILE)
+    # survival_weighted=False on purpose: every row of this table is an
+    # INSTANTANEOUS reduction at t = 0 -- calories, tonnage and emissions all on
+    # the same basis, the whole treated cohort alive. pi(0) == 1 by construction,
+    # so the unweighted shock IS the t = 0 shock. Survival weighting would put
+    # tonnage and emissions on a year-1 basis while the calorie row stayed at t = 0
+    # (it comes from the raw cohort EER gap), leaving three rows of one table on
+    # two different bases. Cumulative and per-year quantities live in the
+    # break-even outputs, not here.
+    food, detail = compute_food_savings(ci_file=CI_FILE, survival_weighted=False)
     sim = list(pyreadr.read_r(str(SIM_PATH)).values())[0]
 
     metrics = {sc: compute_scenario_metrics(sc, food, detail, sim) for sc in SCENARIOS}

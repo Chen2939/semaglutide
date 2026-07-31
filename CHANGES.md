@@ -349,7 +349,16 @@ independent of the food fixes).
 
 ---
 
-## Known stale outputs
+## Known stale outputs — RESOLVED
+
+> **All clear as of the survival-weighting commit.** The single regeneration pass
+> this section was waiting for has run: every output below, plus the reference
+> snapshots, was regenerated and `reference/metrics.py` now passes at exactly 0.0
+> on all 47 values. `metrics.py`'s stale *configuration* was reconciled in the
+> same pass. Nothing in this section is outstanding; it is kept as the record of
+> why the staleness was allowed to stand for three commits.
+
+The original note follows.
 
 Survivor emissions moved to the Poore & Nemecek food basis, and the survivor
 path became carbon-intensity-aware. The outputs below are still on the
@@ -603,6 +612,268 @@ at their old 36-country values with a stale-pending note, for the same reason.
 
 ---
 
+## Survival weighting on the food side of the model
+
+**What was wrong.** The food-side demand shock counted every treated patient as
+eating less in every year of the horizon. Some of them die anyway. At any year the
+treated population contains three groups, and the model handled two of them:
+
+| Group | True contribution | What the model did |
+|---|---|---|
+| Alive in both worlds | saves food | counted the saving — correct |
+| Alive only because of the drug | eats a diet nobody would have eaten | counted the saving, and charged the whole footprint on the survivor side — correct |
+| **Died despite the drug** | **nothing — dead in both worlds** | **still counted a food saving, every year — wrong** |
+
+The exact difference in national food energy between the treated and untreated
+worlds in year *t*, with `p_sg` and `p_bl` the treatment- and baseline-world
+survival probabilities, splits in two:
+
+```
+Delta(t) = sum w*p_sg(t)*(treatment_eer - eer)  +  sum w*(p_sg(t) - p_bl(t))*eer
+           \________ term 1: diet effect ______/    \____ term 2: extra _____/
+                     among survivors                      survivors
+```
+
+`pipeline.py` computed term 1 with no survival probability and no year index —
+equivalent to `p_sg == 1` for everyone forever — which is why one
+`annual_food_savings_t` was reused for all ten years.
+
+**The survivor food add-back is unchanged and was already correct.** Term 2 is
+the additional-survivor population, priced by `pipeline._survivor_food_factor` on
+*baseline* `eer`. **This fix concerns a different population**: patients who were
+treated, saved food while alive, and then died. The two groups do not overlap and
+`_survivor_food_factor` is not touched. A future reader will assume they are the
+same fix; they are not.
+
+**Correct behaviour.** The missing scalar is
+
+```
+pi(t) = sum w*p_sg(t)*(eer - treatment_eer) / sum w*(eer - treatment_eer)
+```
+
+a difference-weighted mean of treatment-world survival, `pi(0) = 1` and falling.
+`eer_diff` is non-zero on exactly the treated-adherer rows, so `pi` averages over
+adherers without needing to filter for them. The corrected shock is
+`delta(t) = delta * pi(t)`. **Only the numerator is weighted** — the denominator
+stays on the 2022 baseline energy pool, which is the basis of the observed FAOSTAT
+tonnage the shock is applied to.
+
+New module `data_visualization/survival_weighting.py` writes
+`data_result/food_shock_survival_weight.csv` — `(ISO, scenario, year) -> pi,
+pi_dose` for 63 ISO × 2 scenarios × 15 years — so the food side reads a committed
+artefact instead of opening mortality data.
+
+**Two weights, not one.** `pi` weights survival by `w * eer_diff`, i.e. by how
+much each patient's intake fell. That is right for the food shock and wrong for
+the pharmaceutical term, where a surviving patient is dosed once regardless of
+what their appetite did. `pi_dose` weights by `w` alone. They differ by up to
+**1.33 percentage points**, `pi_dose` consistently the lower, so using `pi` for
+the drug term would have understated it. The brief for this work said to apply
+`pi` to the drug; that would have been a small but real error.
+
+**Direction — this change is CONSERVATIVE. It reduces food savings and lowers
+every ratio.** Isolated by holding everything else fixed and moving only the
+weighting (`diagnostics/compare_pi_effect.py`), mean CI, drug folded in, N = 40:
+
+| quantity | pi off | pi on | movement |
+|---|--:|--:|--:|
+| 10-yr food savings, max (Mt) | 521.8331 | 501.7655 | **−20.0676 (−3.85%)** |
+| 10-yr food savings, mod (Mt) | 267.1340 | 256.6671 | **−10.4669 (−3.92%)** |
+| ratio food:survivor, max | 1.9212 | 1.8474 | **−0.0738 (−3.85%)** |
+| ratio food:survivor, mod | 1.8594 | 1.7865 | **−0.0729 (−3.92%)** |
+| annual food, max, year 1 (Mt) | 52.141 | 51.857 | −0.284 (−0.54%) |
+| annual food, max, year 10 (Mt) | 52.235 | 48.128 | **−4.107 (−7.86%)** |
+| **year-10 annual ratio, max** | **1.0297** | **0.9488** | **crosses below 1** |
+| minimum-country ratio, max | 1.2986 HUN | 1.2053 HUN | −0.0933 |
+| survivor emissions (Mt) | 271.6114 | 271.6114 | **0 (bit-identical)** |
+
+The effect compounds with year, from −0.5% at year 1 to −7.9% at year 10, because
+`pi` falls monotonically. **The qualitative change worth noting: the year-10
+annual flow ratio crosses below 1.** Under the old model the annual food saving
+still exceeded annual survivor emissions in year 10; under survival weighting it
+does not. The cumulative ten-year ratio stays above 1 at 1.85×.
+
+The drug term moves the other way and partly offsets. Treated-user-years over ten
+years are `initial_users x sum_y pi_dose(y)`; that sum is **9.6268** (max) and
+**9.6221** (mod) rather than 10, so the 10-year drug charge falls 3.3% on the
+break-even set (12.90038 → 12.47709 Mt). A smaller drug subtraction raises net
+food savings slightly.
+
+**Controls.** The 32 countries whose survivor emissions the mortality source swap
+left bit-identical isolate `pi` from that earlier change. 31 of them are in the
+break-even set (Taiwan is excluded — see below). Their survivor emissions are
+identical across the two runs, confirming the isolation, and their own aggregate
+ratio moves 1.9094 → 1.8354, **−3.87%** — matching the global −3.85%. Per-country
+ratio change runs −2.43% to −7.18%, median −3.71%.
+
+**Implementation note — exact, not approximate.** The equilibrium is re-solved for
+each year at `delta * pi(t)` rather than the year-1 answer being scaled by
+`pi(t)`. Measured before choosing: 1,008 rows enter
+`result_df.apply(_compute_equilibrium)`, the apply costs **0.4 s** against a
+**33 s** whole call, so ten years adds **4.0 s** — 12% of one call. Scaling
+instead would be wrong by 0.048% (median), 0.142% (worst row) and **0.062% on the
+global aggregate** at `pi = 0.86`. That is the same order as the smallest real
+correction recorded in this document (~0.1%), so the approximation would inject
+error indistinguishable from a finding, to save four seconds.
+
+`annual_food_savings_t` becomes the **year-1** saving, with
+`annual_food_savings_t_Y1..Y10` alongside and `actual_reduction_Y{t}`,
+`carbon_savings_t_Y{t}`, `expected_demand_reduction_Y{t}` on `result_df`. The
+unsuffixed columns are year 1 so single-value consumers keep working and keep
+meaning something. Figure captions that said "annual" or "/ year" now say
+"year 1", because year 1 is the *largest* year of the series and "annual" would
+read as an overstatement. `scripts/build_supplement_table.py` runs
+`survival_weighted=False` on purpose: every row of that table is an instantaneous
+t = 0 reduction, `pi(0) == 1`, and its calorie row comes from the raw cohort EER
+gap — putting tonnage and emissions on a year-1 basis would have left three rows
+of one table on two different bases. Its numbers are unchanged (emissions reduced
+after rebound 54.2 / 27.8 Mt).
+
+**The `annual x 10` trap — nine sites, one of which no literal-`10` grep finds.**
+Cumulative food is `sum_y F*pi(y)`, not `10 x F`. Eight sites multiplied an annual
+food quantity by a literal 10: `breakeven_analysis.py` (3),
+`diet_sensitivity/analysis.py` (3), `combined_analysis.py` (1),
+`sensitivity_overview.py` (1). All now sum `total_food_savings_10yr`, which
+`compute_breakeven` already accumulated correctly. The ninth,
+`generate_waterfall_figure.py`, multiplies by the *named constant*
+`HORIZON_YEARS` on all three legs (naive, rebound, actual) — invisible to a
+search for `* 10`. Its naive leg also needed a new per-year column, being a
+pre-rebound quantity not derivable from `carbon_savings_t`. Left overstated, these
+would have inflated ten-year food by about 4%.
+
+`compute_breakeven` now accumulates both sides per year: food from the series,
+dosing from `drug_emissions_t_Y{t}`. Treated-user-years use an **anchored** form —
+sum the ten weights, then multiply the headcount once — because accumulating
+`initial x weight` ten times moved the result 2–3 ULP at `pi_dose == 1`, where the
+weighting must be an exact no-op. Ten exact `1.0`s sum to exactly `10.0`, so the
+anchored form reproduces the legacy `initial * 10` bit for bit. Same lesson as
+`adjust_survivor_decline`; the comment there says the same thing.
+
+`load_food_shock_survival_weight` reads with `float_precision="round_trip"`, and
+this is load-bearing rather than tidy. pandas defaults to the fast `xstrtod`
+converter, which parsed **721 of 1,890** cells of this table one ULP off an exact
+`strtod`. `pi` multiplies every food number, so a 1-ULP parse wobble would
+propagate into every downstream figure.
+
+**A defect in the preceding commit, found and fixed here.** That commit put numpy
+arrays in `.attrs["missing_masks"]`. pandas compares `attrs` with `==` when it
+finalises a `concat`, so *any* caller concatenating a frame derived from
+`compute_individual_survival_diffs` raised "truth value of an array is
+ambiguous". The masks are now optional `mx_missing_Y{t}` columns; `.attrs` keeps
+only the int dict, which compares cleanly.
+
+**Verification.** Every gate was declared before its run.
+- Opening gate, re-run against the live lookup: `Delta(t) == term1 + term2` to
+  **4.5e-14** worst relative and `term1(t)/term1(0) == pi(t)` to **3.9e-16**, over
+  63 × 2 × 15, bar 1e-12. `term2/diff_Yt` lands at 3,040–3,046 kcal/day, a
+  baseline `eer`, confirming term 2 belongs to the survivor side.
+- `pi` regression: the production builder reproduces the reviewed values at
+  **exactly 0 of 1,890 cells**. It first showed 721 cells differing at 1 ULP;
+  diagnosed rather than relaxed — the reference is a CSV and the default parser was
+  the whole cause (mixed sign 364/357, mean signed difference 4e-19, no drift).
+  Subset-vs-full-frame is exactly 0.0, so summing over rows whose weight is an
+  exact zero is genuinely inert.
+- Null at `pi == 1.0`, full new code path (ten solves) vs the pre-`pi` function:
+  `annual_food_savings_t` **0 of 112**; every year equal to year 1, **0 cells**;
+  `result_df`'s 15 shared numeric columns **0 of 15,120**;
+  `survival_weighted=False` **0 of 112**. Anchored to a committed column as well
+  as an in-process reference: `net_emissions_with_drug.csv`'s
+  `annual_food_savings_gross_t` reproduces at **0 of 112**.
+  (`diet_sensitivity_results.csv` differs on all 112 — that blob was stale, as
+  this document already recorded.)
+- Downstream null: drug legacy lever **0 of 630**; per-year drug series constant
+  at `pi_dose == 1` and equal to the old function, **0 cells**;
+  `compute_breakeven` at `pi == 1` vs the old one, **0 of 3,136 across 28 numeric
+  columns**. Three of these failed first and the causes were fixed, not the bars —
+  the anchored user-years form, a harness bug where the old breakeven resolved
+  `build_drug_emissions` to the live module and so compared `pi_dose` against 1,
+  and one bar that was genuinely too tight (below).
+- The one gate not held to 0.0, declared as such in advance: summed series vs
+  `annual x 10` at `pi == 1` is **2 ULP**, not the 1 ULP first written. `cum_food`
+  is ten sequential additions where the old form multiplied once, and the error
+  bound for *n* additions grows like *n*·eps, so a few ULP at n = 10 is expected;
+  the "≤1 ulp" row in the brief covers a restructured expression, not a change to
+  an n-term accumulation. Unlike the drug term this one cannot be anchored: under
+  real `pi` the ten addends genuinely differ. Measured 2.00 ULP, 25 positive / 25
+  negative, aggregate agreeing to **1.5e-16** relative.
+- Survivor-side invariant: `pi` must not touch it. `survivor_food_factor.csv`
+  rebuilt under survival weighting is **bit-identical, 0 of 3,790 cells**, and
+  survivor emissions are identical across the `pi` off/on runs. `consumption_ghg`
+  therefore did not need re-running.
+- Baseline food emissions must be delta-independent: **exactly identical** with
+  weighting off and on (6514.542208459 Mt), and `initial_eql_quantity` /
+  `carbon_intensity_t` differ on 0 of 1,008 cells.
+
+**Tornado — the parameter ranking survives.** Carbon intensity remains the
+dominant axis, diet preference second, survivor GHG decline a distant third:
+
+| axis | range before (Mt) | range after (Mt) |
+|---|--:|--:|
+| Carbon intensity (all foods) | 571.773 | 566.265 |
+| Diet preference | 296.053 | 294.961 |
+| Survivor GHG decline | 20.404 | 21.042 |
+
+The decline stays the least influential at 3.7% of the carbon-intensity range
+(3.6% before). Note these two columns differ by N as well as by `pi` — 35
+countries before, 40 after — because the mortality source swap changed the
+country set; they are not a clean `pi`-only comparison, unlike the table above.
+
+**Coverage: Taiwan, and why the break-even set is 40 and not 41.** 41 countries
+have non-zero survivor person-years *and* both OECD factor components, but
+break-even also requires positive food savings, and **TWN** has
+`annual_food_savings_t` exactly `0.0`. Cause traced rather than assumed: TWN has
+FAOSTAT tonnage for all 9 food groups, a carbon intensity, elasticities and a
+demand shock, but FAOSTAT's **Consumer Price Index** dataset has no rows for
+"China, Taiwan Province of" — so `price` is NaN, `Cs`/`Cd` are NaN, the solver
+returns NaN and the group-by sum yields 0.0. This is pre-existing and unrelated to
+`pi` or to the mortality swap: it also explains the old numbers, where 36
+survivor-qualifying countries produced aggregates over 35. Three distinct coverage
+gaps now sit on this model and are worth keeping separate: **22** countries lack an
+OECD factor, **1** (TWN) lacks a FAOSTAT price index, and **none** lacks mortality.
+
+**Imputation exposure: the headline does not rest on Israel's life table.** Five
+of the countries the mortality swap restored were imputed from a UN region whose
+only Human Life-Table member is Israel, so their life table is literally Israel's.
+Seven countries carry Israel's schedule bit-for-bit — ARE, BHR, CYP, KWT, OMN,
+QAT, SAU — but only **ARE, CYP and SAU** have an OECD per-capita factor and so
+enter a ratio at all; the other four cannot move one. Cyprus is defensible as
+taking Israel's values; the two Gulf states are the exposure worth testing.
+
+Dropping ARE and SAU, max uptake: cumulative 10-year ratio 1.8474 → 1.8369
+(**−0.57%**), year-10 annual ratio 0.9488 → 0.9439 (**−0.51%**), binding country
+Hungary either way. Moderate uptake: 1.7865 → 1.7758 (−0.60%), 0.9191 → 0.9140
+(−0.55%), Lithuania either way. Together the two are 2.0% of ten-year food savings
+and 1.4% of survivor emissions.
+
+So they are retained and the limitation is stated rather than the countries
+dropped. Note the movement is **downward**: both sit above the global ratio (ARE
+2.76×, SAU 2.50×), so excluding them would make the headline slightly worse, and
+keeping them is the marginally less conservative choice — by half a percent. No
+qualitative conclusion turns on it: the cumulative ratio stays near 1.84×, the
+year-10 annual ratio stays below 1, and the binding country is untouched.
+
+`breakeven_analysis.print_imputation_sensitivity()` prints this on every run
+rather than leaving it a one-off, and
+`diagnostics/imputation_sensitivity.py` derives the Israel-identical list from the
+pickle rather than trusting a hardcoded one — re-run it if
+`final_df_imputed.pkl` is ever rebuilt.
+
+**Age-89 ceiling, restated as a horizon bound.** `pi` is built to 15 years because
+that is the last year with complete mortality coverage for treated patients:
+adherers span ages 18–74 and the rate lookup ends at 89. At year 16 they fall off
+the table, where the guarded `.fillna(0)` raises rather than silently granting
+immortality. The food model still runs 10. **Extending past 15 years needs more
+mortality data, not a code change.**
+
+**Regenerated in one pass:** break-even (all figures), the three diet-sensitivity
+modules, the sensitivity suite and overview, the tornado, the drug-effect
+accounting, all waterfalls, the emissions and dashboard figures, the supplement
+table, `survivor_manuscript_numbers`, and both reference snapshots. This is the
+single pass the "Known stale outputs" section above was deferring; that section is
+now resolved.
+
+---
+
 ## How to reproduce
 
 ```
@@ -638,4 +909,46 @@ UN_WPP_DIR=... PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.consum
 # coverage read straight off the regenerated CSVs, no model run
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.readout_survivor_coverage
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.compare_survivor_totals
+```
+
+Survival weighting (pi). Gates first, then the artefact, then the pass:
+
+```
+# opening gate: the term-1/term-2 decomposition, against the live lookup
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.verify_algebra
+
+# build pi and regression-gate it against the reviewed values
+PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.survival_weighting
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.compute_pi
+
+# route measurement: cost of exact vs error of approximate
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.measure_pi_route
+
+# nulls at pi == 1. Both need the pre-pi modules; extract, run, delete.
+git show <rev-before-this-commit>:data_visualization/pipeline.py \
+    > data_visualization/_head_pipeline.py
+git show <rev-before-this-commit>:data_visualization/drug_footprint.py \
+    > data_visualization/_head_drug.py
+git show <rev-before-this-commit>:data_visualization/breakeven_analysis.py \
+    > data_visualization/_head_breakeven.py
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.null_check_pi
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.null_check_downstream
+rm data_visualization/_head_pipeline.py data_visualization/_head_drug.py \
+   data_visualization/_head_breakeven.py
+
+# invariants: pi must not reach the survivor side or the baseline
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.verify_survivor_invariant
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_baseline_independence
+
+# the isolated pi effect, and the Taiwan coverage fact
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.compare_pi_effect
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.name_dropped_country
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.diagnose_twn
+
+# which countries share Israel's imputed life table, and what they are worth
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_sensitivity
+
+# full regeneration, then refresh + verify the reference snapshots
+sh diagnostics/run_full_pass.sh
+PYTHONUTF8=1 C:\Python314\python.exe -m reference.metrics --write
 ```

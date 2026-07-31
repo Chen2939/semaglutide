@@ -182,6 +182,7 @@ def compute_individual_survival_diffs(
     population_weighted: bool = True,
     horizon: int = 10,
     survival_columns: bool = False,
+    missing_columns: bool = False,
     extra_columns: tuple[str, ...] = (),
 ) -> pd.DataFrame:
     """Compute deterministic survival differences for each simulated row.
@@ -202,10 +203,16 @@ def compute_individual_survival_diffs(
     ``extra_columns`` carries further ``df_input`` columns through untouched.
 
     The per-year count of rows whose (ISO, age+t, Sex) mortality lookup missed is
-    recorded on ``.attrs["missing_lookups"]`` and the boolean masks on
-    ``.attrs["missing_masks"]``. A miss is filled with a zero rate below, which
-    is indistinguishable from immortality, so the count is the coverage check on
-    any horizon extension -- it must be read, not assumed.
+    recorded on ``.attrs["missing_lookups"]``, and ``missing_columns`` returns the
+    per-row boolean masks as ``mx_missing_Y{t}`` columns. A miss is filled with a
+    zero rate below, which is indistinguishable from immortality, so the count is
+    the coverage check on any horizon extension -- it must be read, not assumed.
+
+    The masks are columns rather than another ``.attrs`` entry on purpose. pandas
+    compares ``attrs`` with ``==`` when it finalises a ``concat``, so an
+    array-valued attr raises "truth value of an array is ambiguous" for any caller
+    that concatenates a frame derived from this one. ``missing_lookups`` is a dict
+    of ints and compares cleanly; arrays must not go in beside it.
     """
     base = df_input[
         [
@@ -233,7 +240,6 @@ def compute_individual_survival_diffs(
 
     diff_cols = {"diff_Y0": np.zeros(len(base), dtype=float)}
     missing_lookups: dict[int, int] = {}
-    missing_masks: dict[int, np.ndarray] = {}
     for year in range(1, horizon + 1):
         current_age = base["age"] + year
         lookup_frame = base[["ISO", "Sex"]].assign(current_age=current_age)
@@ -245,8 +251,9 @@ def compute_individual_survival_diffs(
             how="left",
         )["mortality_rate"]
         missing = raw_mx.isna().to_numpy()
-        missing_masks[year] = missing
         missing_lookups[year] = int(missing.sum())
+        if missing_columns:
+            diff_cols[f"mx_missing_Y{year}"] = missing
 
         # fillna(0) is retained: non-adherent rows are walked past age 89 at
         # longer horizons and a zero rate there is harmless, because their
@@ -294,7 +301,6 @@ def compute_individual_survival_diffs(
     diffs = pd.DataFrame(diff_cols)
     out = pd.concat([base.reset_index(drop=True), diffs], axis=1)
     out.attrs["missing_lookups"] = missing_lookups
-    out.attrs["missing_masks"] = missing_masks
     return out
 
 

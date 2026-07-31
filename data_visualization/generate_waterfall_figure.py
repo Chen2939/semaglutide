@@ -88,9 +88,27 @@ def compute_waterfall_components() -> pd.DataFrame:
     survivor_10yr = valid["total_survivor_emissions_10yr"].sum()
     drug_10yr = valid["total_drug_emissions_10yr"].sum()
 
-    naive_10yr = naive_annual * HORIZON_YEARS
-    rebound_10yr = rebound_annual * HORIZON_YEARS
-    actual_10yr = actual_annual * HORIZON_YEARS
+    # Sum the per-year series. This used to be `annual * HORIZON_YEARS`, which is
+    # only right while the annual saving is constant; under survival weighting it
+    # falls every year as treated patients die, so multiplying the year-1 value by
+    # ten overstates all three legs. The naive leg needs its own per-year series
+    # because it is a pre-rebound quantity, not derivable from carbon_savings.
+    year_cols = [
+        (f"expected_demand_reduction_Y{y}", f"carbon_savings_t_Y{y}")
+        for y in range(1, HORIZON_YEARS + 1)
+    ]
+    if all(a in detail_max.columns and b in detail_max.columns for a, b in year_cols):
+        naive_10yr = sum(
+            (detail_max[a].abs() * detail_max["carbon_intensity_t"]).sum()
+            for a, _ in year_cols
+        )
+        actual_10yr = sum(detail_max[b].abs().sum() for _, b in year_cols)
+        rebound_10yr = naive_10yr - actual_10yr
+    else:
+        # Unweighted run: the series is constant, so this reduces to the old form.
+        naive_10yr = naive_annual * HORIZON_YEARS
+        rebound_10yr = rebound_annual * HORIZON_YEARS
+        actual_10yr = actual_annual * HORIZON_YEARS
     net_10yr = actual_10yr - survivor_10yr - drug_10yr
 
     # Keep the intermediate actual-food step in the table for transparency,

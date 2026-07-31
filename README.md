@@ -26,6 +26,7 @@ semaglutide/
 ├── data_visualization/            # Core model + figure scripts (Python package)
 │   ├── pipeline.py                # THE price-rebound pipeline: compute_food_savings()
 │   ├── deterministic_mortality.py # Deterministic expected-value survivor person-years
+│   ├── survival_weighting.py      # pi(t) / pi_dose(t): survival weights for the food shock and dosing
 │   ├── consumption_ghg.py         # OECD demand-based final-consumption GHG survivor-emissions rebuild
 │   ├── breakeven_analysis.py          # Break-even: food savings vs. survivor emissions
 │   ├── survivor_manuscript_numbers.py # Manuscript X/Y survivor numbers
@@ -39,7 +40,7 @@ semaglutide/
 ├── diet_sensitivity/              # Diet-composition and carbon-intensity sensitivity analyses
 │   ├── scenarios.py               # Literature-motivated food-group shock assumptions
 │   ├── analysis.py                # Three diet scenarios, CSVs + figures
-│   ├── combined_analysis.py       # Combined conservative case (diet shift + meat P10 CI)
+│   ├── combined_analysis.py       # Combined conservative case (diet shift + all-food P10 CI)
 │   ├── sensitivity_overview.py    # All six specifications, max uptake, overview figure
 │   ├── sensitivity_suite.py       # Both uptake levels + year-10 annual ratio (manuscript table)
 │   └── tornado_analysis.py        # Tornado plot over the sensitivity ranges
@@ -100,12 +101,17 @@ python -m data_visualization.consumption_ghg
 #    writes mortality model total emissions_oecd.csv      <- what everything reads
 #           data_result/oecd_consumption_ghg_per_capita.csv
 
-# 3. Carbon intensity  (regenerates the committed canonical files bit-for-bit)
+# 3. Survival weights for the food shock  (only if the mortality model changed)
+python -m data_visualization.survival_weighting
+#    reads  final_df_imputed.pkl
+#    writes data_result/food_shock_survival_weight.csv   <- read by the food side
+
+# 4. Carbon intensity  (regenerates the committed canonical files bit-for-bit)
 python build_carbon_intensity.py --scenario mean
 python build_carbon_intensity.py --scenario p10
 python build_carbon_intensity.py --scenario p90
 
-# 4. Analysis and figures — any order, all independent
+# 5. Analysis and figures — any order, all independent
 python -m data_visualization.breakeven_analysis
 python -m data_visualization.generate_emissions_figure
 python -m data_visualization.generate_dashboard_figure
@@ -142,11 +148,24 @@ from data_visualization.pipeline import compute_food_savings
 food_savings, result_df = compute_food_savings(
     diet_scenario=None,               # None | baseline_uniform | fatty_food_down | cereal_sweets_up
     ci_file="carbon_intensity.csv",   # mean | _p10 | _p90 | a derived file
+    survival_weighted=True,           # scale the shock by pi(t); False = legacy single solve
+    horizon=10,                       # years of the per-year series
 )
 ```
 
 Arguments are keyword-only on purpose. Both uptake levels (`max_uptake`,
 `mod_uptake`) are produced in one call and appear as the `scenario` column.
+
+**`annual_food_savings_t` is the year-1 saving, not a constant annual rate.**
+Under survival weighting the annual saving falls each year as treated patients
+die, so a single number has to mean a particular year. `food_savings` also carries
+`annual_food_savings_t_Y1`…`_Y10`, and `result_df` carries
+`actual_reduction_Y{t}`, `carbon_savings_t_Y{t}` and
+`expected_demand_reduction_Y{t}`. **Anything cumulative must sum the series** —
+`annual × 10` overstates the ten-year total by roughly 4%. `survival_weighted=False`
+reproduces the legacy behaviour exactly and is the right basis for an
+instantaneous t = 0 quantity, which is what `scripts/build_supplement_table.py`
+uses it for.
 
 ### Script → inputs → outputs
 
@@ -155,8 +174,9 @@ Arguments are keyword-only on purpose. Both uptake levels (`max_uptake`,
 | `build_carbon_intensity.py` | FAOSTAT FBS, `FBS_Group_Mapping.csv`, `faostat_country_mapping.csv`, hardcoded P&N values | `Food data/carbon_intensity{,_p10,_p90}.csv` |
 | `code/compute_child_energy.R` | `$UN_WPP_DIR` male + female WPP workbooks | `Food data/child_energy_by_country.xlsx`, `data/child_energy_requirement_lookup.csv`, `data/child_energy_diagnostics.csv` |
 | `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
+| `data_visualization/survival_weighting.py` | `final_df_imputed.pkl` | `data_result/food_shock_survival_weight.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
-| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results8.rds`, `..._oecd.csv` | *(library — no outputs)* |
+| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results8.rds`, `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
 | `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
 | `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed.pkl` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
 | `data_visualization/generate_*_figure.py` | pipeline | `figures/*.png` (+ waterfall CSVs) |
@@ -225,14 +245,12 @@ This helper uses the same deterministic mortality function and the same mortalit
 
 Current reconciled manuscript numbers:
 
-- Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `2.94 million`, cumulative 10-year person-years saved `15.75 million`
-- Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.55 million`, cumulative 10-year person-years saved `8.32 million`
+- Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `3.15 million`, cumulative 10-year person-years saved `16.83 million`
+- Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.66 million`, cumulative 10-year person-years saved `8.89 million`
 
-> **These survivor numbers are stale.** They were computed over the 36 countries
-> the old 41-country HLD lookup covered. The mortality source has since moved to
-> the pickle's imputed column, which covers all 63, and a survival-weighting
-> change to the food side is queued behind it. They will be refreshed once, after
-> both land, rather than twice.
+These are on the imputed 63-country mortality source and cover all 63 countries.
+Survival weighting the food shock does not touch them — it changes the food side
+only.
 
 The legacy notebook path:
 - Loads `full_simulation_results8.rds`, `mortality2.rds`, and `HLD/Mx_1x1/` life tables
@@ -279,6 +297,15 @@ python -m data_visualization.generate_rebound_figure
 python -m data_visualization.generate_rebound_validation
 ```
 
+**Imputation exposure.** Five of the countries the imputed mortality source
+restored take their life table from a UN region whose only Human Life-Table member
+is Israel. Of the seven carrying Israel's schedule bit-for-bit (ARE, BHR, CYP, KWT,
+OMN, QAT, SAU), only **ARE, CYP and SAU** have an OECD per-capita factor and so
+enter a ratio. Dropping the two Gulf states moves the cumulative 10-year ratio by
+**−0.57%** (max uptake, 1.8474 → 1.8369) and the year-10 annual ratio by −0.51%,
+leaving the binding country unchanged — so they are retained and the limitation
+stated. `breakeven_analysis.py` prints this comparison on every run.
+
 **Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Pharmaceutical production emissions are folded into net food savings by default (`annual food savings - annual drug emissions`) before the comparison. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
 - **Output:** `figures/breakeven_by_country.png`, `figures/breakeven_curves.png`
 
@@ -317,7 +344,15 @@ Outputs:
 - **Datasets:** `data_result/diet_sensitivity_results.csv`, `data_result/diet_sensitivity_ratio_comparison.csv`
 - **Paper figures:** `figures/diet_sensitivity_global_comparison.png`, `figures/diet_sensitivity_lowest_ratio_countries.png`
 
-Current headline result with deterministic mortality, OECD consumption-based survivor emissions, and pharmaceutical emissions folded into net food savings: no valid country tips into net positive emissions under either diet-composition scenario. For maximum uptake among countries with complete food and OECD survivor-emissions data, the global 10-year ratio is 5.42× in the uniform baseline, 6.90× when fatty foods decrease more, and 3.51× when cereals/sweets decrease more and meat decreases less. Poland is closest to tipping in the cereal/sweets scenario at approximately 2.32×.
+Current headline result, with deterministic mortality on the imputed 63-country
+mortality source, OECD consumption-based survivor emissions, survival-weighted
+food savings, and pharmaceutical emissions folded in. For maximum uptake across
+the **N = 40** countries with complete food and OECD survivor data, the global
+10-year ratio is **1.85×** in the uniform baseline, **2.33×** when fatty foods
+decrease more, and **1.25×** when cereals/sweets decrease more and meat decreases
+less. In the cereals/sweets scenario **5 countries tip** into net positive
+emissions, Hungary lowest at **0.86×**; the uniform baseline and fatty-foods
+scenarios have none, Hungary closest at 1.21× and Lithuania at 1.41×.
 
 ### Step 7 — Combined Conservative Sensitivity Analysis
 
@@ -325,14 +360,28 @@ Current headline result with deterministic mortality, OECD consumption-based sur
 python -m diet_sensitivity.combined_analysis
 ```
 
-Runs the reviewer-style stacked conservative case: the `cereal_sweets_up` diet-composition scenario plus a meat-only low carbon-intensity assumption. The derived carbon-intensity file keeps all food groups at the mean Poore & Nemecek/FAOSTAT intensity except `Meat`, which is replaced with the P10 meat intensity from `Food data/carbon_intensity_p10.csv`.
+Runs the reviewer-style stacked conservative case: the `cereal_sweets_up`
+diet-composition scenario plus a low carbon-intensity assumption **across all
+food groups** (`Food data/carbon_intensity_p10.csv`), scored against the matching
+P10 survivor basis.
+
+This definition superseded an earlier meat-only one, which kept every group at
+the mean intensity and replaced only `Meat` with the P10 meat value.
+`combined_analysis.assert_combined_conservative()` holds the three production
+definitions in step. `data_result/carbon_intensity_meat_p10.csv` is the retired
+meat-only derived file; it is still written but nothing production reads it.
 
 Outputs:
 - **Datasets:** `data_result/combined_sensitivity_results.csv`, `data_result/combined_sensitivity_ratio_comparison.csv`
 - **Derived input:** `data_result/carbon_intensity_meat_p10.csv`
 - **Figure:** `figures/combined_sensitivity_lowest_ratio_countries.png`
 
-Current headline result: no complete-data country tips into net positive emissions in the stacked conservative case. For maximum uptake, the global 10-year ratio falls from 3.51× in the cereals/sweets diet-shift scenario with mean carbon intensities to 2.72× when Meat is assigned the P10 carbon intensity. Poland is closest to tipping at approximately 2.03×.
+Current headline result: the stacked conservative case **does** tip. For maximum
+uptake the global 10-year ratio falls from **1.25×** in the cereals/sweets
+diet-shift scenario at mean carbon intensities to **0.69×** on all-food P10 —
+below break-even — with **21 of 40** countries individually net positive and
+Hungary lowest at **0.53×**. Moderate uptake behaves the same, at 0.67× with 21
+tipping.
 
 ### Step 8 — All Sensitivities Overview
 
@@ -347,7 +396,13 @@ Outputs:
 - **Datasets:** `data_result/all_sensitivity_overview_results.csv`, `data_result/all_sensitivity_overview_country_ratios.csv`
 - **Figure:** `figures/all_sensitivity_overview.png`
 
-Current headline result: no complete-data country tips into net positive emissions in any current sensitivity analysis. For maximum uptake, the global 10-year net-food-savings-to-survivor-emissions ratio ranges from 2.36× under the full all-food P10 carbon-intensity case to 10.37× under the full all-food P90 carbon-intensity case. The lowest country-level margin is Lithuania at approximately 1.55× in the all-food P10 case; the combined cereals/sweets + low-meat-CI case remains above break-even at 2.72× globally, with Poland closest at approximately 2.03×.
+Current headline result: for maximum uptake over **N = 40** countries, the global
+10-year net-food-savings-to-survivor ratio ranges from **0.69×** in the combined
+conservative case (cereals/sweets + all-food P10) up to **2.57×** under all-food
+P90. The baseline is **1.85×**. Two specifications fall below break-even
+globally — combined conservative at 0.69×, and all-food P10 marginally above at
+**1.05×** with 9 countries individually tipping. The lowest country-level margin
+is Hungary at **0.53×** in the combined conservative case.
 
 ### Step 9 — Drug Carbon Footprint Accounting
 
@@ -361,13 +416,26 @@ Adds emissions from producing/administering semaglutide treatment itself to the 
 annual drug footprint = 1.2 * 2.4 + 2.1 + 0.4 = 5.38 kg CO2e/user-year
 ```
 
-The script calculates one-year drug emissions for comparison with annual food savings, and a 10-year treated-user approximation (`initial_treated_users * 10`) for net accounting. The approximation is used because the saved headline mortality output does not contain treated-specific alive years.
+The script calculates one-year drug emissions for comparison with annual food
+savings, and a 10-year treated-user total for net accounting. Treated-user-years
+are `initial_treated_users x sum_y pi_dose(y)`, **not**
+`initial_treated_users * 10`: dead patients are not dosed. `pi_dose` is the
+headcount-weighted mean treatment-world survival from
+`data_result/food_shock_survival_weight.csv` — deliberately a different weight
+from the `pi` that scales the food shock, which weights each patient by how much
+their intake fell. Over ten years the sum comes to 9.63 rather than 10, so the
+10-year drug total is about 3.7% lower than the old approximation.
 
 Outputs:
 - **Datasets:** `data_result/drug_emissions_by_country.csv`, `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv`
 - **Figure:** `figures/drug_footprint_summary.png`
 
-Current headline result: pharmaceutical emissions are folded into the baseline break-even comparison as a subtraction from food savings. Under maximum uptake, this lowers the 10-year ratio from 5.48× (gross food / survivor) to 5.42× ((food − drug) / survivor); under moderate uptake, from 5.29× to 5.23×. No complete-data country tips into net positive emissions.
+Current headline result: pharmaceutical emissions are folded into the baseline
+break-even comparison as a subtraction from food savings. Under maximum uptake
+this lowers the 10-year ratio from **1.893×** (gross food / survivor) to
+**1.847×** ((food − drug) / survivor); under moderate uptake, from 1.832× to
+1.787×. No complete-data country tips into net positive emissions in the
+baseline specification.
 
 ## Setup
 
@@ -406,6 +474,7 @@ blobs rather than LFS pointers so they survive a clone made without LFS.
 | `data/child_energy_requirement_lookup.csv` | FAO/WHO/UNU table hardcoded in the R script |
 | `mortality model total emissions.csv` | mortality-model person-years (LFS) |
 | `mortality model total emissions_oecd.csv` | generated; needs UN WPP, so not rebuildable from a clean clone |
+| `data_result/food_shock_survival_weight.csv` | generated from `final_df_imputed.pkl`; the survival weights the food side reads |
 | `full_simulation_results8.rds`, `final_df_imputed.pkl` | upstream simulation output (LFS) |
 | `mortality2.rds` | raw 41-country HLD extract; provenance for the imputation, not read at runtime (LFS) |
 | `oecd/consumption_ghg_2025.csv` | OECD extract (LFS) |
@@ -593,28 +662,41 @@ So read a failure as **"something moved"**, not "something is broken". The
 distinction matters: the check has no opinion about which numbers are right, only
 about whether they are the same as last time.
 
-### Current status — the references are stale
+### Current status — the references pass
 
-`python -m reference.metrics` fails on this branch right now. This is expected,
-not a regression: three committed changes moved the headline numbers after the
-snapshots were taken.
+`python -m reference.metrics` passes on this branch, at **exactly 0.0** on all 47
+values. The snapshots were refreshed once, after the survival-weighting change,
+covering the four changes that had accumulated since they were last taken:
 
 | Commit | Change |
 |---|---|
 | `6e826a4` | Fix aggregate double-count in `load_kcal_shares`' calorie-share weights |
 | `be44eb4` | Weight the oilcrops composite by P&N food-and-waste supply volumes |
-| *(this commit)* | Take mortality rates from the pickle's imputed column, restoring 27 zeroed countries — moves the survivor side of every ratio |
+| `5aa62ed` | Take mortality rates from the pickle's imputed column, restoring 27 zeroed countries |
+| *(this commit)* | Survival-weight the food-side demand shock by `pi(t)` |
 
-The references have deliberately not been regenerated yet. A survival-weighting
-change to the food-side demand shock is queued directly behind the mortality
-source swap, and regenerating now would mean regenerating again immediately
-afterwards — two reference commits describing the same intermediate state. The
-snapshots will be refreshed **once**, after that change lands, in the single
-visible commit described above.
+Refreshing them was deferred until all four had landed rather than done four
+times; see `CHANGES.md` for what each moved.
 
-Until then, treat a failure here as the known staleness. Differences confined to
-what those three commits touched are accounted for; anything beyond them is worth
-investigating.
+`--write` regenerates both snapshots from a fresh pipeline run:
+
+```bash
+python -m reference.metrics --write     # regenerate, then verify
+python -m reference.metrics             # verify only
+```
+
+Before that flag existed the snapshots had to be hand-edited, which is how a
+stale configuration survived inside `metrics.py` unnoticed — its
+`combined_conservative` row still named the retired meat-only carbon-intensity
+file, and all four configurations were scored against a single mean-basis survivor
+frame after the survivor path became CI-aware. Both are reconciled: each
+configuration now pairs with the survivor file for its own carbon-intensity
+scenario, via the `ci_scenario` recorded on the snapshot.
+
+`ACTIVE_RUN` at the top of `metrics.py` names which `run` row of
+`reference_headline_numbers.csv` is the live target. Earlier rows
+(`committed_legacy`, `corrected_fix3`) are kept for provenance and are not
+compared against.
 
 ### Tolerance
 

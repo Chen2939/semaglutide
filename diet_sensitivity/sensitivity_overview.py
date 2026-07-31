@@ -165,6 +165,7 @@ def summarize_max_uptake(results: pd.DataFrame) -> pd.DataFrame:
         ]
         total_food = valid["annual_food_savings_t"].sum()
         total_mort = valid["total_survivor_emissions_10yr"].sum()
+        total_food_10yr = valid["total_food_savings_10yr"].sum()
         min_row = valid.loc[valid["ratio_food_to_mort"].idxmin()]
         rows.append(
             {
@@ -173,7 +174,9 @@ def summarize_max_uptake(results: pd.DataFrame) -> pd.DataFrame:
                 "sensitivity_group": config["group"],
                 "annual_food_savings_Mt": total_food / 1e6,
                 "survivor_emissions_10yr_Mt": total_mort / 1e6,
-                "ratio_food_to_mort": total_food * 10 / total_mort,
+                # Sum of the per-year series, not annual x 10: the annual
+                # saving falls each year under survival weighting.
+                "ratio_food_to_mort": total_food_10yr / total_mort,
                 "min_country": min_row["Country"],
                 "min_country_ratio": min_row["ratio_food_to_mort"],
                 "n_complete_countries": valid["ISO"].nunique(),

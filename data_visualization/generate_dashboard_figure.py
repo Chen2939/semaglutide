@@ -123,8 +123,9 @@ def plot_dashboard(dashboard, food_by_group):
 
     ax_a.set_yticks(y)
     ax_a.set_yticklabels(countries, fontsize=9)
-    ax_a.set_xlabel("Emissions Saved (kt CO₂eq / year)", fontsize=10)
-    ax_a.set_title("A.  Food-Emission Savings", fontsize=12, fontweight="bold",
+    # Year 1 of the survival-weighted series, not a constant annual rate.
+    ax_a.set_xlabel("Emissions Saved in Year 1 (kt CO₂eq)", fontsize=10)
+    ax_a.set_title("A.  Food-Emission Savings (year 1)", fontsize=12, fontweight="bold",
                     loc="left", pad=10)
     ax_a.xaxis.set_major_formatter(
         mticker.FuncFormatter(lambda x, _: f"{x:,.0f}")
@@ -272,9 +273,10 @@ def plot_food_group_breakdown(food_by_group):
     ax.set_yticklabels(
         [c for _, c in pivot.index.tolist()], fontsize=9
     )
-    ax.set_xlabel("Carbon Emissions Saved (kt CO₂eq / year)", fontsize=10)
+    ax.set_xlabel("Carbon Emissions Saved in Year 1 (kt CO₂eq)", fontsize=10)
     ax.set_title(
-        "Food-Group Breakdown of Emission Savings (Max Uptake, Top Countries)",
+        "Food-Group Breakdown of Emission Savings\n"
+        "(Max Uptake, Top Countries, year 1 of 10)",
         fontsize=13, fontweight="bold", pad=12,
     )
     ax.xaxis.set_major_formatter(
@@ -317,7 +319,7 @@ def main():
     print("\n" + "=" * 95)
     print(f"{'Country':30s}  {'Food Savings':>14s}  {'Person-Yrs':>12s}  "
           f"{'BE Ratio':>10s}")
-    print(f"{'':30s}  {'(kt CO2/yr)':>14s}  {'(thousands)':>12s}  "
+    print(f"{'':30s}  {'(kt CO2, Y1)':>14s}  {'(thousands)':>12s}  "
           f"{'(10-yr)':>10s}")
     print("-" * 95)
     for _, r in max_up.iterrows():

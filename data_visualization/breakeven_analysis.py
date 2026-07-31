@@ -40,6 +40,72 @@ CI_FILES = {
 }
 
 
+# Countries in the break-even set whose mortality schedule is an imputation from a
+# UN region containing exactly one Human Life-Table country, so their life table is
+# literally another country's. Israel is the only such donor that reaches this set.
+#
+# Seven countries carry Israel's schedule bit-for-bit -- ARE, BHR, CYP, KWT, OMN,
+# QAT, SAU -- but only ARE, CYP and SAU have an OECD per-capita factor and so
+# appear in a ratio at all. Cyprus is retained as defensible; the two Gulf states
+# are the exposure worth reporting.
+#
+# Derived, not assumed: diagnostics/imputation_sensitivity.py compares each
+# country's (age, Sex) -> mortality_rate map against Israel's and prints the list.
+# Re-run it if final_df_imputed.pkl is ever rebuilt.
+IMPUTED_FROM_ISRAEL = ["ARE", "SAU"]
+
+
+def imputation_sensitivity(be_df, exclude=IMPUTED_FROM_ISRAEL):
+    """Headline ratios with and without the countries imputed from Israel.
+
+    Reported on every run rather than kept as a one-off: if the headline depended
+    on Israel's life table standing in for Saudi Arabia's, that would be a reason
+    not to include those countries at all, and the only way to know is to look.
+    """
+    rows = []
+    for scenario in ("max_uptake", "mod_uptake"):
+        full = _complete_data_subset(be_df, scenario=scenario)
+        kept = full[~full["ISO"].isin(exclude)]
+        for label, v in (("with", full), ("without", kept)):
+            years = np.arange(1, 11)
+            cf = np.array([v[f"cum_food_Y{y}"].sum() for y in years], dtype=float)
+            cm = np.array([v[f"cum_mort_Y{y}"].sum() for y in years], dtype=float)
+            af, am = np.diff(cf, prepend=0.0), np.diff(cm, prepend=0.0)
+            idx = v["ratio_food_to_mort"].idxmin()
+            rows.append({
+                "scenario": scenario,
+                "set": label,
+                "N": len(v),
+                "cum_ratio_10yr": cf[-1] / cm[-1] if cm[-1] > 0 else np.nan,
+                "annual_ratio_y10": af[-1] / am[-1] if am[-1] > 0 else np.nan,
+                "min_ratio": float(v.loc[idx, "ratio_food_to_mort"]),
+                "min_iso": v.loc[idx, "ISO"],
+            })
+    return pd.DataFrame(rows)
+
+
+def print_imputation_sensitivity(be_df, exclude=IMPUTED_FROM_ISRAEL) -> None:
+    tab = imputation_sensitivity(be_df, exclude=exclude)
+    print("\n" + "=" * 65)
+    print("IMPUTATION EXPOSURE")
+    print("=" * 65)
+    print(f"\n  Excluding {exclude}: countries whose life table is Israel's,")
+    print("  imputed from a UN region whose only HLD member is Israel.")
+    print(f"\n  {'scenario':<12}{'set':<9}{'N':>4}{'cum 10-yr':>12}"
+          f"{'y10 annual':>12}{'min':>9}{'min ISO':>9}")
+    for _, r in tab.iterrows():
+        print(f"  {r['scenario']:<12}{r['set']:<9}{r['N']:>4}"
+              f"{r['cum_ratio_10yr']:>12.4f}{r['annual_ratio_y10']:>12.4f}"
+              f"{r['min_ratio']:>9.4f}{r['min_iso']:>9}")
+    for scenario in ("max_uptake", "mod_uptake"):
+        a = tab[(tab["scenario"] == scenario) & (tab["set"] == "with")].iloc[0]
+        b = tab[(tab["scenario"] == scenario) & (tab["set"] == "without")].iloc[0]
+        print(f"  {scenario}: cum 10-yr moves "
+              f"{(b['cum_ratio_10yr'] / a['cum_ratio_10yr'] - 1) * 100:+.2f}%, "
+              f"y10 annual {(b['annual_ratio_y10'] / a['annual_ratio_y10'] - 1) * 100:+.2f}%, "
+              f"binding country {a['min_iso']} -> {b['min_iso']}")
+
+
 def compute_breakeven(food_savings, mort, include_drug: bool = True):
     """For each (ISO, scenario), find the year where cumulative food savings
     exceed cumulative survivor emissions.
@@ -50,21 +116,34 @@ def compute_breakeven(food_savings, mort, include_drug: bool = True):
     """
 
     merged = pd.merge(food_savings, mort, on=["ISO", "scenario"], how="inner")
+    drug_year_cols = [f"drug_emissions_t_Y{y}" for y in range(1, 11)]
     if include_drug:
         drug = build_drug_emissions()[
-            ["ISO", "scenario", "drug_emissions_1yr_t", "drug_emissions_10yr_t"]
+            ["ISO", "scenario", "drug_emissions_1yr_t", "drug_emissions_10yr_t",
+             *drug_year_cols]
         ]
         merged = pd.merge(merged, drug, on=["ISO", "scenario"], how="left")
-        merged["drug_emissions_1yr_t"] = merged["drug_emissions_1yr_t"].fillna(0.0)
-        merged["drug_emissions_10yr_t"] = merged["drug_emissions_10yr_t"].fillna(0.0)
+        for c in ["drug_emissions_1yr_t", "drug_emissions_10yr_t", *drug_year_cols]:
+            merged[c] = merged[c].fillna(0.0)
     else:
-        merged["drug_emissions_1yr_t"] = 0.0
-        merged["drug_emissions_10yr_t"] = 0.0
+        for c in ["drug_emissions_1yr_t", "drug_emissions_10yr_t", *drug_year_cols]:
+            merged[c] = 0.0
+
+    # Both sides of the comparison are now per-year series. Food savings decline
+    # with pi(t) as treated patients die, and dosing declines with pi_dose(t) for
+    # the same reason, so neither can be represented by a single annual number
+    # repeated ten times. Where a per-year food column is absent -- an unweighted
+    # run -- the year-1 value is reused, which reproduces the old constant series.
+    food_year_cols = [f"annual_food_savings_t_Y{y}" for y in range(1, 11)]
+    have_food_series = all(c in merged.columns for c in food_year_cols)
 
     records = []
     for _, row in merged.iterrows():
         annual_food_gross = float(row["annual_food_savings_t"])
-        annual_drug = float(row["drug_emissions_1yr_t"])
+        # Year-1 dosing, so the reported annual figures are the same year as
+        # year 1 of the cumulative series below. Identical to
+        # drug_emissions_1yr_t on an unweighted run.
+        annual_drug = float(row["drug_emissions_t_Y1"])
         annual_food = annual_food_gross - annual_drug
 
         cum_food = 0.0
@@ -75,7 +154,12 @@ def compute_breakeven(food_savings, mort, include_drug: bool = True):
         yearly_mort = []
 
         for y in range(1, 11):
-            cum_food += annual_food
+            gross_y = (
+                float(row[f"annual_food_savings_t_Y{y}"])
+                if have_food_series
+                else annual_food_gross
+            )
+            cum_food += gross_y - float(row[f"drug_emissions_t_Y{y}"])
             emissions_y = row[f"emissions_Y{y}"]
             if pd.isna(emissions_y):
                 has_survivor_emissions = False
@@ -610,13 +694,20 @@ def main(ci_scenario: str = "mean"):
 
         total_food = sub["annual_food_savings_t"].sum()
         total_mort = sub["total_survivor_emissions_10yr"].sum()
+        # Cumulative food is the SUM of the per-year series, which
+        # total_food_savings_10yr already accumulates. It is not annual x 10:
+        # under survival weighting the annual saving falls every year, so
+        # annual x 10 overstates it.
+        total_food_10yr = sub["total_food_savings_10yr"].sum()
         print("  " + "-" * 80)
         print(
             f"  {'TOTAL':40s}  "
             f"{total_food/1e3:12,.0f}  "
             f"{total_mort/1e3:14,.1f}  "
-            f"{total_food * 10 / total_mort:10,.1f}x"
+            f"{total_food_10yr / total_mort:10,.1f}x"
         )
+
+    print_imputation_sensitivity(be_df)
 
     print(f"\n[4/4] Generating figures...")
     plot_breakeven_bars(be_df)
@@ -633,6 +724,7 @@ def main(ci_scenario: str = "mean"):
     min_ratio = valid["ratio_food_to_mort"].min()
     min_country = valid.loc[valid["ratio_food_to_mort"].idxmin(), "Country"]
     global_food = valid["annual_food_savings_t"].sum()
+    global_food_10yr = valid["total_food_savings_10yr"].sum()
     global_mort = valid["total_survivor_emissions_10yr"].sum()
     n_no_data = len(max_sub) - len(valid)
     mort_units = (
@@ -646,10 +738,10 @@ def main(ci_scenario: str = "mean"):
     print("=" * 65)
     print(f"\n  ({n_no_data} countries excluded due to missing data)")
     print(f"\n  Global (max uptake, {len(valid)} countries):")
-    print(f"    Annual food savings:          {global_food/1e6:.1f} Mt CO2eq/year")
-    print(f"    10-year food savings:         {global_food*10/1e6:.1f} Mt CO2eq")
+    print(f"    Annual food savings (year 1): {global_food/1e6:.1f} Mt CO2eq/year")
+    print(f"    10-year food savings:         {global_food_10yr/1e6:.1f} Mt CO2eq")
     print(f"    10-year survivor emissions:   {mort_units} CO2eq")
-    print(f"    10-year ratio:                {global_food*10/global_mort:,.1f}x")
+    print(f"    10-year ratio:                {global_food_10yr/global_mort:,.1f}x")
     print(f"\n  Smallest margin: {min_country} ({min_ratio:,.1f}x over 10 years)")
 
     all_y1 = valid["food_dominates_all_years"].all()

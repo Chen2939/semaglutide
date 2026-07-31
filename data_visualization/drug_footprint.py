@@ -41,19 +41,81 @@ def load_treated_users() -> pd.DataFrame:
     )
 
 
-def build_drug_emissions() -> pd.DataFrame:
-    """Build one-year and 10-year approximate drug emissions by country."""
+def build_drug_emissions(
+    survival_weighted: bool = True,
+    horizon: int = 10,
+    survival_weight: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Build per-year, one-year and multi-year drug emissions by country.
+
+    Every column here is a NATIONAL TOTAL in tonnes CO2e, not a per-patient
+    figure: ``treated_users_initial`` is the population-weighted headcount of
+    adherers in the country, so multiplying by the per-user annual footprint gives
+    the national annual total directly.
+
+    Dead patients are not dosed. Treated-user-years over the horizon are therefore
+    ``initial users x sum_y pi_dose(y)``, not ``initial users x horizon``.
+
+    ``pi_dose`` is used here, NOT ``pi``. Both are means of treatment-world
+    survival, but ``pi`` weights each patient by ``w * eer_diff`` -- how much their
+    intake fell -- which is right for the food shock and wrong for dosing, where a
+    surviving patient gets one dose whatever their appetite did. The two differ by
+    up to 1.3 percentage points on this data, with ``pi_dose`` the lower, so
+    substituting ``pi`` would understate the drug term.
+    """
     drug = load_treated_users()
     drug["drug_kg_co2e_per_user_year"] = ANNUAL_DRUG_KG_CO2E_PER_USER
     drug["drug_emissions_1yr_t"] = (
         drug["treated_users_initial"] * drug["drug_kg_co2e_per_user_year"] / 1000
     )
-    # Approximation: initially treated users remain on treatment over 10 years.
-    drug["treated_user_years_10yr_approx"] = drug["treated_users_initial"] * 10
+
+    years = list(range(1, horizon + 1))
+    if survival_weighted:
+        if survival_weight is None:
+            from .survival_weighting import load_food_shock_survival_weight
+
+            survival_weight = load_food_shock_survival_weight(
+                horizon=horizon, column="pi_dose"
+            )
+        idx = pd.MultiIndex.from_arrays(
+            [drug["ISO"], drug["scenario"]], names=["ISO", "scenario"]
+        )
+        missing = sorted(set(idx) - set(survival_weight.index))
+        if missing:
+            raise ValueError(
+                f"Drug footprint: no pi_dose for {missing}. Refusing to proceed -- "
+                "these would be dosed as if nobody ever died. Rebuild with: "
+                "python -m data_visualization.survival_weighting"
+            )
+        weights = {y: survival_weight[y].reindex(idx).to_numpy(dtype=float)
+                   for y in years}
+        drug["drug_treated_year_method"] = f"initial_treated_users_x_sum_pi_dose_1_{horizon}"
+    else:
+        # Legacy: initially treated users remain on treatment for the whole
+        # horizon, nobody dies.
+        weights = {y: 1.0 for y in years}
+        drug["drug_treated_year_method"] = f"initial_treated_users_x_{horizon}"
+
+    # Anchored form: sum the WEIGHTS, then multiply the headcount once. Do not
+    # "simplify" this to accumulating `initial * weight` year by year. The two are
+    # algebraically identical, but ten sequential additions of a double are not
+    # bit-identical to one multiplication, so the accumulating form moved
+    # treated_user_years by 2-3 ULP at pi_dose == 1, where the weighting must be an
+    # exact no-op. Summing ten exact 1.0s gives exactly 10.0, so the anchored form
+    # reproduces the legacy `initial * 10` bit for bit.
+    weight_sum = 0.0
+    for year in years:
+        alive = drug["treated_users_initial"] * weights[year]
+        drug[f"drug_emissions_t_Y{year}"] = (
+            alive * drug["drug_kg_co2e_per_user_year"] / 1000
+        )
+        weight_sum = weight_sum + weights[year]
+    drug["treated_user_years_10yr_approx"] = (
+        drug["treated_users_initial"] * weight_sum
+    )
     drug["drug_emissions_10yr_t"] = (
         drug["treated_user_years_10yr_approx"]
         * drug["drug_kg_co2e_per_user_year"]
         / 1000
     )
-    drug["drug_treated_year_method"] = "initial_treated_users_x_10"
     return drug

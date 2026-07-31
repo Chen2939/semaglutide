@@ -63,10 +63,15 @@ def main():
 
     ax.set_yticks(y)
     ax.set_yticklabels(sort_order, fontsize=7.5)
-    ax.set_xlabel("Carbon Emissions Saved (thousand tonnes CO₂eq)", fontsize=11)
+    ax.set_xlabel(
+        "Carbon Emissions Saved in Year 1 (thousand tonnes CO₂eq)", fontsize=11
+    )
+    # Year 1, not a flat annual figure. The saving is survival-weighted, so it
+    # declines each year as treated patients die, and year 1 is the largest year
+    # of the series. Labelling it "annual" would imply a constant it is not.
     ax.set_title(
         "Carbon Emissions Saved from Reduced Food Consumption\n"
-        "by Country and Uptake Scenario",
+        "by Country and Uptake Scenario (year 1 of 10)",
         fontsize=13, fontweight="bold", pad=15,
     )
     ax.legend(loc="lower right", fontsize=10, framealpha=0.9)

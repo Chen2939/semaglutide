@@ -114,13 +114,13 @@ print("G2  treated-row guard at horizon 10")
 print("=" * 78)
 new = work.run_deterministic_mortality(sim)
 print("  run_deterministic_mortality completed without raising")
-ind = work.compute_individual_survival_diffs(sim, horizon=10)
+ind = work.compute_individual_survival_diffs(sim, horizon=10, missing_columns=True)
 miss = ind.attrs["missing_lookups"]
 treated = sim["adheres_to_treatment"].to_numpy(dtype=bool)
 print(f"  {'year':>4}  {'missing (all rows)':>19}  {'missing (treated)':>18}")
 tre_miss = []
 for y in range(1, 11):
-    m = ind.attrs["missing_masks"][y]
+    m = ind[f"mx_missing_Y{y}"].to_numpy()
     tm = int((m & treated).sum())
     tre_miss.append(tm)
     print(f"  {y:>4}  {miss[y]:>19,}  {tm:>18,}")

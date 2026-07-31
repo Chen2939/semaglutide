@@ -216,7 +216,8 @@ def print_summary(results: pd.DataFrame) -> None:
         ]
         total_food = valid["annual_food_savings_t"].sum()
         total_mort = valid["total_survivor_emissions_10yr"].sum()
-        ratio = total_food * 10 / total_mort
+        # Sum of the per-year series, not annual x 10.
+        ratio = valid["total_food_savings_10yr"].sum() / total_mort
         min_row = valid.loc[valid["ratio_food_to_mort"].idxmin()]
         print(
             f"  {config['label']:<34}  {total_food / 1e6:>16.2f}  "

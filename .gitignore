@@ -73,6 +73,10 @@ legacy/data/.Rhistory
 !/data_result/global_emissions_waterfall.csv
 !/data_result/global_emissions_waterfall_1yr.csv
 !/data_result/sensitivity_suite.csv
+# Required input to the food side: compute_food_savings raises without it, so a
+# clean clone cannot run the model unless this is tracked. Rebuildable only from
+# final_df_imputed.pkl, which is itself a committed artifact.
+!/data_result/food_shock_survival_weight.csv
 
 # === Reference snapshots + the reproduction check ===
 !/reference/
@@ -113,6 +117,7 @@ legacy/data/.Rhistory
 # Run logs from the diagnostics scripts. The scripts are the record; their
 # stdout is regenerable and machine-specific.
 diagnostics/*.log
+diagnostics/full_pass/
 
 # IDE/editor files
 .idea/
