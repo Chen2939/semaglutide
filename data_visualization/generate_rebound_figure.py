@@ -33,6 +33,19 @@ COL_COLORS = {
 # Columns: A (expected) = lighter, B (actual) = mid, C (carbon) = darkest
 
 
+def _tick_decimals(ticks):
+    """Fewest decimals that render every tick faithfully.
+
+    Columns A and B are Mt/year and peak below 4, so the locator picks
+    fractional ticks; a fixed 0-decimal format collapsed them to 0/1. Too few
+    decimals is not only ambiguous but wrong -- 0.25 would print as "0.2".
+    """
+    for d in range(7):
+        if all(abs(float(f"{t:.{d}f}") - t) < 1e-9 for t in ticks):
+            return d
+    return 6
+
+
 def main():
     print("Building rebound decomposition figure...")
     _, result_df = compute_food_savings()
@@ -98,7 +111,8 @@ def main():
                 color=color, edgecolor="white", linewidth=0.4,
             )
 
-            offset = max(vals) * 0.03 if max(vals) > 0 else 0.1
+            vmax = max(vals)
+            offset = vmax * 0.03 if vmax > 0 else 0.1
             for i, v in enumerate(vals):
                 if v >= 100:
                     label = f"{v:,.0f}"
@@ -110,6 +124,11 @@ def main():
                     v + offset, y[i], label,
                     va="center", fontsize=7, color="#333333",
                 )
+
+            # Headroom past the longest bar so its value label clears the right
+            # spine. Without this the top label is drawn across the frame.
+            if vmax > 0:
+                ax.set_xlim(0, vmax * 1.18)
 
             ax.set_yticks(y)
             if col_idx == 0:
@@ -125,9 +144,17 @@ def main():
 
             ax.grid(axis="x", alpha=0.2, linewidth=0.5)
             ax.set_axisbelow(True)
-            ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
+            # steps= keeps ticks on decimal-friendly values (0.2 / 0.5 / 5000,
+            # never 0.15 / 0.25), then the decimals come from the ticks this
+            # axis actually got rather than a single format for all 9 panels.
+            locator = mticker.MaxNLocator(nbins=6, steps=[1, 2, 5, 10])
+            ax.xaxis.set_major_locator(locator)
+            hi = vmax * 1.18 if vmax > 0 else 1.0
+            decimals = _tick_decimals(
+                [t for t in locator.tick_values(0.0, hi) if 0.0 <= t <= hi]
+            )
             ax.xaxis.set_major_formatter(
-                mticker.FuncFormatter(lambda x, _: f"{x:,.0f}")
+                mticker.FuncFormatter(lambda x, _, d=decimals: f"{x:,.{d}f}")
             )
 
         label_color = COL_COLORS.get(food_group, ["#aaa", "#888", "#555"])[1]

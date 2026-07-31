@@ -1166,6 +1166,126 @@ still **58.956583%**. The reference snapshots were not touched by the pass.
 
 ---
 
+## Rebound-decomposition figure — collapsed x-axis ticks and clipped value labels
+
+**Status: code changed, figure not yet regenerated.** Both fixes are in
+`data_visualization/generate_rebound_figure.py`; `figures/rebound_decomposition.png`
+is still the old render. Deliberate — regenerating needs a full
+`compute_food_savings()` pass, and it is being held so other figure changes can
+ride the same run.
+
+**Not a survivorship regression.** `generate_rebound_figure.py` is absent from
+`git diff main...survivorship`, so it is byte-identical to `main`. The PNG *was*
+regenerated on this branch, so the branch surfaced the defect but did not cause
+it. It has been latent since the file was written.
+
+**What was wrong (1) — one format for nine panels.** Lines 128–131 applied a
+single formatter to every axis in the grid:
+
+```python
+ax.xaxis.set_major_locator(mticker.MaxNLocator(nbins=5))
+ax.xaxis.set_major_formatter(mticker.FuncFormatter(lambda x, _: f"{x:,.0f}"))
+```
+
+`{x:,.0f}` suits column C (kt CO₂eq, up to 15,490) and destroys columns A and B,
+which are Mt/year and peak below 4: the locator picks fractional ticks and the
+formatter rounds every one to an integer. **5 of 9 panels carried duplicate tick
+labels.** The four that read correctly escaped only because their ticks happened
+to be integral.
+
+Replayed the committed locator/formatter pair against each panel's real range
+(`diagnostics/check_rebound_axis_format.py`), which reproduces the committed
+render exactly:
+
+| panel | ticks the locator chose | rendered as | after |
+|---|---|---|---|
+| Meat A | 0, 0.25, 0.5, 0.75, 1.0 | **`0, 0, 0, 1, 1`** | `0.0, 0.2, 0.4, 0.6, 0.8, 1.0` |
+| Meat B | 0, 0.15, 0.30, 0.45 | `0, 0, 0, 0` | `0.0, 0.2, 0.4, 0.6` |
+| Meat C | 0, 4000 … 16000 | `0, 4,000, … 16,000` | `0, 5,000, 10,000, 15,000` |
+| Dairy A | 0, 1, 2, 3 | `0, 1, 2, 3` | `0, 1, 2, 3, 4` |
+| Dairy B | 0, 0.5, 1.0, 1.5, 2.0 | `0, 0, 1, 2, 2` | `0.0, 0.5, 1.0, 1.5, 2.0` |
+| Dairy C | 0, 1500 … 6000 | `0, 1,500, … 6,000` | `0, 2,000, 4,000, 6,000` |
+| Cereals A | 0, 0.4, 0.8, 1.2 | `0, 0, 1, 1` | `0.0, 0.5, 1.0, 1.5` |
+| Cereals B | 0, 0.15 … 0.60 | `0, 0, 0, 0, 1` | `0.0, 0.2, 0.4, 0.6` |
+| Cereals C | 0, 250, 500, 750 | `0, 250, 500, 750` | `0, 200, 400, 600, 800, 1,000` |
+
+`0, 0, 0, 1, 1` is exact, including 0.5 → "0": Python's format rounds half to
+even.
+
+**The underlying data was never implicated.** Bars and their printed value labels
+read from the same `vals` array (line 93), but the value labels use a *separate*
+adaptive format at lines 116–122 (`≥100` → 0dp, `≥1` → 1dp, else 2dp) — which is
+why `0.10`, `3.8` and `15,490` are right and match their bar lengths. Only the
+tick formatter was broken. Nothing in `compute_food_savings()` is involved.
+
+Also inspected and **not** a defect: in column A the countries are not monotonic
+(Meat shows Saudi Arabia 0.05 below Romania 0.03). Each row is ranked once by
+**actual reduction** (lines 73–77) and that order is reused across all three
+columns, as the module docstring states. Correct as designed.
+
+**Correct behaviour (1).** `steps=[1, 2, 5, 10]` constrains the locator to
+decimal-friendly ticks (0.2 / 0.5 / 5000, never 0.15 / 0.25), and the decimals
+are then derived per-axis from the ticks that axis actually received, via a new
+`_tick_decimals()`. Two bars, both declared before the check and both met at
+**0/9**: no panel may contain a duplicate label, and every label must name its
+own tick exactly. The second bar killed the first attempt at this fix, which
+deduplicated correctly but printed tick `0.25` as "0.2" — a fix that silently
+mislabels an axis is worse than the collapse it replaces, being wrong instead of
+merely ambiguous.
+
+`nbins` was raised 5 → 6. At `nbins=5` under the new limits Meat A thins to three
+ticks; at 8, Dairy C over-densifies to eight. 6 gives 4–6 ticks per panel.
+
+**What was wrong (2) — value labels drawn across the frame.** Line 115 places each
+label at `v + 3%` of the row maximum while the axes extended only to
+`max × 1.05`, so **in all nine panels the longest bar's label started inside the
+frame and ran out of it** — USA rendering as a broken "1 0" in Meat A, `15,490`
+bleeding past the spine in Meat C.
+
+**Correct behaviour (2).** `ax.set_xlim(0, vmax * 1.18)` after the label loop,
+guarded on `vmax > 0`. This also seats the bars flush on the spine instead of
+leaving matplotlib's 5% negative left margin.
+
+**The two fixes interact, and were re-verified together rather than separately.**
+Widening `xlim` changes the range the tick locator sees (`-0.05→1.05 × max`
+becomes `0→1.18 × max`), so the tick choices verified for fix 1 did not carry
+over untouched. `check_rebound_axis_format.py` models the post-fix limits and
+both bars still hold at 0/9. Verifying fix 1 against the old limits would have
+signed off on tick positions the shipped code never produces.
+
+**Bar for the deferred regeneration, declared now:** axis labels and the right-hand
+margin change; data does not. The 36 printed bar values must be identical to the
+current figure, and the country order within each row unchanged.
+
+---
+
+## Orphaned figure removed — `comparison_before_after_recategorize.png`
+
+Deleted (`git rm`, staged, uncommitted). It documented the P&N recategorization,
+a change already accepted, and was left sitting in `figures/` where it reads as a
+live output.
+
+Nothing generated it and nothing referenced it. `git log --all -S` for the
+filename returns **no commit on any branch that ever put that string in a file**;
+it is absent from the README figure inventory and from every `.py`, `.R`, `.ipynb`
+and `.md` in the tree. Its whole history is one commit, `1d2c4f7` ("Refactor,
+remove tesst folder"), where it lands as a plain `A` — not a rename out of
+`test/` like the four CSVs in that same commit. So it was produced by hand and
+committed without its generator. **No code was deleted, because none exists.**
+`build_carbon_intensity.py`, which performs the recategorization the figure
+illustrated, is untouched and remains a live input to
+`Food data/carbon_intensity{,_p10,_p90}.csv`.
+
+Three further tracked PNGs in `figures/` are orphaned the same way and were
+**left in place** pending a decision: `sensitivity_ci_scenarios.png` and
+`sensitivity_country_range.png` (written only by `Price rebound model.ipynb`
+cells that `savefig` to the deleted `test/`, inside the notebook marked
+do-not-run) and `breakeven_stock_flow_all_countries.png` (superseded output name;
+`plot_stock_flow_all_countries()` now writes `breakeven_stock_all_countries.png`
+and `breakeven_flow_all_countries.png`).
+
+---
+
 ## How to reproduce
 
 ```
@@ -1254,4 +1374,15 @@ PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_pi_dose_direction
 # full regeneration, then refresh + verify the reference snapshots
 sh diagnostics/run_full_pass.sh
 PYTHONUTF8=1 C:\Python314\python.exe -m reference.metrics --write
+```
+
+Rebound-figure axis fixes. The tick check needs no model run — it replays the
+locator/formatter pair against each panel's range, so it stands alone and can be
+run before the regeneration:
+
+```
+PYTHONUTF8=1 C:\Python314\python.exe diagnostics\check_rebound_axis_format.py
+
+# the regeneration itself, still outstanding
+UN_WPP_DIR=... PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.generate_rebound_figure
 ```
