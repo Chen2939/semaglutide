@@ -1,0 +1,86 @@
+PREDICTED MOVEMENT SET for the regeneration pass after cc39022
+Written before the pass runs. Anything that moves and is not on this list is
+reported and stopped on, not absorbed.
+
+Three causes, and no fourth is expected:
+  (A) the six 0.0 -> NaN cells for GUY/NRU/TWN (min_count=1) propagating into
+      CSVs that dump per-country rows without a "> 0" filter
+  (B) wide pivots dropping an index row that has become all-NaN
+  (C) the generate_emissions_figure.py "> 0" filter
+
+EXPECTED TO MOVE
+----------------
+(A) per-country row dumps
+  data_result/net_emissions_with_drug.csv
+      6 rows: GUY, NRU, TWN x 2 scenarios.
+      annual_food_savings_gross_t 0.0 -> NaN; annual_food_savings_t
+      (0 - drug, negative) -> NaN; total_food_savings_10yr -> NaN;
+      cum_food_Y1..Y10 -> NaN; plus the drug_effect-derived columns
+      (annual_food_savings_gross_from_be_t, total_food_savings_gross_10yr,
+      ratio_without_drug, net_savings_after_survivor_t,
+      net_savings_after_survivor_and_drug_t, ratio_food_to_survivor_plus_drug).
+      TWN ratio_food_to_mort -0.083829 -> NaN; GUY/NRU already NaN.
+
+  data_result/diet_sensitivity_results.csv
+      18 rows: 3 diet scenarios x 3 countries x 2 scenarios. Same columns,
+      plus net_10yr_emissions_t -> NaN. net_positive_emissions stays False.
+
+  data_result/combined_sensitivity_results.csv
+      the GUY/NRU/TWN rows in each combined specification it writes
+      (3 countries x 2 scenarios x n_specs).
+
+(B) wide pivots
+  data_result/all_sensitivity_overview_country_ratios.csv
+      TWN row REMOVED. It is currently present with a negative ratio in all six
+      specifications; those become NaN and pivot_table drops an all-NaN index.
+      GUY/NRU expected already absent for the same reason.
+  data_result/diet_sensitivity_ratio_comparison.csv        TWN row removed
+  data_result/combined_sensitivity_ratio_comparison.csv    TWN row removed
+
+(C) figure filter
+  figures/emissions_saved_by_country.png
+      3 bars removed (56 -> 53 countries) and the ordering shifts by those three
+      positions. GUY/NRU/TWN previously drew zero-length bars sorted FIRST.
+
+EXPECTED NOT TO MOVE
+--------------------
+Every one of these is computed over a "> 0"-filtered subset, or over result_df,
+which the null check showed bit-identical across 45 columns x 1,008 rows.
+
+  CSVs: sensitivity_suite, all_sensitivity_overview_results,
+        sensitivity_tornado_results, drug_footprint_summary,
+        drug_emissions_by_country, global_emissions_waterfall,
+        global_emissions_waterfall_1yr, survivor_manuscript_numbers,
+        survivor_manuscript_top_countries, deterministic_mortality_comparison,
+        oecd_consumption_ghg_per_capita, food_shock_survival_weight,
+        reference_headline_numbers, reference_sensitivity_suite
+
+  Figures: breakeven_by_country, breakeven_curves, breakeven_stock_all_countries,
+        breakeven_flow_all_countries, breakeven_publication (png + pdf),
+        country_dashboard, food_group_breakdown, rebound_decomposition,
+        rebound_by_income, global_emissions_waterfall,
+        global_emissions_waterfall_1yr, global_emissions_waterfall_combined,
+        all_sensitivity_overview, diet_sensitivity_global_comparison,
+        diet_sensitivity_lowest_ratio_countries,
+        combined_sensitivity_lowest_ratio_countries, sensitivity_tornado,
+        drug_footprint_summary
+
+MOVES BUT IS NOT A FILE
+-----------------------
+  diet_sensitivity/analysis.py:289 console VALIDATION pivot: +15,427.225174 t
+  (0.0154 Mt), being the negatives it stops summing. stdout only.
+
+GATES
+-----
+  reference/metrics.py with NO --write must PASS at exactly 0.0 on all 47 values.
+  run_full_pass.sh confirmed not to call it, so the snapshots cannot be rebased
+  by the pass.
+  Break-even set must still be 40.
+  Complete-data GDP coverage must still be 58.96%.
+
+NOTE ON PNG DETERMINISM
+-----------------------
+Figures are byte-reproducible in this environment: the aborted first attempt ran
+breakeven_analysis (6 figures) and survivor_manuscript_numbers and left every one
+byte-identical, moving only emissions_saved_by_country.png. So a moved figure is
+a real signal, not run-to-run noise.

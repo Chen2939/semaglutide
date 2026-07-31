@@ -1141,8 +1141,28 @@ read sites:
   that total by **+15,427.225174 t** (0.0154 Mt). It is a console VALIDATION line,
   written to no CSV.
 
-**Not regenerated.** The emissions figure and that console line will move on the
-next pass; no reported CSV or reference value does, so nothing is rebuilt here.
+**Regenerated in the following commit**, as a full pass rather than a partial one,
+with the movement set predicted in writing beforehand
+(`diagnostics/predicted_movement.txt`) and checked afterwards
+(`diagnostics/verify_predicted_diff.py`). Seven files moved and the actual set
+matched the prediction exactly, with no eighth file and no fourth cause:
+
+| file | movement |
+|---|---|
+| `net_emissions_with_drug.csv` | 108 cells, 20 columns |
+| `combined_sensitivity_results.csv` | 258 cells, 15 columns |
+| `diet_sensitivity_results.csv` | 60 cells, 4 columns |
+| `all_sensitivity_overview_country_ratios.csv` | TWN row dropped, 41 → 40 |
+| `diet_sensitivity_ratio_comparison.csv` | TWN row dropped, 41 → 40 |
+| `combined_sensitivity_ratio_comparison.csv` | TWN row dropped, 41 → 40 |
+| `figures/emissions_saved_by_country.png` | 56 → 53 bars |
+
+Every differing cell belongs to GUY, NRU or TWN; **every one moved to NaN**, none
+to a different finite value; and every retained pivot row is bit-identical. GUY and
+NRU were already absent from the three pivots, their ratios having already been
+NaN. `reference/metrics.py` passes at **exactly 0.0 on all 47 values** with no
+`--write`, the break-even set is still **40**, and complete-data GDP coverage is
+still **58.956583%**. The reference snapshots were not touched by the pass.
 
 ---
 
