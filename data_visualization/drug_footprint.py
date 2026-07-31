@@ -59,9 +59,20 @@ def build_drug_emissions(
     ``pi_dose`` is used here, NOT ``pi``. Both are means of treatment-world
     survival, but ``pi`` weights each patient by ``w * eer_diff`` -- how much their
     intake fell -- which is right for the food shock and wrong for dosing, where a
-    surviving patient gets one dose whatever their appetite did. The two differ by
-    up to 1.3 percentage points on this data, with ``pi_dose`` the lower, so
-    substituting ``pi`` would understate the drug term.
+    surviving patient gets one dose whatever their appetite did.
+
+    ``pi`` exceeds ``pi_dose`` on 1,248 of 1,260 (ISO, scenario, year) cells over a
+    10-year horizon, by up to 0.85 percentage points -- so survival is usually a
+    little higher among the patients who cut their intake most. The ordering is not
+    universal: Japan reverses it in both scenarios, by up to 3.9e-04. Substituting
+    ``pi`` here would therefore **overstate** treated-user-years and so **overstate
+    the drug charge** -- measured at +0.126% (max uptake) and +0.100% (moderate) on
+    the 10-year total. Because the drug charge is subtracted from food savings, that
+    would push net savings and the food:survivor ratio *down*.
+
+    The size of that error is negligible; the reason to keep the two weights apart
+    is that they answer different questions, not that the numbers diverge much.
+    See diagnostics/check_pi_dose_direction.py.
     """
     drug = load_treated_users()
     drug["drug_kg_co2e_per_user_year"] = ANNUAL_DRUG_KG_CO2E_PER_USER

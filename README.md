@@ -426,6 +426,11 @@ from the `pi` that scales the food shock, which weights each patient by how much
 their intake fell. Over ten years the sum comes to 9.63 rather than 10, so the
 10-year drug total is about 3.7% lower than the old approximation.
 
+Using `pi` here instead would **overstate** treated-user-years and so overstate the
+drug charge, by about 0.13%: `pi` exceeds `pi_dose` on 1,248 of 1,260 cells (Japan
+is the exception). Negligible numerically — the two are kept apart because they
+answer different questions, not because they diverge much.
+
 Outputs:
 - **Datasets:** `data_result/drug_emissions_by_country.csv`, `data_result/net_emissions_with_drug.csv`, `data_result/drug_footprint_summary.csv`
 - **Figure:** `figures/drug_footprint_summary.png`

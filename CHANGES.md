@@ -666,10 +666,30 @@ artefact instead of opening mortality data.
 **Two weights, not one.** `pi` weights survival by `w * eer_diff`, i.e. by how
 much each patient's intake fell. That is right for the food shock and wrong for
 the pharmaceutical term, where a surviving patient is dosed once regardless of
-what their appetite did. `pi_dose` weights by `w` alone. They differ by up to
-**1.33 percentage points**, `pi_dose` consistently the lower, so using `pi` for
-the drug term would have understated it. The brief for this work said to apply
-`pi` to the drug; that would have been a small but real error.
+what their appetite did. `pi_dose` weights by `w` alone. The brief for this work
+said to apply `pi` to the drug term; that would have been an error, though a small
+one.
+
+`pi` exceeds `pi_dose` on **1,248 of 1,260** `(ISO, scenario, year)` cells over a
+10-year horizon, by up to **0.85 percentage points** — survival is usually a little
+higher among the patients who cut their intake most. The ordering is **not
+universal**: Japan reverses it in both scenarios, by up to 3.9e-04. Over the
+15-year artefact the largest gap is 1.33 pp.
+
+Direction: substituting `pi` would **overstate** treated-user-years and therefore
+**overstate the drug charge** — measured at **+0.126%** (max uptake) and +0.100%
+(moderate) on the 10-year total. Since the drug charge is *subtracted* from food
+savings, that would push net savings and the food:survivor ratio **down**. The
+magnitude is negligible; the reason to keep the two weights apart is that they
+answer different questions, not that the numbers diverge much.
+Verified in `diagnostics/check_pi_dose_direction.py`.
+
+> **Correction.** The commit message for `9fe9cdd` states this backwards — it says
+> using `pi` "would have understated it", and separately calls `pi_dose`
+> "consistently the lower" when the ordering has 12 exceptions. Both claims were
+> checked only against the min/max of each year's range, which does not establish
+> an elementwise ordering and does not fix a sign. The text above is the corrected
+> record; the commit message cannot be edited after the fact.
 
 **Direction — this change is CONSERVATIVE. It reduces food savings and lowers
 every ratio.** Isolated by holding everything else fixed and moving only the
@@ -947,6 +967,9 @@ PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.diagnose_twn
 
 # which countries share Israel's imputed life table, and what they are worth
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_sensitivity
+
+# sign of (pi - pi_dose) elementwise, and which way substituting pi moves the drug
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_pi_dose_direction
 
 # full regeneration, then refresh + verify the reference snapshots
 sh diagnostics/run_full_pass.sh
