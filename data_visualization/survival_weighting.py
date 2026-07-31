@@ -132,6 +132,44 @@ def build_food_shock_survival_weight(horizon: int = PI_HORIZON) -> pd.DataFrame:
     return out
 
 
+def countries_with_donor_life_table(donor: str = "ISR") -> list[str]:
+    """ISO codes whose imputed mortality schedule is identical to ``donor``'s.
+
+    The imputation in ``Mortality Model.ipynb`` fills a missing country from the
+    median of its UN region. Where that region contains exactly one Human
+    Life-Table country, the median *is* that country, so the recipient's life
+    table is literally the donor's rather than a blend. Those are the countries
+    whose results rest on a single-country proxy.
+
+    Derived from the pickle, not listed. A hardcoded set would be a claim about
+    the imputation that nothing keeps true: the equivalent list for the *region*
+    went stale the moment the mortality source changed, and the whole point of
+    this function is that the criterion is checkable against the data it
+    describes. Re-derives itself if ``final_df_imputed.pkl`` is ever rebuilt.
+
+    Note this is a stricter and more honest criterion than "in the donor's
+    region": it catches exactly the countries carrying a copied table and no
+    others, without anyone having to maintain a region mapping.
+    """
+    sim = load_inputs()
+    key = ["ISO", "age", "Sex"]
+    lut = sim[key + ["mortality_rate"]].drop_duplicates(key).set_index(key)[
+        "mortality_rate"
+    ]
+    if donor not in set(lut.index.get_level_values("ISO")):
+        raise KeyError(f"Donor {donor!r} is not in the simulation's ISO set.")
+    ref = lut.xs(donor, level="ISO")
+    out = []
+    for iso in sorted(set(lut.index.get_level_values("ISO"))):
+        if iso == donor:
+            continue
+        other = lut.xs(iso, level="ISO")
+        common = ref.index.intersection(other.index)
+        if len(common) == len(ref) and bool((ref.loc[common] == other.loc[common]).all()):
+            out.append(iso)
+    return out
+
+
 def load_food_shock_survival_weight(
     filename: str = OUTPUT_FILE, horizon: int = 10, column: str = "pi"
 ) -> pd.DataFrame:

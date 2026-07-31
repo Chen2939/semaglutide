@@ -40,28 +40,49 @@ CI_FILES = {
 }
 
 
-# Countries in the break-even set whose mortality schedule is an imputation from a
-# UN region containing exactly one Human Life-Table country, so their life table is
-# literally another country's. Israel is the only such donor that reaches this set.
+# The exclusion arm is defined by the imputation DONOR, not by region: countries
+# whose imputed life table is identical to another country's, so their results rest
+# on a single-country proxy rather than a regional blend. Israel is the only such
+# donor that reaches the break-even set.
 #
-# Seven countries carry Israel's schedule bit-for-bit -- ARE, BHR, CYP, KWT, OMN,
-# QAT, SAU -- but only ARE, CYP and SAU have an OECD per-capita factor and so
-# appear in a ratio at all. Cyprus is retained as defensible; the two Gulf states
-# are the exposure worth reporting.
+# The criterion is derived from final_df_imputed.pkl at runtime by
+# survival_weighting.countries_with_donor_life_table, not listed here. A hardcoded
+# list is a claim about the imputation that nothing keeps true -- the region-based
+# equivalent went stale the moment the mortality source changed -- and the point of
+# this arm is that the criterion is checkable against the data it describes.
 #
-# Derived, not assumed: diagnostics/imputation_sensitivity.py compares each
-# country's (age, Sex) -> mortality_rate map against Israel's and prints the list.
-# Re-run it if final_df_imputed.pkl is ever rebuilt.
-IMPUTED_FROM_ISRAEL = ["ARE", "SAU"]
+# Cyprus falls inside the set by construction, and is excluded with the rest when
+# the arm is run. It is the most defensible of the seven on other grounds; that
+# belongs in the methods text, not in a code-level exception.
+DONOR_ISO = "ISR"
+
+_donor_cache: dict[str, list[str]] = {}
 
 
-def imputation_sensitivity(be_df, exclude=IMPUTED_FROM_ISRAEL):
-    """Headline ratios with and without the countries imputed from Israel.
+def donor_imputed_countries(donor: str = DONOR_ISO) -> list[str]:
+    """Cached wrapper: ISO codes whose life table is identical to ``donor``'s.
+
+    Cached because deriving it reads the simulation pickle, which is the only
+    expensive part of printing the sensitivity.
+    """
+    if donor not in _donor_cache:
+        from .survival_weighting import countries_with_donor_life_table
+
+        _donor_cache[donor] = countries_with_donor_life_table(donor)
+    return _donor_cache[donor]
+
+
+def imputation_sensitivity(be_df, exclude=None):
+    """Headline ratios with and without the donor-imputed countries.
 
     Reported on every run rather than kept as a one-off: if the headline depended
     on Israel's life table standing in for Saudi Arabia's, that would be a reason
     not to include those countries at all, and the only way to know is to look.
+
+    ``exclude=None`` derives the set; pass a list to override.
     """
+    if exclude is None:
+        exclude = donor_imputed_countries()
     rows = []
     for scenario in ("max_uptake", "mod_uptake"):
         full = _complete_data_subset(be_df, scenario=scenario)
@@ -84,13 +105,18 @@ def imputation_sensitivity(be_df, exclude=IMPUTED_FROM_ISRAEL):
     return pd.DataFrame(rows)
 
 
-def print_imputation_sensitivity(be_df, exclude=IMPUTED_FROM_ISRAEL) -> None:
+def print_imputation_sensitivity(be_df, exclude=None) -> None:
+    if exclude is None:
+        exclude = donor_imputed_countries()
     tab = imputation_sensitivity(be_df, exclude=exclude)
+    in_set = sorted(set(exclude) & set(_complete_data_subset(be_df)["ISO"]))
     print("\n" + "=" * 65)
     print("IMPUTATION EXPOSURE")
     print("=" * 65)
-    print(f"\n  Excluding {exclude}: countries whose life table is Israel's,")
-    print("  imputed from a UN region whose only HLD member is Israel.")
+    print(f"\n  Countries whose imputed life table is identical to {DONOR_ISO}'s,")
+    print(f"  derived from the simulation pickle: {exclude}")
+    print(f"  Of those, inside the break-even set: {in_set}")
+    print("  The rest have no OECD factor and never reach a ratio.")
     print(f"\n  {'scenario':<12}{'set':<9}{'N':>4}{'cum 10-yr':>12}"
           f"{'y10 annual':>12}{'min':>9}{'min ISO':>9}")
     for _, r in tab.iterrows():

@@ -357,6 +357,13 @@ independent of the food fixes).
 > on all 47 values. `metrics.py`'s stale *configuration* was reconciled in the
 > same pass. Nothing in this section is outstanding; it is kept as the record of
 > why the staleness was allowed to stand for three commits.
+>
+> **This does not mean the outputs are final.** A further reference refresh is
+> expected if the donor-imputation exclusion arm is ever run as the headline
+> specification — it changes N from 40 to 37 and moves every ratio — and likewise
+> for any horizon extension. "Resolved" here means the deferred backlog is cleared
+> and the snapshots describe what the code currently produces, not that no future
+> change is anticipated.
 
 The original note follows.
 
@@ -684,12 +691,64 @@ magnitude is negligible; the reason to keep the two weights apart is that they
 answer different questions, not that the numbers diverge much.
 Verified in `diagnostics/check_pi_dose_direction.py`.
 
-> **Correction.** The commit message for `9fe9cdd` states this backwards — it says
-> using `pi` "would have understated it", and separately calls `pi_dose`
-> "consistently the lower" when the ordering has 12 exceptions. Both claims were
-> checked only against the min/max of each year's range, which does not establish
-> an elementwise ordering and does not fix a sign. The text above is the corrected
-> record; the commit message cannot be edited after the fact.
+> **Correction to `9fe9cdd`.** Four claims in one paragraph of that commit message
+> were wrong. It cannot be edited after the fact, so this is the corrected record.
+>
+> **(a) Direction.** It says using `pi` for the drug term "would have understated
+> it". Backwards: `pi > pi_dose`, so `pi` gives larger weights, more
+> treated-user-years and a **larger** drug charge. It overstates it. And since the
+> charge is subtracted from food savings, the error pushes net savings and the
+> ratio **down**, not up.
+>
+> **(b) Antecedent.** "it" had no clear referent — the drug charge or the user
+> count — which is how the sign slipped through.
+>
+> **(c) The two percentages are over different populations, and one of them was
+> wrong.** The paragraph reads as though −3.73% and "3.3% on the break-even set"
+> were the same arithmetic. They are not, and the second figure was mis-derived.
+> `sum_y pi_dose(y)` is a weighted average, so its shortfall against 10 depends on
+> which countries are averaged:
+>
+> | population | Σ pi_dose | shortfall vs 10 | 10-yr drug | legacy ×10 |
+> |---|--:|--:|--:|--:|
+> | all 63 modelled ISO, max | 9.626778 | **−3.73%** | 13.080718 Mt | 13.587846 Mt |
+> | 40-country break-even set, max | 9.619712 | **−3.80%** | 12.477086 Mt | 12.970333 Mt |
+> | all 63 modelled ISO, mod | 9.622077 | −3.78% | 6.841641 Mt | 7.110358 Mt |
+> | 40-country break-even set, mod | 9.614831 | −3.85% | 6.521616 Mt | 6.782871 Mt |
+>
+> So the break-even-set figure is **−3.80%**, not 3.3%. The 3.3% came from
+> comparing the correct ten-year total against
+> `drug_footprint_summary.drug_emissions_1yr_t × 10` — but that column is
+> *already* `pi_dose(1)`-weighted (by a factor of 0.994607), so it compared a
+> weighted year-1 value against an unweighted sum and mixed two bases. The correct
+> legacy baseline is the undiscounted year-1 charge times ten. The two populations
+> in fact give nearly the same shortfall, −3.73% and −3.80%; the apparent gap was
+> the error, not a real difference between the sets.
+>
+> **(d) Which countries reverse.** It says `pi_dose` is "consistently the lower"
+> and, in `d24475f`, that "Japan reverses it in both scenarios". Both wrong. 12 of
+> 1,260 cells reverse, **all under moderate uptake**: Japan in all ten years and
+> **the Netherlands** in years 9–10, which that message omits entirely. Japan's
+> *max*-uptake rows do not reverse at all. The original claims were checked against
+> the min and max of each year's range, which establishes neither an elementwise
+> ordering nor which rows are involved.
+>
+> Derived in `diagnostics/imputation_and_drug_populations.py`.
+
+**Why Japan and the Netherlands reverse.** `pi > pi_dose` exactly when survival is
+positively correlated with `eer_diff` across adherers — when the patients cutting
+the most intake are also the ones more likely to be alive. That correlation is
+weakly positive almost everywhere: median **+0.042**, maximum +0.127 (Korea).
+Japan and the Netherlands sit essentially at zero, **−0.008** and **−0.002**, and
+under moderate uptake land marginally negative.
+
+So the reversal is not a property of those countries' demography — it is what a
+correlation indistinguishable from zero does. The reading that matters if `pi` is
+ever used for a per-country claim: because the correlation is weak everywhere,
+`pi` and `pi_dose` are near interchangeable at country level, and the **sign** of
+their difference carries no interpretation for a country near zero. It would be a
+mistake to read Japan's negative value as evidence that heavy intake-reducers there
+die sooner.
 
 **Direction — this change is CONSERVATIVE. It reduces food savings and lowers
 every ratio.** Isolated by holding everything else fixed and moving only the
@@ -838,6 +897,35 @@ The decline stays the least influential at 3.7% of the carbon-intensity range
 countries before, 40 after — because the mortality source swap changed the
 country set; they are not a clean `pi`-only comparison, unlike the table above.
 
+**The price level cancels out of the equilibrium solve.** Worth recording because
+the FAOSTAT food CPI is an index normalised to each country's own base year, so if
+the level entered substantively every country's output would depend on an arbitrary
+normalisation. By inspection of `_compute_equilibrium` it does not. With
+`Cs = Q0 / P0^Es` and `Cd = Q0 / P0^Ed`, the market-clearing condition
+`Cs·P^Es = Cd·P^Ed·(1+δ)` reduces to `(P/P0)^(Es−Ed) = 1+δ`, so
+
+```
+P/P0    = (1 + delta) ^ ( 1      / (Es - Ed))
+Q_new/Q0 = (1 + delta) ^ ( Es    / (Es - Ed))
+```
+
+Both `Q0` and `P0` drop out: the equilibrium quantity **ratio** is a function of
+the demand shock and the two elasticities alone. `actual_reduction`,
+`rebound_effect`, `rebound_effect_percent` and `carbon_savings_t` are therefore all
+invariant to the price index's base year. The only price-dependent output is
+`P_eq_new = P0 · (1+δ)^(1/(Es−Ed))`, which is in index units and is written but
+never read — nothing downstream consumes it.
+
+One latent fragility, currently inert, now commented in the code: the solver's
+`bracket=[1e-3, 1e3]` is in **level** units even though the answer is scale-free,
+and a failed solve is swallowed by a bare `except` into a NaN that groups to a
+silent zero. Seven countries in the FAOSTAT file have a Dec-2022 food CPI at or
+above 1e3 (Venezuela at 9.1e11, then ZWE, LBN, SDN, SSD, ARG, SUR) and would fail
+that way. **None is in the modelled set**, whose 53 priced countries span
+103.247–190.779, a factor of five inside the bracket. So nothing is affected today,
+but a country set that ever reached high-inflation economies would lose them
+silently.
+
 **Coverage: Taiwan, and why the break-even set is 40 and not 41.** 41 countries
 have non-zero survivor person-years *and* both OECD factor components, but
 break-even also requires positive food savings, and **TWN** has
@@ -848,35 +936,53 @@ demand shock, but FAOSTAT's **Consumer Price Index** dataset has no rows for
 returns NaN and the group-by sum yields 0.0. This is pre-existing and unrelated to
 `pi` or to the mortality swap: it also explains the old numbers, where 36
 survivor-qualifying countries produced aggregates over 35. Three distinct coverage
-gaps now sit on this model and are worth keeping separate: **22** countries lack an
-OECD factor, **1** (TWN) lacks a FAOSTAT price index, and **none** lacks mortality.
+gaps now sit on this model and are worth keeping separate, and all three belong in
+the methods coverage paragraph: **22** countries lack an OECD demand-based
+per-capita factor and so cannot be charged survivor emissions; **1** (**TWN**)
+lacks a FAOSTAT Consumer Price Index entry, so its demand shock never solves and
+it carries no food savings; and **none** now lacks mortality. Taiwan stays
+excluded on that basis regardless of anything else in this entry.
 
-**Imputation exposure: the headline does not rest on Israel's life table.** Five
-of the countries the mortality swap restored were imputed from a UN region whose
-only Human Life-Table member is Israel, so their life table is literally Israel's.
-Seven countries carry Israel's schedule bit-for-bit — ARE, BHR, CYP, KWT, OMN,
-QAT, SAU — but only **ARE, CYP and SAU** have an OECD per-capita factor and so
-enter a ratio at all; the other four cannot move one. Cyprus is defensible as
-taking Israel's values; the two Gulf states are the exposure worth testing.
+**Imputation exposure: the donor-imputed countries are retained.**
 
-Dropping ARE and SAU, max uptake: cumulative 10-year ratio 1.8474 → 1.8369
-(**−0.57%**), year-10 annual ratio 0.9488 → 0.9439 (**−0.51%**), binding country
-Hungary either way. Moderate uptake: 1.7865 → 1.7758 (−0.60%), 0.9191 → 0.9140
-(−0.55%), Lithuania either way. Together the two are 2.0% of ten-year food savings
-and 1.4% of survivor emissions.
+**The criterion is the imputation donor, not the region.** Where a country's UN
+region contains exactly one Human Life-Table member, the regional median *is* that
+country, so the recipient's life table is literally the donor's rather than a
+blend. Seven countries carry Israel's schedule bit-for-bit — ARE, BHR, CYP, KWT,
+OMN, QAT, SAU — of which **ARE, CYP and SAU** have an OECD per-capita factor and
+so enter a ratio; the other four cannot move one. The set is derived from
+`final_df_imputed.pkl` by `survival_weighting.countries_with_donor_life_table`, not
+listed: a hardcoded list is a claim about the imputation that nothing keeps true,
+and the region-based equivalent went stale the moment the mortality source
+changed. **Cyprus falls inside the set by construction** and is excluded with the
+rest when the arm is run — it is the most defensible of the seven on other
+grounds, but that belongs in the methods text, not in a code-level exception.
 
-So they are retained and the limitation is stated rather than the countries
-dropped. Note the movement is **downward**: both sit above the global ratio (ARE
-2.76×, SAU 2.50×), so excluding them would make the headline slightly worse, and
-keeping them is the marginally less conservative choice — by half a percent. No
-qualitative conclusion turns on it: the cumulative ratio stays near 1.84×, the
-year-10 annual ratio stays below 1, and the binding country is untouched.
+**The difference is immaterial to every conclusion.** Excluding all three in-set
+countries, max uptake: cumulative 10-year ratio 1.8474 → 1.8364 (**−0.59%**),
+year-10 annual ratio 0.9488 → 0.9437 (−0.54%), N 40 → 37. Moderate uptake: 1.7865
+→ 1.7752 (−0.63%), 0.9191 → 0.9138 (−0.58%). Hungary and Lithuania stay binding in
+their respective scenarios; the cumulative ratio stays near 1.84×; the year-10
+annual ratio stays below 1. Half a percent on a ratio, and no qualitative change.
 
-`breakeven_analysis.print_imputation_sensitivity()` prints this on every run
-rather than leaving it a one-off, and
-`diagnostics/imputation_sensitivity.py` derives the Israel-identical list from the
-pickle rather than trusting a hardcoded one — re-run it if
-`final_df_imputed.pkl` is ever rebuilt.
+**So the decision rests on other grounds, and those grounds are coverage.** Saudi
+Arabia alone is **1.20 percentage points** of world GDP; the three together are
+**1.73**, taking the complete-data sample from **58.96%** to **57.22%** of the
+global economy. Coverage is a claim the paper makes on its own account, so trading
+it away to be rid of a proxy we distrust is a real cost — and one paid for no
+change in any reported conclusion. The countries are therefore retained, the
+imputation limitation is stated in methods either way, and the exclusion arm is
+available behind a single argument.
+
+An earlier draft of this note argued the opposite way round — that excluding makes
+the headline slightly worse, so keeping is the choice. That is choosing a method by
+the number it produces and it is struck from the record. The immateriality is what
+licenses the decision; coverage is what decides it.
+
+`breakeven_analysis.print_imputation_sensitivity()` prints the comparison on every
+run rather than leaving it a one-off, and
+`diagnostics/imputation_and_drug_populations.py` re-derives the donor set from the
+pickle and reports the GDP at stake alongside the ratios.
 
 **Age-89 ceiling, restated as a horizon bound.** `pi` is built to 15 years because
 that is the last year with complete mortality coverage for treated patients:
@@ -1016,8 +1122,9 @@ PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.compare_pi_effect
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.name_dropped_country
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.diagnose_twn
 
-# which countries share Israel's imputed life table, and what they are worth
-PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_sensitivity
+# donor-imputed set, the two drug populations, and the Japan/NLD reversal
+#   (writes diagnostics/reports/*.md rather than printing a wide table)
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_and_drug_populations
 
 # sign of (pi - pi_dose) elementwise, and which way substituting pi moves the drug
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_pi_dose_direction

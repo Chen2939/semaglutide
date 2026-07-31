@@ -302,14 +302,28 @@ python -m data_visualization.generate_rebound_figure
 python -m data_visualization.generate_rebound_validation
 ```
 
-**Imputation exposure.** Five of the countries the imputed mortality source
-restored take their life table from a UN region whose only Human Life-Table member
-is Israel. Of the seven carrying Israel's schedule bit-for-bit (ARE, BHR, CYP, KWT,
-OMN, QAT, SAU), only **ARE, CYP and SAU** have an OECD per-capita factor and so
-enter a ratio. Dropping the two Gulf states moves the cumulative 10-year ratio by
-**−0.57%** (max uptake, 1.8474 → 1.8369) and the year-10 annual ratio by −0.51%,
-leaving the binding country unchanged — so they are retained and the limitation
-stated. `breakeven_analysis.py` prints this comparison on every run.
+**Imputation exposure — donor-imputed countries are retained.** Where a country's
+UN region contains exactly one Human Life-Table member, the regional median *is*
+that country, so the recipient's life table is literally the donor's rather than a
+blend. Seven countries carry Israel's schedule bit-for-bit (ARE, BHR, CYP, KWT,
+OMN, QAT, SAU); **ARE, CYP and SAU** have an OECD per-capita factor and so enter a
+ratio. The criterion is the **imputation donor, not the region**, and the set is
+derived from `final_df_imputed.pkl` at runtime rather than listed — a hardcoded
+list is a claim about the imputation that nothing keeps true. Cyprus falls inside
+the set by construction and is excluded with the rest when the arm is run; it is
+the most defensible of the seven on other grounds, which is a methods point rather
+than a code-level exception.
+
+Excluding all three moves the cumulative 10-year ratio **−0.59%** (max uptake,
+1.8474 → 1.8364) and the year-10 annual ratio −0.54%, with Hungary and Lithuania
+still binding and N going 40 → 37. Immaterial to every conclusion — so the
+decision rests on other grounds, and those grounds are **coverage**: Saudi Arabia
+alone is 1.20 percentage points of world GDP, and the three together take the
+complete-data sample from **58.96% to 57.22%** of the global economy. Coverage is a
+claim the paper makes on its own account, so giving up 1.73 points of it to be rid
+of a proxy we distrust is a real cost for no change in any reported result. The
+limitation is stated in methods either way and the exclusion arm is one argument
+away. `breakeven_analysis.py` prints the comparison on every run.
 
 **Break-even analysis** — compares cumulative food-emission savings against cumulative emissions from additional survivors over a 10-year horizon. Pharmaceutical production emissions are folded into net food savings by default (`annual food savings - annual drug emissions`) before the comparison. Computes break-even year and 10-year food-to-survivor ratio for each country and uptake scenario.
 - **Output:** `figures/breakeven_by_country.png`, `figures/breakeven_curves.png`
@@ -322,6 +336,15 @@ stated. `breakeven_analysis.py` prints this comparison on every run.
 
 **Rebound decomposition** — 3×3 grid showing expected demand reduction, actual demand reduction (after price rebound), and resulting carbon emissions saved for the top countries across Meat, Dairy, and Cereals. Analogous to Hegwood et al. (2023) Figure 3.
 - **Output:** `figures/rebound_decomposition.png`
+
+**The price level cancels out of the solve.** The FAOSTAT food CPI is an index on
+each country's own base year, so it matters that the level does not reach the
+result. It does not: with `Cs = Q0/P0^Es` and `Cd = Q0/P0^Ed`, market clearing
+reduces to `(P/P0)^(Es−Ed) = 1+δ`, giving
+`Q_new/Q0 = (1+δ)^(Es/(Es−Ed))` — a function of the demand shock and the two
+elasticities alone. Every published quantity (`actual_reduction`, the rebound
+terms, `carbon_savings_t`) is therefore invariant to the index's base year. Only
+`P_eq_new` carries the level, and nothing reads it.
 
 **Rebound validation** — horizontal bar chart of rebound percentages by food type, grouped by World Bank income classification. Validates model consistency against Hegwood et al.'s reported range (53–71% for high-income countries).
 - **Output:** `figures/rebound_by_income.png`
@@ -428,8 +451,10 @@ are `initial_treated_users x sum_y pi_dose(y)`, **not**
 headcount-weighted mean treatment-world survival from
 `data_result/food_shock_survival_weight.csv` — deliberately a different weight
 from the `pi` that scales the food shock, which weights each patient by how much
-their intake fell. Over ten years the sum comes to 9.63 rather than 10, so the
-10-year drug total is about 3.7% lower than the old approximation.
+their intake fell. Over ten years the sum comes to 9.63 rather than 10 across all
+63 modelled countries (**−3.73%**), or 9.62 over the 40-country break-even set
+(**−3.80%**) — the shortfall is a weighted average, so it depends on which
+countries are averaged.
 
 Using `pi` here instead would **overstate** treated-user-years and so overstate the
 drug charge, by about 0.13%: `pi` exceeds `pi_dose` on 1,248 of 1,260 cells (Japan
@@ -484,10 +509,19 @@ classify, and errors if the two uptake scenarios disagree on the sets — the
 manuscript quotes a single share, so that would need a decision rather than a
 silent choice.
 
-Currently all 13 excluded countries lack an **OECD factor**; none lacks mortality.
-A further 10 have survivor data but no food savings (AND, ASM, BMU, BRN, GRL, GUY,
+Currently all 13 excluded countries lack an **OECD demand-based per-capita
+factor**, so they cannot be charged survivor emissions; none lacks mortality. A
+further 10 have survivor data but no food savings (AND, ASM, BMU, BRN, GRL, GUY,
 NRU, PRI, SGP, TWN) and so fall outside both sets — reported as a coverage note,
 with their GDP in neither share.
+
+**Taiwan is a third, separate gap.** TWN has mortality data and both OECD factor
+components, but FAOSTAT's Consumer Price Index has no entry for "China, Taiwan
+Province of", so its `price` is NaN, the equilibrium never solves, and it carries
+no food savings. It is excluded for that reason alone and stays excluded
+regardless of the mortality or OECD coverage decisions. Three distinct gaps —
+22 countries missing an OECD factor, 1 missing a price index, none missing
+mortality — belong in the methods coverage paragraph as three separate facts.
 
 ## Setup
 
@@ -784,6 +818,22 @@ function it captured no longer exists. So `compare_merged.py` and
 `ref_snapshot.pkl` live on the **`seth_bug_fixes` audit branch**, under
 `outputs/fix3/`, rather than here. They are archived there, not runnable there:
 the merged function they test exists only on this branch.
+
+## Diagnostics write markdown, not terminal tables
+
+Scripts under `diagnostics/` build a markdown report via `diagnostics/report.py`
+and print only its path. Reports land in `diagnostics/reports/*.md`, which is
+gitignored — the script is the record, its output is regenerable.
+
+This is not a style preference. Wide tables printed to a Windows console arrive
+mangled: the console falls back to cp1252 so non-ASCII is dropped or replaced, and
+long pandas frames wrap at the terminal width so columns stop lining up with their
+headers. That has cost review time repeatedly. A markdown file is UTF-8, its tables
+are pipe-delimited and render anywhere, and nothing about it depends on the console
+encoding.
+
+The same constraint applies to anything printed directly: **ASCII only in print
+statements**. Arrows, box-drawing and typographic dashes break on this console.
 
 ## Known gaps and warts
 

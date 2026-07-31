@@ -64,11 +64,21 @@ def build_drug_emissions(
     ``pi`` exceeds ``pi_dose`` on 1,248 of 1,260 (ISO, scenario, year) cells over a
     10-year horizon, by up to 0.85 percentage points -- so survival is usually a
     little higher among the patients who cut their intake most. The ordering is not
-    universal: Japan reverses it in both scenarios, by up to 3.9e-04. Substituting
-    ``pi`` here would therefore **overstate** treated-user-years and so **overstate
-    the drug charge** -- measured at +0.126% (max uptake) and +0.100% (moderate) on
-    the 10-year total. Because the drug charge is subtracted from food savings, that
-    would push net savings and the food:survivor ratio *down*.
+    universal: 12 cells reverse, all under moderate uptake, 10 of them Japan (all
+    years) and 2 the Netherlands (years 9-10). Substituting ``pi`` here would
+    therefore **overstate** treated-user-years and so **overstate the drug charge**
+    -- measured at +0.126% (max uptake) and +0.100% (moderate) on the 10-year
+    total. Because the drug charge is subtracted from food savings, that would push
+    net savings and the food:survivor ratio *down*.
+
+    The reversal is not a structural feature of those two countries. The weighted
+    correlation between ``eer_diff`` and 10-year survival is weakly positive almost
+    everywhere -- median +0.042, maximum +0.127 -- and Japan and the Netherlands sit
+    essentially at zero (-0.008 and -0.002). Their sign flip is what a correlation
+    indistinguishable from zero does, not evidence that big intake-reducers there
+    die sooner. The practical reading: ``pi`` and ``pi_dose`` are near
+    interchangeable per country, and the *sign* of their difference carries no
+    meaning for a country near zero.
 
     The size of that error is negligible; the reason to keep the two weights apart
     is that they answer different questions, not that the numbers diverge much.
