@@ -42,8 +42,17 @@ CI_FILES = {
 
 # The exclusion arm is defined by the imputation DONOR, not by region: countries
 # whose imputed life table is identical to another country's, so their results rest
-# on a single-country proxy rather than a regional blend. Israel is the only such
-# donor that reaches the break-even set.
+# on a single-country proxy rather than a regional blend.
+#
+# The mechanism: where a country's UN region contains exactly one Human Life-Table
+# member, the regional median for that region IS that country, so every imputed
+# recipient carries the donor's life table verbatim. Israel is one such donor, and
+# the seven countries carrying its schedule (ARE, BHR, CYP, KWT, OMN, QAT, SAU) are
+# the instance that touches the reported set; of those, ARE, CYP and SAU have an
+# OECD factor and enter a ratio. The mechanism is general -- other single-country
+# regions exist and have their own donors -- and nothing here enumerates them.
+# countries_with_donor_life_table takes any donor, so changing DONOR_ISO is the
+# whole of generalising this arm.
 #
 # The criterion is derived from final_df_imputed.pkl at runtime by
 # survival_weighting.countries_with_donor_life_table, not listed here. A hardcoded

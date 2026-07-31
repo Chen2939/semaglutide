@@ -938,19 +938,34 @@ returns NaN and the group-by sum yields 0.0. This is pre-existing and unrelated 
 survivor-qualifying countries produced aggregates over 35. Three distinct coverage
 gaps now sit on this model and are worth keeping separate, and all three belong in
 the methods coverage paragraph: **22** countries lack an OECD demand-based
-per-capita factor and so cannot be charged survivor emissions; **1** (**TWN**)
-lacks a FAOSTAT Consumer Price Index entry, so its demand shock never solves and
-it carries no food savings; and **none** now lacks mortality. Taiwan stays
+per-capita factor and so cannot be charged survivor emissions; **3** lack a usable
+FAOSTAT Consumer Price Index, so their demand shock never solves and they carry no
+food savings; and **none** now lacks mortality.
+
+The three unpriced countries are **GUY, NRU and TWN**, and the gap is not the same
+in each: NRU and TWN are absent from the Consumer Price Indices file entirely,
+while **GUY is present with 297 rows but has no December-2022 food-index row** — a
+gap inside the file rather than absence from it. An earlier version of this entry
+said only TWN, which was wrong: it was found by inspecting the one country that
+surfaced in a count, not by asking which rows fail to solve. All three stay
 excluded on that basis regardless of anything else in this entry.
 
 **Imputation exposure: the donor-imputed countries are retained.**
 
-**The criterion is the imputation donor, not the region.** Where a country's UN
-region contains exactly one Human Life-Table member, the regional median *is* that
-country, so the recipient's life table is literally the donor's rather than a
-blend. Seven countries carry Israel's schedule bit-for-bit — ARE, BHR, CYP, KWT,
-OMN, QAT, SAU — of which **ARE, CYP and SAU** have an OECD per-capita factor and
-so enter a ratio; the other four cannot move one. The set is derived from
+**The criterion is the imputation donor, not the region.** Where a country's UN region contains exactly one Human Life-Table member, the
+regional median for that region *is* that country, so every imputed recipient
+carries the donor's life table verbatim rather than a blend. Israel is one such
+donor, and the seven countries carrying its schedule (ARE, BHR, CYP, KWT, OMN,
+QAT, SAU) are the instance that touches the reported set. Of those, **ARE, CYP and
+SAU** have an OECD per-capita factor and enter a ratio.
+
+The mechanism is general — other single-country regions exist and have their own
+donors — and no attempt has been made here to enumerate them.
+`countries_with_donor_life_table` takes any donor, so the arm generalises by
+changing one argument.
+
+The other four of the seven have no OECD per-capita factor and so cannot move a
+ratio. The set is derived from
 `final_df_imputed.pkl` by `survival_weighting.countries_with_donor_life_table`, not
 listed: a hardcoded list is a claim about the imputation that nothing keeps true,
 and the region-based equivalent went stale the moment the mortality source
@@ -1051,6 +1066,86 @@ and what the stale version would have said.
 
 ---
 
+## Two silent-failure paths in the equilibrium solve
+
+**What was wrong.** A country whose demand shock could not be solved disappeared
+into a zero. Two mechanisms, both quiet:
+
+1. `_compute_equilibrium` wrapped the solve in `except Exception: pass` and
+   returned NaN.
+2. The groupby that builds `annual_food_savings_t` used a bare `.sum()`, and an
+   **all-NaN group sums to exactly 0.0** in pandas.
+
+Together those turn "this country cannot be computed" into "this country saves
+nothing", which no filter and no reader can distinguish. **Three countries had
+been sitting in the outputs at exactly zero food savings for the life of the
+model** with no line of output: **GUY, NRU and TWN**.
+
+**Correct behaviour.** `min_count=1` on both the headline groupby and the per-year
+series, so an all-NaN group returns NaN. On its own that is barely an improvement —
+the downstream `> 0` filters drop a NaN exactly as they dropped a zero — so the
+load-bearing half is a new guard, `_report_unsolved`, which names every such
+country and which input it is missing, and attaches the list to
+`result_df.attrs["unsolved"]`. It prints rather than raises: an absent price index
+is a permanent input gap, so raising would break every run over a known condition.
+
+`_compute_equilibrium` now separates its two failure modes. NaN inputs return NaN
+without pretending to solve; a genuine solver failure or non-convergence on finite
+inputs **raises**, naming the country, food group, scenario and every input.
+
+**Measured before changing, because narrowing an except that fires would break the
+run.** Instrumented over all 10,080 solver calls
+(`diagnostics/check_except_paths.py`):
+
+| path | fires |
+|---|--:|
+| `except Exception` | **0** |
+| `if result.converged` falling through | **540** |
+
+So the bare except caught nothing — `brentq` does not raise on these inputs, it
+returns `converged=False`. All 540 non-convergences have a NaN argument, i.e. 54
+rows (3 countries × 9 food groups × 2 scenarios) × 10 years. **The except was not
+the path doing the damage**, which is worth recording: fixing only the thing that
+looked wrong would have left the actual silent path in place.
+
+**The unpriced three are not one gap but two.** An earlier entry in this document
+said only TWN lacked a price index. Wrong, and wrong because it was found by
+inspecting the one country that happened to surface in a count rather than by
+asking which rows fail to solve. NRU and TWN are absent from the FAOSTAT Consumer
+Price Indices file entirely; **GUY is present with 297 rows but has no
+December-2022 food-index row**. Same symptom, different gap.
+
+**Verification.** Gates declared before the run
+(`diagnostics/null_check_min_count.py`), against the pre-change pipeline in one
+process:
+- `result_df`, 45 shared numeric columns × 1,008 rows: **0 cells differ**. The
+  narrowed except is arithmetically inert.
+- Only 6 of 112 `food_savings` rows move, all **exactly 0.0 → NaN**, all three
+  unsolvable countries × two scenarios. Nothing else moves.
+- Every **reported** aggregate is bit-identical, difference **exactly 0.0**: rows
+  with food > 0 (53), the annual food sum, N complete (40), 10-year food, 10-year
+  survivor, the cumulative ratio and the minimum-country ratio, both scenarios.
+- **No aggregate became NaN** — 0 of them. pandas `.sum()` skips NaN, so an
+  aggregate cannot acquire one; the risk was the reverse, a value silently ceasing
+  to be counted, which is what the two movements below are.
+
+**Two movements, accepted and named rather than absorbed.** Both are consumers
+that read `annual_food_savings_t` with no `> 0` filter, found by auditing all 55
+read sites:
+- `generate_emissions_figure.py` drew a zero-length bar for each unsolvable
+  country and sorted them *first*, as though they were the countries saving least.
+  It now filters `> 0` like every other consumer: three degenerate bars go, and the
+  country ordering shifts by those three positions.
+- `diet_sensitivity/analysis.py:289` sums the break-even frame unfiltered, where
+  these countries carry `0 − drug` and so a **negative** value. Dropping them moves
+  that total by **+15,427.225174 t** (0.0154 Mt). It is a console VALIDATION line,
+  written to no CSV.
+
+**Not regenerated.** The emissions figure and that console line will move on the
+next pass; no reported CSV or reference value does, so nothing is rebuilt here.
+
+---
+
 ## How to reproduce
 
 ```
@@ -1124,6 +1219,13 @@ PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.diagnose_twn
 
 # donor-imputed set, the two drug populations, and the Japan/NLD reversal
 #   (writes diagnostics/reports/*.md rather than printing a wide table)
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_and_drug_populations
+
+# the two silent-failure paths, and the null for min_count=1
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_except_paths
+git show <rev-before-this-commit>:data_visualization/pipeline.py     > data_visualization/_head_pipeline.py
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.null_check_min_count
+rm data_visualization/_head_pipeline.py
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_and_drug_populations
 
 # sign of (pi - pi_dose) elementwise, and which way substituting pi moves the drug

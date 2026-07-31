@@ -42,24 +42,69 @@ def _equilibrium_gap(P, Cs, Cd, Es, Ed, demand_shock_pct):
 
 
 def _compute_equilibrium(row):
+    """Solve for the post-shock price and quantity, or fail loudly.
+
+    The price LEVEL cancels out of the quantity answer. With ``Cs = Q0/P0^Es`` and
+    ``Cd = Q0/P0^Ed``, market clearing reduces to ``(P/P0)^(Es-Ed) = 1+delta``, so
+
+        Q_new / Q0 = (1 + delta) ** (Es / (Es - Ed))
+
+    -- a function of the shock and the two elasticities alone. That matters because
+    the FAOSTAT food CPI is an index on each country's own base year: if the level
+    entered, every result would depend on an arbitrary normalisation. It does not.
+    ``P_eq_new`` is the one price-dependent output and nothing reads it.
+
+    This used to be wrapped in a bare ``except Exception: pass`` returning NaN,
+    which a groupby then turned into a silent 0.0 -- that is how three countries
+    came to sit in the outputs with zero food savings and no warning. The two
+    failure modes are now separated:
+
+      * inputs already NaN -- no solve is possible and NaN is the honest answer.
+        The caller names these rows; see the guard in ``compute_food_savings``.
+      * a genuine solver failure on real inputs -- raises. Nothing in the current
+        data takes this path (measured: 0 of 10,080 calls), so making it loud costs
+        nothing today and stops the next occurrence being absorbed.
+
+    The bracket is worth keeping in view. It is in price-LEVEL units even though
+    the answer is scale-free, so a country whose CPI sits outside [1e-3, 1e3] fails
+    to bracket. Seven countries in the FAOSTAT file are at or above 1e3 (Venezuela
+    at 9.1e11, then ZWE, LBN, SDN, SSD, ARG, SUR). None is in the modelled set,
+    whose 53 priced countries span 103.247-190.779 -- a factor of five inside the
+    bracket -- so this is inert today. It is the reason it is inert, not a reason it
+    always will be: a country set reaching high-inflation economies would now raise
+    here rather than quietly drop them.
+    """
+    args = (
+        row["Cs"], row["Cd"],
+        row["elasticity_supply"], row["elasticity_demand"],
+        row["expected_demand_reduction_percent"],
+    )
+    if any(pd.isna(a) for a in args):
+        return pd.Series({"P_eq_new": np.nan, "Q_eql_new": np.nan})
+
+    where = (
+        f"{row.get('ISO')} / {row.get('final_food_group')} / {row.get('scenario')}"
+    )
     try:
         result = root_scalar(
-            _equilibrium_gap,
-            args=(
-                row["Cs"], row["Cd"],
-                row["elasticity_supply"], row["elasticity_demand"],
-                row["expected_demand_reduction_percent"],
-            ),
-            method="brentq",
-            bracket=[1e-3, 1e3],
+            _equilibrium_gap, args=args, method="brentq", bracket=[1e-3, 1e3]
         )
-        if result.converged:
-            P_new = result.root
-            Q_new = row["Cs"] * (P_new ** row["elasticity_supply"])
-            return pd.Series({"P_eq_new": P_new, "Q_eql_new": Q_new})
-    except Exception:
-        pass
-    return pd.Series({"P_eq_new": np.nan, "Q_eql_new": np.nan})
+    except Exception as exc:
+        raise RuntimeError(
+            f"Equilibrium solve failed for {where}: {type(exc).__name__}: {exc}. "
+            f"Inputs Cs={args[0]!r} Cd={args[1]!r} Es={args[2]!r} Ed={args[3]!r} "
+            f"delta={args[4]!r}. If this is a bracketing failure, check the price "
+            "index against bracket=[1e-3, 1e3] -- see this function's docstring."
+        ) from exc
+    if not result.converged:
+        raise RuntimeError(
+            f"Equilibrium solve did not converge for {where} with finite inputs: "
+            f"{result.flag!r}. Inputs Cs={args[0]!r} Cd={args[1]!r} "
+            f"Es={args[2]!r} Ed={args[3]!r} delta={args[4]!r}."
+        )
+    P_new = result.root
+    Q_new = row["Cs"] * (P_new ** row["elasticity_supply"])
+    return pd.Series({"P_eq_new": P_new, "Q_eql_new": Q_new})
 
 
 # ── Diet-scenario calibration ─────────────────────────────────────────
@@ -366,6 +411,57 @@ def _survivor_food_factor(
             "pop_adult",
         ]
     ]
+
+
+def _report_unsolved(food_savings: pd.DataFrame, result_df: pd.DataFrame) -> None:
+    """Name every country whose food savings could not be computed, and why.
+
+    This is the load-bearing half of ``min_count=1``. Turning a silent 0.0 into a
+    silent NaN gains little on its own: the downstream ``> 0`` filters drop both,
+    so the country vanishes from the counts either way. What was missing was
+    anybody saying so. Three countries had been sitting in the outputs at exactly
+    zero food savings for the life of the model without a line of output.
+
+    Prints rather than raises. These are genuine, permanent input gaps -- a country
+    with no FAOSTAT price index cannot be solved and never will be -- so raising
+    would break every run over a known condition. The list is also attached to
+    ``result_df.attrs["unsolved"]`` so a caller can act on it.
+    """
+    unsolved = food_savings[food_savings["annual_food_savings_t"].isna()]
+    result_df.attrs["unsolved"] = sorted(unsolved["ISO"].unique())
+    if unsolved.empty:
+        return
+
+    # Which input is missing, per country. Reported rather than guessed at: the
+    # three current cases are all a missing price, but that is a fact about today's
+    # data, not a property of the code.
+    checks = {
+        "price": "price",
+        "FAOSTAT tonnage": "initial_eql_quantity",
+        "carbon intensity": "carbon_intensity_t",
+        "supply elasticity": "elasticity_supply",
+        "demand elasticity": "elasticity_demand",
+        "demand shock": "expected_demand_reduction_percent",
+    }
+    print(
+        f"    NOTE: {unsolved['ISO'].nunique()} country(ies) have no computable "
+        "food savings and are NaN, not zero:"
+    )
+    for iso in sorted(unsolved["ISO"].unique()):
+        rows = result_df[result_df["ISO"] == iso]
+        missing = [
+            label for label, col in checks.items()
+            if col in rows.columns and rows[col].isna().all()
+        ]
+        country = rows["Country"].dropna().iloc[0] if rows["Country"].notna().any() else "?"
+        print(
+            f"      {iso} ({country}): missing "
+            f"{', '.join(missing) if missing else 'no single input on every row'}"
+        )
+    print(
+        "    They are excluded from every ratio by the downstream '> 0' filters, "
+        "which is correct -- but it is now stated rather than implied by a zero."
+    )
 
 
 # ── Full pipeline ─────────────────────────────────────────────────────
@@ -747,20 +843,27 @@ def compute_food_savings(
     if diet_scenario is not None:
         result_df["diet_scenario"] = diet_scenario
 
+    # min_count=1 so a country whose every food group is NaN reports NaN rather
+    # than 0.0. A bare .sum() returns 0.0 for an all-NaN group, which is
+    # indistinguishable from "this country genuinely saves nothing" and is how
+    # three countries sat in the outputs at zero with nothing warning. The guard
+    # below is the half that makes it visible -- a silent NaN is barely better than
+    # a silent zero, since the downstream `> 0` filters drop either one.
     food_savings = (
         result_df.groupby(["ISO", "Country", "scenario"])["carbon_savings_t"]
-        .sum()
+        .sum(min_count=1)
         .abs()
         .reset_index()
         .rename(columns={"carbon_savings_t": "annual_food_savings_t"})
     )
+    _report_unsolved(food_savings, result_df)
     if survival_weighted:
         for year in years:
             series = (
                 result_df.groupby(["ISO", "Country", "scenario"])[
                     f"carbon_savings_t_Y{year}"
                 ]
-                .sum()
+                .sum(min_count=1)
                 .abs()
                 .reset_index()
                 .rename(

@@ -302,17 +302,24 @@ python -m data_visualization.generate_rebound_figure
 python -m data_visualization.generate_rebound_validation
 ```
 
-**Imputation exposure — donor-imputed countries are retained.** Where a country's
-UN region contains exactly one Human Life-Table member, the regional median *is*
-that country, so the recipient's life table is literally the donor's rather than a
-blend. Seven countries carry Israel's schedule bit-for-bit (ARE, BHR, CYP, KWT,
-OMN, QAT, SAU); **ARE, CYP and SAU** have an OECD per-capita factor and so enter a
-ratio. The criterion is the **imputation donor, not the region**, and the set is
-derived from `final_df_imputed.pkl` at runtime rather than listed — a hardcoded
-list is a claim about the imputation that nothing keeps true. Cyprus falls inside
-the set by construction and is excluded with the rest when the arm is run; it is
-the most defensible of the seven on other grounds, which is a methods point rather
-than a code-level exception.
+**Imputation exposure — donor-imputed countries are retained.** Where a country's UN region contains exactly one Human Life-Table member, the
+regional median for that region *is* that country, so every imputed recipient
+carries the donor's life table verbatim rather than a blend. Israel is one such
+donor, and the seven countries carrying its schedule (ARE, BHR, CYP, KWT, OMN,
+QAT, SAU) are the instance that touches the reported set. Of those, **ARE, CYP and
+SAU** have an OECD per-capita factor and enter a ratio.
+
+The mechanism is general — other single-country regions exist and have their own
+donors — and no attempt has been made here to enumerate them.
+`countries_with_donor_life_table` takes any donor, so the arm generalises by
+changing one argument.
+
+The criterion is the **imputation donor, not the region**, and the set is derived
+from `final_df_imputed.pkl` at runtime rather than listed — a hardcoded list is a
+claim about the imputation that nothing keeps true. Cyprus falls inside the set by
+construction and is excluded with the rest when the arm is run; it is the most
+defensible of the seven on other grounds, which is a methods point rather than a
+code-level exception.
 
 Excluding all three moves the cumulative 10-year ratio **−0.59%** (max uptake,
 1.8474 → 1.8364) and the year-10 annual ratio −0.54%, with Hungary and Lithuania
@@ -515,13 +522,19 @@ further 10 have survivor data but no food savings (AND, ASM, BMU, BRN, GRL, GUY,
 NRU, PRI, SGP, TWN) and so fall outside both sets — reported as a coverage note,
 with their GDP in neither share.
 
-**Taiwan is a third, separate gap.** TWN has mortality data and both OECD factor
-components, but FAOSTAT's Consumer Price Index has no entry for "China, Taiwan
-Province of", so its `price` is NaN, the equilibrium never solves, and it carries
-no food savings. It is excluded for that reason alone and stays excluded
-regardless of the mortality or OECD coverage decisions. Three distinct gaps —
-22 countries missing an OECD factor, 1 missing a price index, none missing
-mortality — belong in the methods coverage paragraph as three separate facts.
+**A missing price index is a third, separate gap, and it affects three
+countries.** GUY, NRU and TWN have mortality data, and TWN has both OECD factor
+components, but none has a usable FAOSTAT food price index for December 2022. Their
+`price` is NaN, so `Cs`/`Cd` are NaN, the equilibrium never solves, and they carry
+no food savings. The gap differs by country: **NRU and TWN are absent from the
+Consumer Price Indices file entirely**, while **GUY is present with 297 rows but
+has no December-2022 food-index row**. All three are excluded for that reason
+alone, regardless of the mortality or OECD coverage decisions.
+
+Three distinct gaps — 22 countries missing an OECD factor, 3 missing a price
+index, none missing mortality — belong in the methods coverage paragraph as three
+separate facts. `compute_food_savings` now names the unpriced countries on every
+run instead of letting them sum to a silent zero.
 
 ## Setup
 

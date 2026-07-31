@@ -18,7 +18,13 @@ from .pipeline import compute_food_savings, output_path
 def main():
     food_savings, _ = compute_food_savings()
 
-    country_totals = food_savings.copy()
+    # Restrict to countries with a computable saving, as every other consumer
+    # does. Countries whose demand shock cannot be solved (no FAOSTAT price index)
+    # carry NaN since min_count=1 landed; before that they carried exactly 0.0 and
+    # were drawn as zero-length bars, which read as "this country saves nothing"
+    # rather than "this country has no price data". Neither belongs in a chart of
+    # emissions saved.
+    country_totals = food_savings[food_savings["annual_food_savings_t"] > 0].copy()
     country_totals["carbon_savings_kt"] = country_totals["annual_food_savings_t"] / 1e3
 
     sort_order = (
