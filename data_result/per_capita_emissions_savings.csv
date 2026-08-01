@@ -1,0 +1,89 @@
+panel,spec,label,uptake,step,value_Mt,n_countries,population_2022,per_capita_t,per_capita_kg
+A_1yr_no_mortality,baseline_mean_ci,Baseline,max_uptake,naive_reductions,113.20230468420749,53,1208896546.5,0.09364101916905218,93.64101916905219
+A_1yr_no_mortality,baseline_mean_ci,Baseline,max_uptake,rebound_effect,58.974185742949516,53,1208896546.5,0.0487834843384173,48.7834843384173
+A_1yr_no_mortality,baseline_mean_ci,Baseline,max_uptake,actual_food_savings,54.22811894125797,53,1208896546.5,0.04485753483063488,44.857534830634876
+A_1yr_no_mortality,baseline_mean_ci,Baseline,max_uptake,manufacturing,1.3326121641356403,53,1208896546.5,0.0011023376383974476,1.1023376383974475
+A_1yr_no_mortality,baseline_mean_ci,Baseline,max_uptake,net_savings,52.89550677712233,53,1208896546.5,0.04375519719223743,43.75519719223743
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,max_uptake,naive_reductions,1067.6286032962093,40,1184637982.0,0.9012277332976897,901.2277332976897
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,max_uptake,rebound_effect,553.3859883802711,40,1184637982.0,0.4671351052293637,467.1351052293638
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,max_uptake,actual_food_savings,514.2426149159382,40,1184637982.0,0.434092628068326,434.09262806832595
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,max_uptake,survivorship,271.6113939949046,40,1184637982.0,0.22927797193902955,229.27797193902953
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,max_uptake,manufacturing,12.477086478018869,40,1184637982.0,0.010532404555317447,10.532404555317449
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,max_uptake,net_savings,230.1541344430148,40,1184637982.0,0.194282251573979,194.28225157397898
+A_1yr_no_mortality,baseline_mean_ci,Baseline,mod_uptake,naive_reductions,58.176597580687556,53,1208896546.5,0.04812371889813117,48.123718898131166
+A_1yr_no_mortality,baseline_mean_ci,Baseline,mod_uptake,rebound_effect,30.394579455113583,53,1208896546.5,0.025142415654269206,25.142415654269207
+A_1yr_no_mortality,baseline_mean_ci,Baseline,mod_uptake,actual_food_savings,27.78201812557397,53,1208896546.5,0.02298130324386196,22.98130324386196
+A_1yr_no_mortality,baseline_mean_ci,Baseline,mod_uptake,manufacturing,0.6970286943713602,53,1208896546.5,0.0005765825838359777,0.5765825838359776
+A_1yr_no_mortality,baseline_mean_ci,Baseline,mod_uptake,net_savings,27.084989431202608,53,1208896546.5,0.02240472066002598,22.404720660025983
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,mod_uptake,naive_reductions,548.007131384912,40,1184637982.0,0.46259459827526617,462.59459827526615
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,mod_uptake,rebound_effect,284.8184123892065,40,1184637982.0,0.24042654103353453,240.42654103353453
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,mod_uptake,actual_food_savings,263.1887189957055,40,1184637982.0,0.2221680572417317,222.16805724173167
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,mod_uptake,survivorship,143.66638955211727,40,1184637982.0,0.121274508951307,121.27450895130698
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,mod_uptake,manufacturing,6.521615822057919,40,1184637982.0,0.005505155094763727,5.505155094763726
+B_10yr_with_survivorship,baseline_mean_ci,Baseline,mod_uptake,net_savings,113.00071362153034,40,1184637982.0,0.09538839319566096,95.38839319566097
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,max_uptake,naive_reductions,50.83340729162107,53,1208896546.5,0.042049427172899174,42.04942717289917
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,max_uptake,rebound_effect,26.166864048121298,53,1208896546.5,0.021645246753231002,21.645246753231003
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,max_uptake,actual_food_savings,24.666543243499778,53,1208896546.5,0.020404180419668176,20.404180419668176
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,max_uptake,manufacturing,1.3326121641356403,53,1208896546.5,0.0011023376383974476,1.1023376383974475
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,max_uptake,net_savings,23.333931079364138,53,1208896546.5,0.01930184278127073,19.30184278127073
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,max_uptake,naive_reductions,479.6786243524308,40,1184637982.0,0.4049157900058204,404.9157900058204
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,max_uptake,rebound_effect,245.70287002983136,40,1184637982.0,0.20740755721424384,207.40755721424384
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,max_uptake,actual_food_savings,233.97575432259947,40,1184637982.0,0.19750823279157656,197.50823279157655
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,max_uptake,survivorship,210.11023222510462,40,1184637982.0,0.17736239713535087,177.36239713535088
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,max_uptake,manufacturing,12.477086478018869,40,1184637982.0,0.010532404555317447,10.532404555317449
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,max_uptake,net_savings,11.388435619475972,40,1184637982.0,0.009613431100908237,9.613431100908237
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,mod_uptake,naive_reductions,26.124674718757323,53,1208896546.5,0.02161034771287381,21.61034771287381
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,mod_uptake,rebound_effect,13.486584624754522,53,1208896546.5,0.011156111466941412,11.156111466941413
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,mod_uptake,actual_food_savings,12.638090094002802,53,1208896546.5,0.0104542362459324,10.4542362459324
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,mod_uptake,manufacturing,0.6970286943713602,53,1208896546.5,0.0005765825838359777,0.5765825838359776
+A_1yr_no_mortality,baseline_p10_ci,All foods P10 CI,mod_uptake,net_savings,11.941061399631442,53,1208896546.5,0.009877653662096421,9.877653662096423
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,mod_uptake,naive_reductions,246.22397761276463,40,1184637982.0,0.20784744483464032,207.8474448346403
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,mod_uptake,rebound_effect,126.46517572581904,40,1184637982.0,0.10675428075698744,106.75428075698744
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,mod_uptake,actual_food_savings,119.75880188694559,40,1184637982.0,0.10109316407765287,101.09316407765287
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,mod_uptake,survivorship,111.21558266167312,40,1184637982.0,0.09388149320850758,93.88149320850758
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,mod_uptake,manufacturing,6.521615822057919,40,1184637982.0,0.005505155094763727,5.505155094763726
+B_10yr_with_survivorship,baseline_p10_ci,All foods P10 CI,mod_uptake,net_savings,2.021603403214542,40,1184637982.0,0.001706515774381563,1.706515774381563
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,max_uptake,naive_reductions,211.77204162117076,53,1208896546.5,0.17517796889592716,175.17796889592714
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,max_uptake,rebound_effect,110.65343360474522,53,1208896546.5,0.09153259137443091,91.53259137443092
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,max_uptake,actual_food_savings,101.11860801642554,53,1208896546.5,0.08364537752149624,83.64537752149624
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,max_uptake,manufacturing,1.3326121641356403,53,1208896546.5,0.0011023376383974476,1.1023376383974475
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,max_uptake,net_savings,99.7859958522899,53,1208896546.5,0.0825430398830988,82.5430398830988
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,max_uptake,naive_reductions,1997.153013047173,40,1184637982.0,1.685876228343971,1685.876228343971
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,max_uptake,rebound_effect,1038.213189388195,40,1184637982.0,0.8763970134026944,876.3970134026944
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,max_uptake,actual_food_savings,958.9398236589782,40,1184637982.0,0.8094792149412766,809.4792149412767
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,max_uptake,survivorship,368.813920280211,40,1184637982.0,0.3113304873591424,311.3304873591424
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,max_uptake,manufacturing,12.477086478018869,40,1184637982.0,0.010532404555317447,10.532404555317449
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,max_uptake,net_savings,577.6488169007483,40,1184637982.0,0.4876163230268168,487.6163230268168
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,mod_uptake,naive_reductions,108.82266316445735,53,1208896546.5,0.09001817688992575,90.01817688992575
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,mod_uptake,rebound_effect,57.024438571104156,53,1208896546.5,0.047170652225123344,47.17065222512335
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,mod_uptake,actual_food_savings,51.7982245933532,53,1208896546.5,0.042847524664802406,42.8475246648024
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,mod_uptake,manufacturing,0.6970286943713602,53,1208896546.5,0.0005765825838359777,0.5765825838359776
+A_1yr_no_mortality,baseline_p90_ci,All foods P90 CI,mod_uptake,net_savings,51.10119589898184,53,1208896546.5,0.04227094208096643,42.27094208096643
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,mod_uptake,naive_reductions,1025.0200730495692,40,1184637982.0,0.8652601795858755,865.2601795858754
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,mod_uptake,rebound_effect,534.3004825460689,40,1184637982.0,0.4510242712664171,451.0242712664171
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,mod_uptake,actual_food_savings,490.7195905035002,40,1184637982.0,0.4142359083194584,414.2359083194584
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,mod_uptake,survivorship,194.96076933730174,40,1184637982.0,0.1645741334480543,164.57413344805428
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,mod_uptake,manufacturing,6.521615822057919,40,1184637982.0,0.005505155094763727,5.505155094763726
+B_10yr_with_survivorship,baseline_p90_ci,All foods P90 CI,mod_uptake,net_savings,289.2372053441406,40,1184637982.0,0.2441566197766404,244.15661977664038
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,naive_reductions,34.90067661253114,53,1208896546.5,0.028869862118123885,28.869862118123887
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,rebound_effect,18.217416497137222,53,1208896546.5,0.015069458631410874,15.069458631410875
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,actual_food_savings,16.683260115393917,53,1208896546.5,0.013800403486713011,13.80040348671301
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,manufacturing,1.3326121641356403,53,1208896546.5,0.0011023376383974476,1.1023376383974475
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,net_savings,15.350647951258278,53,1208896546.5,0.012698065848315563,12.698065848315563
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,naive_reductions,329.35988676657865,40,1184637982.0,0.27802576970436754,278.0257697043675
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,rebound_effect,171.17696700917998,40,1184637982.0,0.14449728069682977,144.4972806968298
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,actual_food_savings,158.1829197573987,40,1184637982.0,0.13352848900753775,133.52848900753773
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,survivorship,210.11023222510462,40,1184637982.0,0.17736239713535087,177.36239713535088
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,manufacturing,12.477086478018869,40,1184637982.0,0.010532404555317447,10.532404555317449
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,max_uptake,net_savings,-64.4043989457248,40,1184637982.0,-0.054366312683130566,-54.366312683130566
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,naive_reductions,17.939433927250086,53,1208896546.5,0.014839511270992027,14.839511270992027
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,rebound_effect,9.384697453230547,53,1208896546.5,0.00776302776312923,7.763027763129231
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,actual_food_savings,8.55473647401954,53,1208896546.5,0.007076483507862797,7.076483507862797
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,manufacturing,0.6970286943713602,53,1208896546.5,0.0005765825838359777,0.5765825838359776
+A_1yr_no_mortality,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,net_savings,7.85770777964818,53,1208896546.5,0.006499900924026819,6.499900924026819
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,naive_reductions,169.09445376298632,40,1184637982.0,0.1427393485033357,142.7393485033357
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,rebound_effect,88.06537472229189,40,1184637982.0,0.07433948266086567,74.33948266086566
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,actual_food_savings,81.02907904069444,40,1184637982.0,0.06839986584247004,68.39986584247005
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,survivorship,111.21558266167312,40,1184637982.0,0.09388149320850758,93.88149320850758
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,manufacturing,6.521615822057919,40,1184637982.0,0.005505155094763727,5.505155094763726
+B_10yr_with_survivorship,cereal_sweets_up_p10_ci,Cereals/sweets + all-food P10 CI,mod_uptake,net_savings,-36.7081194430366,40,1184637982.0,-0.030986782460801263,-30.98678246080126

@@ -74,6 +74,7 @@ legacy/data/.Rhistory
 !/data_result/global_emissions_waterfall_1yr.csv
 !/data_result/sensitivity_suite.csv
 !/data_result/ratio_table_before_after_drug.csv
+!/data_result/per_capita_emissions_savings.csv
 # Required input to the food side: compute_food_savings raises without it, so a
 # clean clone cannot run the model unless this is tracked. Rebuildable only from
 # final_df_imputed.pkl, which is itself a committed artifact.
