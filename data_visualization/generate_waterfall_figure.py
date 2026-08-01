@@ -50,6 +50,20 @@ from .pipeline import compute_food_savings, load_mortality_emissions, output_pat
 SCENARIO = "max_uptake"
 HORIZON_YEARS = 10
 
+# ── Mortality-channel state, recorded into the output CSV ─────────────
+#
+# Panel B is the fully-weighted case: all three channels on. Recorded next to
+# the numbers because horizon alone does not distinguish this artefact from
+# Panel A -- the panels differ by weighting state as well as by horizon, and
+# that is the distinction a reader is most likely to get wrong.
+FOOD_SURVIVAL_WEIGHTED = True
+
+# The pharmaceutical channel arrives already pi_dose-weighted: drug emissions
+# come from compute_breakeven's total_drug_emissions_10yr, not from
+# drug_footprint's unweighted drug_emissions_1yr_t (which is what Panel A uses,
+# correctly, having all channels off).
+DRUG_SURVIVAL_WEIGHTED = True
+
 # Muted publication palette
 COLOR_START = "#4C72B0"
 COLOR_DECREASE = "#C44E52"
@@ -58,7 +72,11 @@ COLOR_NET = "#55A868"
 
 def compute_waterfall_components() -> pd.DataFrame:
     """Compute the waterfall components in Mt CO2e over 10 years."""
-    food_savings, detail = compute_food_savings()
+    # Passed explicitly rather than left to the default so the value recorded in
+    # the CSV cannot drift from the value actually used.
+    food_savings, detail = compute_food_savings(
+        survival_weighted=FOOD_SURVIVAL_WEIGHTED
+    )
     mort = load_mortality_emissions()
     be = compute_breakeven(food_savings, mort, include_drug=True)
     valid = _complete_data_subset(be, scenario=SCENARIO)
@@ -161,6 +179,11 @@ def compute_waterfall_components() -> pd.DataFrame:
     out["n_countries"] = len(complete_isos)
     out["scenario"] = SCENARIO
     out["horizon_years"] = HORIZON_YEARS
+    out["food_survival_weighted"] = FOOD_SURVIVAL_WEIGHTED
+    out["drug_survival_weighted"] = DRUG_SURVIVAL_WEIGHTED
+    # Derived, not asserted: the panel has a survivorship channel iff it draws
+    # a survivorship step.
+    out["survivor_emissions_included"] = "survivorship" in set(out["step"])
     return out
 
 

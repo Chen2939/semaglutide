@@ -11,8 +11,13 @@ GATES, all declared before the run:
       path is arithmetically the same. This is a value read and compared, not
       re-derived from separately-parsed components.
 
-  N2  survival_weighted=False vs the HEAD pipeline. Bar: exactly 0.0. This is the
-      legacy lever and must be a strict no-op.
+  N2  survival_weighted=False vs the HEAD pipeline. Bar: exactly 0.0.
+      This began as the legacy lever. It is now a PRODUCTION PATH: Panel A of
+      the emissions waterfall (generate_waterfall_1yr_figure) is built with
+      survival_weighted=False as its no-mortality counterfactual, so this gate
+      no longer guards a reproducibility toggle -- it guards a published figure.
+      A regression here changes the manuscript, not just a test, and it changes
+      it to a number that still looks reasonable. Must remain a strict no-op.
 
   N3  result_df's unsuffixed columns at pi == 1.0 vs HEAD, for every shared
       numeric column. Bar: exactly 0.0. Catches a year-1 wiring mistake that

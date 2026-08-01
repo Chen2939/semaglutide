@@ -4,19 +4,41 @@ Global emissions waterfall / bridge plot — Panel A: one-year, no survivorship.
 Companion to ``generate_waterfall_figure`` (the 10-year decomposition, which
 includes survivorship emissions for the 35-country OECD complete-data subset).
 
-This version (Panel A) shows a single year of the maximum-uptake climate result
-and deliberately excludes survivorship emissions. Because it does not use
-survivor emissions or mortality at all, it is not gated by OECD/HLD coverage and
-therefore uses the FULL 53-country food-data sample (every country with real
-food-emission savings under maximum uptake):
+Panel A is a **no-mortality counterfactual**: the maximum-uptake climate result
+with all three of the model's mortality channels switched off.
 
-    naïve food-emission reductions (1 year)
-  − rebound offset (1 year)
-  − manufacturing (drug) emissions (1 year)
-  = net climate savings (1 year)
+    1. food-side survival weighting pi(t)         OFF
+    2. pharmaceutical-side weighting pi_dose(t)   OFF
+    3. survivor emissions                         OFF (no bar in this panel)
 
-Only the food side and one year of pharmaceutical manufacturing are needed, so
-no imputation of survivor emissions or mortality is involved.
+Mechanically that is the first year's shock solved with the weighting disabled:
+``compute_food_savings(survival_weighted=False)`` runs ``years=[1]`` with the
+pi vector set to exact 1.0, through the same solver the weighted path uses. It
+is not an evaluation at a zero timepoint -- there is no year-0 row in the
+survival-weight table and none is needed.
+
+    naïve food-emission reductions
+  − rebound offset
+  − manufacturing (drug) emissions
+  = net climate savings
+
+**Do not "fix" the drug side to use a survival-weighted column.** It reads
+``drug_emissions_1yr_t``, which is ``treated_users_initial x kg_per_user_year``
+with no survival applied, and unweighted is *correct here*: channel 2 is off by
+the same decision that switches off channel 1. The weighted column
+(``drug_emissions_t_Y1``, equal to breakeven's ``annual_drug_emissions_t``) is
+the right one everywhere else in the tree, and swapping it in here would restore
+exactly the mismatch this panel was rebuilt to remove -- a weighted drug side
+against an unweighted food side.
+
+This panel is why the combination matters more than any single channel. It was
+previously current and internally inconsistent, not stale: the food side picked
+up pi(t) when weighting was introduced at source, the drug side did not, and the
+output stayed entirely plausible.
+
+Because no survivor emissions or mortality data are read, the panel is not gated
+by OECD/HLD coverage and uses the FULL 53-country food-data sample (every
+country with real food-emission savings under maximum uptake).
 
 Output:
   figures/global_emissions_waterfall_1yr.png
@@ -40,6 +62,26 @@ from .pipeline import compute_food_savings, output_path
 SCENARIO = "max_uptake"
 HORIZON_YEARS = 1
 
+# ── Mortality-channel state, recorded into the output CSV ─────────────
+#
+# horizon_years alone does not say what the number means: Panel A and Panel B
+# differ by which mortality channels are switched on, not only by horizon. The
+# artefact records that state so a reader does not have to infer it from the
+# module, which is what let a weighted food side sit against an unweighted drug
+# side here without anyone noticing.
+FOOD_SURVIVAL_WEIGHTED = False
+
+# The choice of drug column IS the pharmaceutical channel's state, so the flag
+# is looked up from the column name rather than asserted alongside it. Swap the
+# column and the recorded state follows automatically -- meaning a future swap
+# back to the weighted column would announce itself in the CSV as a food/drug
+# mismatch instead of hiding.
+DRUG_COLUMN = "drug_emissions_1yr_t"
+DRUG_COLUMN_IS_WEIGHTED = {
+    "drug_emissions_1yr_t": False,  # users_initial x kg, no survival applied
+    "drug_emissions_t_Y1": True,    # pi_dose-weighted year 1
+}
+
 # Muted publication palette (matches the 10-year figure)
 COLOR_START = "#4C72B0"
 COLOR_DECREASE = "#C44E52"
@@ -53,7 +95,13 @@ def compute_waterfall_components() -> pd.DataFrame:
     food-emission savings under the scenario. Survivor emissions and mortality
     are not used, so there is no OECD/HLD coverage gate.
     """
-    food_savings, detail = compute_food_savings()
+    # survival_weighted=False is the no-mortality counterfactual: years=[1] with
+    # the pi vector set to exact 1.0, through the same solver the weighted path
+    # uses (pipeline.py: years/pi_by_year). Gated at exactly 0.0 against the
+    # pre-pi pipeline by null_check_pi.py gate N2.
+    food_savings, detail = compute_food_savings(
+        survival_weighted=FOOD_SURVIVAL_WEIGHTED
+    )
 
     # Full food-data sample: countries with real food savings in this scenario.
     food_scenario = food_savings[
@@ -88,7 +136,12 @@ def compute_waterfall_components() -> pd.DataFrame:
     drug_scenario = drug[
         (drug["scenario"] == SCENARIO) & (drug["ISO"].isin(sample_isos))
     ]
-    drug_annual = drug_scenario["drug_emissions_1yr_t"].sum()
+    # Unweighted by design -- see the module docstring. drug_emissions_1yr_t is
+    # users_initial x kg_per_user_year with no survival applied, which is the
+    # correct column for a panel with every mortality channel off. Do not swap
+    # in drug_emissions_t_Y1; that is the weighted column the rest of the tree
+    # uses and it would put a weighted drug side against an unweighted food side.
+    drug_annual = drug_scenario[DRUG_COLUMN].sum()
 
     # Net one-year savings: food savings after rebound, minus drug emissions.
     # Survivorship emissions are intentionally excluded from this figure.
@@ -137,6 +190,11 @@ def compute_waterfall_components() -> pd.DataFrame:
     out["n_countries"] = len(sample_isos)
     out["scenario"] = SCENARIO
     out["horizon_years"] = HORIZON_YEARS
+    out["food_survival_weighted"] = FOOD_SURVIVAL_WEIGHTED
+    out["drug_survival_weighted"] = DRUG_COLUMN_IS_WEIGHTED[DRUG_COLUMN]
+    # Derived, not asserted: the panel has a survivorship channel iff it draws
+    # a survivorship step.
+    out["survivor_emissions_included"] = "survivorship" in set(out["step"])
     return out
 
 
@@ -250,9 +308,7 @@ def plot_waterfall(components: pd.DataFrame) -> str:
 
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=9)
-    # "Year 1" rather than "1 year": under survival weighting the annual saving
-    # is not constant, so this is the first year of the series, not a typical one.
-    ax.set_ylabel("Mt CO$_2$eq in year 1", fontsize=10)
+    ax.set_ylabel("Mt CO$_2$eq per year, mortality effects excluded", fontsize=10)
     ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.set_ylim(0, max(hi for _, hi in levels) * 1.16)
     ax.tick_params(axis="both", labelsize=9)

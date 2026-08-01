@@ -3,14 +3,19 @@ Combined two-panel emissions waterfall figure.
 
 Stacks the two waterfall variants into a single image:
 
-  Panel A (top)    — one-year horizon, no survivorship, full 53-country
-                     food-data sample (from ``generate_waterfall_1yr_figure``).
-  Panel B (bottom) — 10-year horizon, includes survivorship, 35-country OECD
+  Panel A (top)    — no-mortality counterfactual: an annual rate with all three
+                     mortality channels off (food-side pi, pharmaceutical-side
+                     pi_dose, survivor emissions), full 53-country food-data
+                     sample (from ``generate_waterfall_1yr_figure``).
+  Panel B (bottom) — 10-year cumulative, includes survivorship, 35-country OECD
                      complete-data subset (from ``generate_waterfall_figure``).
 
-Each panel keeps its own y-axis scale; the horizon is encoded in the y-axis
-label ("over 1 year" vs "over 10 years") and the survivorship difference is
-visible as the extra downward step in Panel B.
+Each panel keeps its own y-axis scale. The two panels are not the same quantity
+over different horizons, so the y-axis labels carry the distinction: Panel A is
+a per-year rate with mortality excluded, Panel B a 10-year cumulative total with
+survivorship included, visible as its extra downward step. Panel A's label must
+not imply elapsed time -- it is a rate under a counterfactual, not a year of the
+modelled series.
 
 Styling matches the standalone figures: red reduction labels, no callout
 arrows, full panel border, no per-panel title (only the A/B labels).
@@ -163,7 +168,7 @@ def plot_combined() -> str:
     )
 
     fig, (ax_a, ax_b) = plt.subplots(2, 1, figsize=(9.5, 11.2))
-    draw_waterfall(ax_a, comp_a, "Mt CO$_2$eq over 1 year", "A")
+    draw_waterfall(ax_a, comp_a, "Mt CO$_2$eq per year, mortality effects excluded", "A")
     draw_waterfall(ax_b, comp_b, "Mt CO$_2$eq over 10 years", "B")
 
     fig.tight_layout(h_pad=3.0)

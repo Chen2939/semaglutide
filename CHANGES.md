@@ -338,6 +338,35 @@ independent of the food fixes).
   `shutil.copy`'d the figure onto itself and raised `SameFileError` (exit 1)
   after the figure was already written; guarded so the copy only runs when
   source ≠ destination. Re-run now exits 0.
+- **QUEUED SWEEP: mortality-channel coherence across every published number.**
+  Not a vintage check. The question for each number is **which of the three
+  mortality channels it has switched on** -- (1) food-side survival weighting
+  `pi(t)`, (2) pharmaceutical-side weighting `pi_dose(t)`, (3) survivor
+  emissions -- and whether that combination is coherent for what the number
+  claims to be. Panel A of the emissions waterfall was **current and
+  incoherent, not stale**: it carried channels 1 and 2 in mismatched states and
+  omitted 3, and produced entirely plausible output with no warning. A
+  vintage check would have passed it.
+  Settling an individual number is a **provenance** question rather than an
+  arithmetic one: which script wrote it, what that script's weighting state was
+  at the time of writing, and whether that path still exists in the tree. Where
+  provenance cannot be established, **record that as the finding** rather than
+  inferring it from a ratio.
+  Specifically do **not** record the manuscript's 54.2 Mt as a stale vintage.
+  The test established only that it is unweighted; it did not establish why.
+  Three candidate causes remain and the test does not distinguish them: it
+  predates the survival-weighting change; it came from a path that legitimately
+  does not weight; or it came from a path that weights inconsistently, as
+  Panel A did.
+  *Evidence, not an answer:* **both** manuscript Panel A numbers sit on the
+  unweighted basis, not only the 54.2. Net after manufacturing recomputes to
+  **52.895507**, which rounds to the draft's **53**; the old weighted
+  52.609522 reached 53 only by loose rounding. Nothing was tuned to hit that --
+  the net figure is a by-product of a change made for the food side alone --
+  so it is independent corroboration that the draft's Panel A figures came from
+  **one consistent unweighted basis** rather than from a coincidence on a single
+  cell. It says nothing about *which* of the three causes produced that basis,
+  and it must not be read as upgrading this entry to a settled answer.
 - **Working-tree / untracked** (not part of the clean tree): `outputs/verify_promotion.log`;
   `outputs/fix3/` scratch CSVs (`sensitivity_suite_fix3.csv`,
   `carbon_intensity_meat_p10_fix3.csv`, `delta_verification.csv`,

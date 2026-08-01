@@ -512,6 +512,18 @@ def compute_food_savings(
         saving. See ``data_visualization.survival_weighting``. ``False``
         reproduces the legacy single-solve behaviour, where every treated patient
         eats less forever.
+
+        **``False`` IS A PRODUCTION DEPENDENCY. DO NOT DELETE IT AS DEAD TEST
+        CODE.** It began as a test lever and is no longer one:
+        ``generate_waterfall_1yr_figure`` passes ``survival_weighted=False`` to
+        build Panel A of the emissions waterfall, a published figure, as its
+        no-mortality counterfactual -- all three mortality channels off
+        (food-side ``pi``, pharmaceutical-side ``pi_dose``, survivor emissions).
+        Removing this argument does not break a test; it silently changes a
+        figure in the manuscript from the unweighted basis to the weighted one,
+        and the output stays plausible either way. That is exactly how the
+        mismatch Panel A was rebuilt to remove went unnoticed in the first
+        place. ``null_check_pi.py`` gate N2 pins the behaviour.
     horizon : int
         Years of the per-year series to solve, when ``survival_weighted``.
     survival_weight : DataFrame, optional
