@@ -7,7 +7,7 @@ Stacks the two waterfall variants into a single image:
                      mortality channels off (food-side pi, pharmaceutical-side
                      pi_dose, survivor emissions), full 53-country food-data
                      sample (from ``generate_waterfall_1yr_figure``).
-  Panel B (bottom) — 10-year cumulative, includes survivorship, 35-country OECD
+  Panel B (bottom) — 10-year cumulative, includes survivorship, 40-country OECD
                      complete-data subset (from ``generate_waterfall_figure``).
 
 Each panel keeps its own y-axis scale. The two panels are not the same quantity
@@ -179,7 +179,7 @@ def plot_combined() -> str:
 
 
 def main() -> None:
-    print("Building combined two-panel emissions waterfall (A: 1-year/53; B: 10-year/35)...")
+    print("Building combined two-panel emissions waterfall (A: 1-year/53; B: 10-year/40)...")
     fig_path = plot_combined()
     print(f"Saved figure: {fig_path}")
 

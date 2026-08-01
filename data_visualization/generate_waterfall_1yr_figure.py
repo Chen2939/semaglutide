@@ -2,7 +2,7 @@
 Global emissions waterfall / bridge plot — Panel A: one-year, no survivorship.
 
 Companion to ``generate_waterfall_figure`` (the 10-year decomposition, which
-includes survivorship emissions for the 35-country OECD complete-data subset).
+includes survivorship emissions for the 40-country OECD complete-data subset).
 
 Panel A is a **no-mortality counterfactual**: the maximum-uptake climate result
 with all three of the model's mortality channels switched off.

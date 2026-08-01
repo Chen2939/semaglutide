@@ -12,7 +12,7 @@ countries into a continuous bridge:
 
 Reconciliation with ``breakeven_stock_all_countries``
 -----------------------------------------------------
-These two figures describe the same 35-country, 10-year result and their
+These two figures describe the same 40-country, 10-year result and their
 Year-10 endpoints match exactly; they only differ in where the drug
 (manufacturing) term is placed:
 
