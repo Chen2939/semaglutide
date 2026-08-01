@@ -27,3 +27,13 @@ reference/*.csv -filter -diff -merge -text
 # reasoning: compute_food_savings raises without it, so it must survive a clone
 # made without LFS. Small (about 106 KB) and plain text.
 data_result/food_shock_survival_weight.csv -filter -diff -merge -text
+
+# Manuscript before/after-drug ratio table, written by scripts/build_ratio_table.py.
+# Kept out of LFS for a different reason from the ones above: this table exists to
+# be READ IN REVIEW. Its whole purpose is that a reader can see which ratios moved
+# between runs, and in LFS `git diff` shows an opaque OID change instead of the
+# numbers. At about 2 KB the pointer is a similar size to the content. Reversing
+# this is one line, but the review cost is real -- comparing a committed
+# data_result CSV against HEAD during this branch's work returned a 128-byte
+# pointer and came close to being compared as if it were data.
+data_result/ratio_table_before_after_drug.csv -filter -diff -merge -text
