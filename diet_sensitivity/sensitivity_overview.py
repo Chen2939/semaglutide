@@ -25,6 +25,7 @@ Usage:
 
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 from typing import Dict
 
@@ -186,10 +187,53 @@ def summarize_max_uptake(results: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def append_country_count_note(path: Path, summary: pd.DataFrame) -> str:
+    """Append a trailing note naming the country count behind every row.
+
+    The totals are summed over complete-data countries only -- those with a
+    finite ratio, positive food savings and positive survivor emissions -- so
+    ``annual_food_savings_Mt`` is neither a global total nor gross of
+    pharmaceutical manufacturing. That is not evident from the column name, and
+    the count is easy to miss sitting in a column, so it is restated on the face
+    of the table.
+
+    The note is prefixed ``#`` because it lands in the ``overview_scenario``
+    column: without a comment marker a reader filtering that column for
+    non-null values picks the note up as a seventh scenario. ``pd.read_csv(...,
+    comment="#")`` drops it and returns the six data rows.
+
+    The text must therefore stay free of commas. A comma would make
+    ``csv.writer`` quote the field, the line would begin with ``"`` instead of
+    ``#``, and the comment marker would stop working while still looking
+    correct. ``QUOTE_NONE`` turns that into an immediate error rather than a
+    silent regression, and it also keeps Excel from splitting the note across
+    cells.
+    """
+    counts = sorted(int(c) for c in summary["n_complete_countries"].unique())
+    if len(counts) == 1:
+        scope = f"N = {counts[0]} countries"
+    else:
+        scope = ("N varies by scenario ("
+                 + "/".join(str(c) for c in counts)
+                 + " countries; see the n_complete_countries column)")
+    note = (
+        f"# Note: {scope}. Countries lacking survivor-emissions data are excluded "
+        "so that the ratio's numerator and denominator cover the same set. "
+        "annual_food_savings_Mt is net of drug manufacturing emissions and is "
+        "therefore smaller than the global food-savings total."
+    )
+    with open(path, "a", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh, quoting=csv.QUOTE_NONE)
+        writer.writerow([])
+        writer.writerow([note])
+    return note
+
+
 def save_outputs(results: pd.DataFrame, summary: pd.DataFrame) -> tuple[Path, Path]:
     """Save summary and country-level wide ratio tables."""
     out_summary = output_path("all_sensitivity_overview_results.csv")
     summary.to_csv(out_summary, index=False)
+    append_country_count_note(out_summary, summary)
 
     wide = (
         results[results["scenario"] == "max_uptake"]
