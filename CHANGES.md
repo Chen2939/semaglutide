@@ -367,6 +367,14 @@ independent of the food fixes).
   **one consistent unweighted basis** rather than from a coincidence on a single
   cell. It says nothing about *which* of the three causes produced that basis,
   and it must not be read as upgrading this entry to a settled answer.
+- **OPEN, AND IT MOVES PUBLISHED NUMBERS: the simulated BMI distribution does
+  not reproduce its NCD-RisC input.** Measured, not fixed. The smoothing chain in
+  `fit_bmi_mixture()` flattens each stratum's distribution toward the 1/7 uniform
+  share, inflating population-weighted BMI >= 30 by **+1.57 pp (+5.82% relative)**
+  and by 36% relative in Japan and 35% in Korea. That inflates the eligible
+  population and therefore every food-savings, mortality and emissions number
+  downstream. Full measurement and its declared bars in the section below; nothing
+  was changed and the remedy is an open decision.
 - **Working-tree / untracked** (not part of the clean tree): `outputs/verify_promotion.log`;
   `outputs/fix3/` scratch CSVs (`sensitivity_suite_fix3.csv`,
   `carbon_intensity_meat_p10_fix3.csv`, `delta_verification.csv`,
@@ -1315,6 +1323,109 @@ and `breakeven_flow_all_countries.png`).
 
 ---
 
+## The simulated BMI distribution does not reproduce its NCD-RisC input — MEASURED, NOT FIXED
+
+> **Unresolved.** This is a measurement of the upstream R stage, not a
+> correction. Nothing was changed and no output was regenerated. The remedy is a
+> separate decision. Recorded here because it moves published numbers.
+
+**What was tested.** `fit_bmi_mixture()` in `legacy/R_scripts/Data_Cleaning9.8.R`
+(line 316) does not fit a distribution to the NCD-RisC category shares. It draws
+skew-normal components at fixed midpoints `c(17, 19.25, 22.5, 27.5, 32.5, 37.5,
+42.5)` with `scale = width/2.5`, concatenates them in the observed proportions,
+runs a KDE (`dpik` bandwidth, `range.x = c(13, 60)`), and applies a
+moving-average smoother of width `max(7, round(15 * max(props) / 0.4))` grid
+cells. Every one of those stages moves mass across the category boundaries. The
+question is whether the population that comes out still carries the proportions
+that went in.
+
+**Bars, declared before the run.** Fail if the population-weighted realized
+BMI >= 30 share differs from target by more than **1.0 pp**; fail if any
+category's mean deviation across strata exceeds **2 standard errors** from zero.
+Noise floor: at 500 individuals per stratum a realized share near 0.05 has a
+binomial sd of 0.98 pp, so individual per-stratum deviations under roughly 2 pp
+are expected and mean nothing — the signal is a systematic mean across strata.
+
+**Method.** Baseline `bmi`, never `new_bmi`. `max_uptake` only (the saved object
+binds both scenarios and each individual appears twice; baseline `bmi` was
+verified bit-identical across the two, and 1,890,000 rows halve to 945,000
+exactly). Binned on `c(0, 18.5, 20, 25, 30, 35, 40, Inf)`, left-closed. Compared
+at **ISO x Sex x Age_Group**, the level the mixture was fitted at, because
+aggregating first lets opposing errors cancel. NCD-RisC side filtered
+`Year > 2021` as the R script does, which keeps 2022 alone; its seven shares sum
+to 1.00000000 on every row. **1,890 strata matched with zero asymmetry** — 63
+ISO x 2 sexes x 15 age groups, nothing present on one side and missing on the
+other.
+
+**Result — FAIL on both bars.**
+
+Per-category mean deviation across the 1,890 strata (realized − target, pp):
+
+| category | mean | SE | t | n > +2pp | n < −2pp |
+|---|--:|--:|--:|--:|--:|
+| under 18.5 | +1.6981 | 0.0327 | +51.97 | 624 | 0 |
+| 18.5–20 | +1.3481 | 0.0334 | +40.33 | 580 | 44 |
+| 20–25 | −2.3054 | 0.0881 | −26.18 | 221 | 902 |
+| 25–30 | −2.3087 | 0.0776 | −29.76 | 215 | 1057 |
+| 30–35 | +0.4407 | 0.0491 | +8.97 | 430 | 247 |
+| 35–40 | +1.6369 | 0.0372 | +44.04 | 666 | 7 |
+| >= 40 | −0.5096 | 0.0307 | −16.62 | 13 | 166 |
+| **>= 30** | **+1.5679** | 0.0525 | **+29.89** | 813 | 118 |
+
+All seven categories sit 9 to 52 standard errors from zero. This is not binomial
+noise. Population-weighted over the modelled 1.00 billion people, **BMI >= 30 is
+0.28467 realized against 0.26901 target: +1.57 pp absolute, +5.82% relative.**
+Per country, **51 of 63 overstate by more than 1.0 pp and only 2 understate by
+more than 1.0 pp** — ASM (−1.76) and NRU (−1.09), the two highest-obesity
+countries in the set.
+
+**The mechanism is flattening toward uniform, not outward leakage from the 25–30
+bin.** Deviation is a near-linear decreasing function of the target share: over
+13,230 stratum-category cells, corr = **−0.684**, deciles run monotonically from
++0.79 pp in the sparsest to **−5.64 pp** in the densest, and the OLS zero-crossing
+sits at target share **0.142857 — which is 1/7, the uniform share across seven
+categories, to six decimals.** Every category holding more than 1/7 of the mass
+loses; every category holding less gains. That is why 20–25 and 25–30 lose
+equally rather than the second leaking into the first, and why the largest single
+gainer is `under 18.5`. `>= 40` is the one category moving against the pattern
+(−0.51 pp on a 0.039 share); it is the boundary bin, where the `range.x` cap, the
+0.001/0.999 trim and the boxcar filter's zeroed edge NAs all act before
+renormalisation. **This run does not isolate which of the four smoothing stages
+contributes what** — that is a separate diagnostic and the attribution above is
+deliberately not claimed as settled.
+
+**Consequence for published numbers.** Eligibility is `bmi >= 30`, or `bmi >= 27`
+with type-2 diabetes, so an inflated obese share inflates the treated population
+and every food-savings, mortality and emissions number computed from it. Because
+flattening is a relative-error amplifier at low shares, the damage is worst
+exactly where obesity is lowest: **JPN +36.2% and KOR +35.4% relative** on the
+BMI >= 30 share, then TWN +22.4%, FRA +19.5%, SWE +18.1%. `[SETH: whether this
+warrants refitting the mixture, resampling from the empirical category shares
+directly, or a stated caveat — not a call this measurement makes.]`
+
+**What could not be checked.** The NCD-RisC age-specific country BMI files carry
+only category prevalences and their uncertainty intervals; **there is no mean BMI
+column**, and no mean-BMI file is present in the `Lancet` directory or read by
+the R script. So the complementary failure mode — right shares, wrong mean, or
+the reverse — cannot be distinguished from this source. Simulated side alone:
+population-weighted mean BMI 27.1164, per-stratum range 20.41 to 36.94.
+
+**Verification.** `diagnostics/bmi_mixture_reproduction_check.py`, read-only;
+writes `diagnostics/reports/bmi_mixture_reproduction_check.md` plus per-stratum
+detail in `diagnostics/bmi_mixture_realized_shares.csv` (both gitignored). The
+NCD-RisC inputs are **not in this repository** — `/Lancet/` is gitignored and
+absent, as the README's "Known gaps and warts" records — so the script reads them
+from the researcher's canonical store and takes a `LANCET_DIR` override.
+`test/full_simulation_results8.rds`, the save path at line 585 of the R script,
+does not exist; the root `.rds` (the line-637 load path) and
+`final_df_imputed.pkl` were verified to carry a bit-identical baseline `bmi`
+vector, which establishes the root `.rds` as what is upstream of the Python
+pipeline.
+
+**Commit(s).** None. Diagnostic added, no model or pipeline code touched.
+
+---
+
 ## How to reproduce
 
 ```
@@ -1399,6 +1510,11 @@ PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.imputation_and_drug_populati
 
 # sign of (pi - pi_dose) elementwise, and which way substituting pi moves the drug
 PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_pi_dose_direction
+
+# simulated BMI shares against the NCD-RisC input they were drawn to reproduce
+#   (read-only; needs the NCD-RisC CSVs, which are not in this repository --
+#    set LANCET_DIR if they are not at the default canonical-store path)
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.bmi_mixture_reproduction_check
 
 # full regeneration, then refresh + verify the reference snapshots
 sh diagnostics/run_full_pass.sh

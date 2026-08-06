@@ -1,6 +1,6 @@
 # Semaglutide Population Impact Analysis
 
-Modelling the population-level impact of broad semaglutide (GLP-1 weight-loss drug) adoption on food demand, mortality, and greenhouse-gas emissions across ~200 countries.
+Modelling the population-level impact of broad semaglutide (GLP-1 weight-loss drug) adoption on food demand, mortality, and greenhouse-gas emissions across the 63 World Bank high-income countries.
 
 ## Research Question
 
@@ -197,7 +197,7 @@ uses it for.
 
 ### Step 1 — R Simulation (upstream, pre-computed)
 
-`Data_Cleaning9.8.R` (now in `legacy/R_scripts/`) generates the synthetic population with baseline and treated BMI, caloric intake, and demographics for ~200 countries. Its output is the `.rds` file consumed by subsequent steps:
+`Data_Cleaning9.8.R` (now in `legacy/R_scripts/`) generates the synthetic population with baseline and treated BMI, caloric intake, and demographics for the 63 World Bank 2022 high-income countries (`Income == "H"`). Its output is the `.rds` file consumed by subsequent steps:
 
 - **Output:** `full_simulation_results8.rds`
 
@@ -206,6 +206,8 @@ uses it for.
 - **Outputs:** `mortality2.rds`, `final_df_imputed.rds`
 
 > These R scripts have already been run. The `.rds` outputs are required datasets (see below).
+
+> **Caveat on the BMI distribution.** The mixture step that turns the NCD-RisC category shares into continuous BMI values does not reproduce those shares: it inflates the population-weighted BMI >= 30 share by 1.57 pp (+5.82% relative, and +36% in Japan). Measured, not fixed. See "Known gaps and warts".
 
 ### Step 2 — Carbon Intensity Build
 
@@ -620,7 +622,9 @@ included here, and none is read at runtime by the Python analysis.
 ### `full_simulation_results8.rds`
 > **Location:** project root
 
-Full synthetic population output from `Data_Cleaning9.8.R`. Contains ~945,000 simulated individuals with baseline/treated BMI, caloric intake, demographics, and population weights for ~200 countries. Required by both notebooks.
+Full synthetic population output from `Data_Cleaning9.8.R`. 1,890,000 rows: 945,000 simulated individuals, each appearing twice because the two uptake scenarios are bound together, with baseline/treated BMI, caloric intake, demographics, and population weights. Required by both notebooks.
+
+Measured directly off the file: **63 countries**, not ~200 — the R script filters to World Bank 2022 high income (`Income == "H"`) — across 2 sexes and 15 NCD-RisC age groups, giving 1,890 strata of exactly 500 individuals each, and one `weighting` value (`Population / 500`) per stratum. Baseline `bmi` is bit-identical across the two scenarios, so a distributional check must take one scenario only. `final_df_imputed.pkl` carries the same baseline `bmi` vector bit-for-bit, plus `Age`, `mortality_rate` and `Year`. Note the R script saves to `test/full_simulation_results8.rds` (line 585) but loads from the project root (line 637); the `test/` copy does not exist, and the root copy is what is upstream of the Python pipeline.
 
 ### `final_df_imputed.pkl`
 > **Location:** project root
@@ -698,6 +702,8 @@ Single-year-of-age, single-calendar-year mortality rate tables from the [Human L
 > **Location:** `Lancet/`
 
 NCD-RisC BMI and diabetes distribution data, downloaded from the [NCD Risk Factor Collaboration](https://ncdrisc.org/). Required by the upstream R simulation (already pre-computed).
+
+Also read by `diagnostics/bmi_mixture_reproduction_check.py`, which compares the simulated BMI shares against these source shares. That script does not assume the directory is here: set `LANCET_DIR` to wherever the CSVs actually live. Note the age-specific country BMI files carry only category prevalences and their uncertainty intervals — there is no mean BMI column, so a mean-BMI check against this source is not possible.
 
 ### UN World Population Prospects 2024
 > **Location:** anywhere — point `UN_WPP_DIR` at it. There is no `UN/` directory.
@@ -859,6 +865,33 @@ against data in this repository. Its NCD-RisC and UN WPP inputs are not present.
 So the simulation is **not reproducible from a clean clone** — it is consumed as
 a fixed, committed artifact. Anyone re-deriving the population from source data
 must reconstruct that step independently.
+
+**The simulated BMI distribution does not reproduce its NCD-RisC input, and this
+one does reach published numbers.** `fit_bmi_mixture()` in that same archived
+script does not fit a distribution to the NCD-RisC category shares: it draws
+skew-normal components at fixed midpoints with `scale = width/2.5`, concatenates
+them in the observed proportions, runs a KDE, and applies a moving-average
+smoother. Measured against the source shares at ISO x Sex x Age_Group — 1,890
+strata, zero asymmetry — **all seven categories deviate 9 to 52 standard errors
+from zero**, far outside the 0.98 pp binomial noise floor at 500 individuals per
+stratum. The population-weighted BMI >= 30 share is **0.28467 realized against
+0.26901 target: +1.57 pp, +5.82% relative**, with 51 of 63 countries overstating
+by more than 1.0 pp.
+
+The signature is flattening toward uniform rather than leakage in any one
+direction: deviation falls near-linearly in the target share (corr −0.684 over
+13,230 cells) and crosses zero at **0.142857, which is 1/7** — categories above
+the uniform share lose mass, categories below it gain. Because that amplifies
+relative error at low shares, the worst cases are the leanest countries: **Japan
++36.2% and Korea +35.4%** on the BMI >= 30 share. Eligibility is `bmi >= 30` (or
+`bmi >= 27` with type-2 diabetes), so the treated population and every
+food-savings, mortality and emissions figure built on it inherit this.
+
+Measured, not fixed — `diagnostics/bmi_mixture_reproduction_check.py`, read-only.
+It needs the NCD-RisC CSVs, which are not in this repository (see `Lancet/` under
+"Required Datasets"); set `LANCET_DIR` to point at them. Which of the four smoothing stages
+contributes what is not isolated, and no remedy has been chosen. The full
+measurement, with the bars declared before it ran, is in `CHANGES.md`.
 
 **`data_result/oecd_vs_worldbank_survivor_emissions.csv` is not reproducible.**
 It compares OECD demand-based factors against the older World Bank territorial
