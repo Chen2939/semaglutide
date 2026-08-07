@@ -1426,6 +1426,135 @@ pipeline.
 
 ---
 
+## Regeneration — the simulated population and the hazard ladder
+
+**Branch:** `regeneration`, from `survivorship`.
+
+Three defects fixed, two modelling gaps closed, two bugs repaired. Every number
+in the manuscript moves. The work was sequenced so the population was verified
+before anything downstream consumed it, and so each change is attributable
+separately.
+
+### What changed
+
+| # | change | effect |
+|---|---|---|
+| 2.1 | BMI: piecewise-linear CDF through the NCD-RisC cumulative points, with a four-knot Kitahara class III top band, replacing the point-cloud + KDE + moving-average mixture | dominant |
+| 2.2 | Height matched to attained height by birth cohort, not 19-year-olds in 2019 for everyone | small |
+| 2.3 | Age-related height loss subtracted (Sorkin et al. 1999, printed coefficients, per individual from age 30) | small |
+| 2.6 | Scenario-string bug: the adherence diagnostic filtered on labels the code never assigned, so every rate it printed was `NaN` | diagnostic only |
+| 2.7 | Save path and load path unified behind one constant | see below |
+| 2.8 | Per-stratum seeding, `GLOBAL_SEED = 43` | makes runs order-independent |
+| 2.9 | Common random numbers across the two uptake scenarios | moves moderate only |
+| 2.10 | Four diagnostic blocks (plus a fifth found here) were pooling scenarios; `eer_effects` was also unweighted | the "~7%" figure |
+| 2.15 | Continuous hazard above BMI 40, anchored to preserve 2.76 | small, both directions |
+
+### Headline movements (OLD -> Run D)
+
+| quantity | OLD | new |
+|---|--:|--:|
+| annual food savings, yr 1, max (Mt) | 53.9421 | 50.7726 |
+| **CUM-10Y** food:survivor, max | 1.8474 | 1.9428 |
+| **Y10-FLOW** food:survivor, max | 0.9488 | 0.9989 |
+| average HR reduction, max (%) | 18.6 | 17.21 |
+| extra survivors at year 10, max | 3,150,000 | 2,787,760 |
+| population-weighted BMI >= 30 deviation | +1.5665 pp | -0.2251 pp |
+
+The BMI construction accounts for -2.96 Mt of the -3.17 Mt food-savings move;
+cohort height -0.17, height loss -0.04, section 2.15 +0.0004. Full attribution
+in `diagnostics/reports/phase5_reconciliation.md`.
+
+### Provenance corrections to the plan
+
+The regeneration plan described the save/load defect as `test/...rds` versus a
+root read. Measured: **no script on disk has ever written `test/`** except the
+repo's own copy of `Data_Cleaning9.8.R`, and `test/` does not exist. Three
+copies of the script exist and two distinct `.rds` artefacts. The repo's
+artefact is bit-identical (md5 `1b56ef87...`) to
+`OneDrive/.../Code and data/full_simulation_results8.rds`; a second, different
+file sits at `OneDrive/.../Data Analysis/` (md5 `ad7663f2...`) carrying
+`Maximum uptake`/`Moderate uptake` labels. The divergence was real but by
+another route. See `diagnostics/reports/phase0_recon.md` section 2.
+
+### Artefacts
+
+`full_simulation_results9.rds` is the regenerated population.
+`full_simulation_results8.rds` is **retained unchanged** as the
+pre-regeneration baseline; it is read by no production path.
+`final_df_imputed9.pkl` is the population with the imputed `mortality_rate`
+column reattached — built by `diagnostics/build_population_pickle.py`, which
+lifts the existing `(ISO, age, Sex)` map off the committed pickle rather than
+re-running the imputation. The imputation does not depend on the simulated
+population, and the only script that writes the pickle is the superseded
+notebook.
+
+### Bars that were mis-specified in the plan and were corrected
+
+Each was diagnosed before being changed, and each replacement is at least as
+sharp as what it replaced.
+
+- **G4 adherence.** A flat `+/- 0.01`, set without calibrating to `n`. Replaced
+  with an analytic 4-SE bar from the eligible count: `+/-0.0018` / `+/-0.0042`
+  at production `n`, five times tighter.
+- **G7 `new_bmi`.** "Within 2 ULP" pairwise. `new_bmi` is a three-rounding
+  chain, so two correct runs can sit ~4 ULP apart; measured 3. Replaced with
+  the absolute test — each run within 2 ULP of the exact `bmi*(1-effect)` —
+  which passes with zero violations. All 3-ULP rows were treated rows;
+  untreated rows max at exactly 2, the shorter chain.
+- **G3 cohort height.** "Attained height must decrease with age group" does not
+  hold per-country and cannot: 51 of 126 country x sex groups show a local
+  increase, and Italian male attained height peaks at the 1994 cohort. Replaced
+  with the aggregate direction.
+- **G9 assertion 3.** "Monotonically non-decreasing across the whole BMI range."
+  The ladder is J-shaped and dips twice below BMI 20. The pre-change ladder was
+  verified to carry the same two dips in the same places, so section 2.15
+  introduces none.
+
+### An R/Python 1-ULP divergence that reaches nothing
+
+After section 2.15, `HR_TOP_K` differs between the runtimes by 1 ULP (R
+`1.3957877646878392`, Python `...89`) because `sum()` and `numpy.sum()`
+associate the four-term reduction differently — `1.4^0.2` is bit-identical, so
+`pow()` is not the cause. Both satisfy the declared `1e-6` assertion.
+
+This reaches no published figure, verified rather than assumed:
+`Mortality_model2.R` writes only to `test/`, which does not exist; its last
+write is line 555 while `bmi_hazard_ratio()` is defined at line 596, so the
+ladder's results are never persisted even there; and no production script reads
+`mortality2.rds` or `final_df_imputed.rds`. Documented curiosity, not a live
+risk, and the two sides are deliberately not being forced to reduce in the same
+order.
+
+### `phase5_metrics_runC.json` was overwritten and recovered, not recomputed
+
+Run D is Run C's population with the section 2.15 ladder, so it reads the same
+`.rds`. Re-running the Phase 5 harness with label `C` therefore overwrote the
+Run C column with Run D values. **It was recovered in full from
+`diagnostics/phase5_runC.log`**, which prints all 47 metrics; the recovered key
+set was verified identical to Run D's before writing. It was **not recomputed**,
+so the Run C column is the original computation rather than a fresh one — worth
+knowing if that column is ever audited.
+
+`diagnostics/phase5_run_columns.py` now takes `--out-label` and refuses to
+overwrite an existing metrics file without `--force`.
+
+### Country exclusions (section 2.13) are measurable, not held externally
+
+63 simulated; 56 have FAOSTAT tonnage; 53 have a FAOSTAT food CPI; 40 have an
+OECD GHGFP factor. P&N carbon intensity and the elasticity files kill nobody —
+both carry a row for every modelled country by construction. **No country is
+lost to a name mismatch**: zero unmapped `Area` values in the 2022 FBS, and the
+seven mapping-absent countries appear nowhere in the FBS in any year. One
+residue: **TWN** fails the CPI stage yet carries positive survivor emissions,
+so it contributes to the denominator and never to the numerator. Full trace in
+`diagnostics/reports/exclusion_attrition.md`.
+
+**Commit(s).** `3712f84` (structural ladder refactor, committed on
+bit-identical output per the plan's stated exception), `3420e8f` (artefact
+naming), `a59aa83` (section 2.15 behavioural).
+
+---
+
 ## How to reproduce
 
 ```

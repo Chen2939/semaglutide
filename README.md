@@ -89,9 +89,17 @@ and be current before any analysis script runs. It is committed, so a fresh
 clone can skip steps 1–2 entirely and go straight to step 3.
 
 ```bash
+# 0. Regenerate the population  (only if the simulation changed)
+Rscript legacy/R_scripts/Data_Cleaning9.8.R
+#    reads  $SEMAG_DATA_DIR (NCD-RisC, UN WPP, World Bank)
+#    writes full_simulation_results9.rds
+python -m diagnostics.build_population_pickle
+#    reads  full_simulation_results9.rds, final_df_imputed.pkl
+#    writes final_df_imputed9.pkl
+
 # 1. Survivor person-years  (only if the mortality model changed)
 python -m data_visualization.deterministic_mortality
-#    reads  final_df_imputed.pkl   (population AND its imputed mortality_rate)
+#    reads  final_df_imputed9.pkl  (population AND its imputed mortality_rate)
 #    writes mortality model total emissions.csv   (person-years only)
 
 # 2. Attach OECD emissions factors  (only if step 1 was run)
@@ -104,7 +112,7 @@ python -m data_visualization.consumption_ghg
 
 # 3. Survival weights for the food shock  (only if the mortality model changed)
 python -m data_visualization.survival_weighting
-#    reads  final_df_imputed.pkl
+#    reads  final_df_imputed9.pkl
 #    writes data_result/food_shock_survival_weight.csv   <- read by the food side
 
 # 4. Carbon intensity  (regenerates the committed canonical files bit-for-bit)
@@ -129,9 +137,15 @@ python -m diet_sensitivity.sensitivity_suite
 python -m diet_sensitivity.tornado_analysis
 python -m drug_effect.analysis
 python scripts/build_supplement_table.py
+python scripts/build_per_capita_table.py
 
 # 6. Share of world GDP covered  (needs step 5's break-even output)
 Rscript gdp_share_of_global_economy.R
+
+# 7. Collate every Results-section number into one CSV, beside the value
+#    currently written in the draft. Reads committed CSVs only, seconds.
+Rscript scripts/build_manuscript_numbers.R
+#    writes data_result/manuscript_headline_numbers.csv
 ```
 
 Run everything from the repository root; several scripts resolve inputs
@@ -178,12 +192,12 @@ uses it for.
 | `build_carbon_intensity.py` | FAOSTAT FBS, `FBS_Group_Mapping.csv`, `faostat_country_mapping.csv`, hardcoded P&N values | `Food data/carbon_intensity{,_p10,_p90}.csv` |
 | `code/compute_child_energy.R` | `$UN_WPP_DIR` male + female WPP workbooks | `Food data/child_energy_by_country.xlsx`, `data/child_energy_requirement_lookup.csv`, `data/child_energy_diagnostics.csv` |
 | `gdp_share_of_global_economy.R` | `World Bank/World_Bank_National_GDP.csv`, `data_result/net_emissions_with_drug.csv`, `mortality model total emissions_oecd.csv` | `data_result/gdp_share_of_global_economy.csv` |
-| `data_visualization/deterministic_mortality.py` | `final_df_imputed.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
-| `data_visualization/survival_weighting.py` | `final_df_imputed.pkl` | `data_result/food_shock_survival_weight.csv` |
+| `data_visualization/deterministic_mortality.py` | `final_df_imputed9.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
+| `data_visualization/survival_weighting.py` | `final_df_imputed9.pkl` | `data_result/food_shock_survival_weight.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
-| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results8.rds`, `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
+| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results9.rds`, `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
 | `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
-| `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed.pkl` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
+| `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed9.pkl` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
 | `data_visualization/generate_*_figure.py` | pipeline | `figures/*.png` (+ waterfall CSVs) |
 | `diet_sensitivity/analysis.py` | pipeline, 3 diet scenarios | `data_result/diet_sensitivity_results.csv`, `..._ratio_comparison.csv`, 2 figures |
 | `diet_sensitivity/combined_analysis.py` | pipeline, mean + P10 CI | `data_result/combined_sensitivity_results.csv`, `..._ratio_comparison.csv`, `carbon_intensity_meat_p10.csv` |
@@ -191,7 +205,7 @@ uses it for.
 | `diet_sensitivity/sensitivity_suite.py` | pipeline, P10 / P90 / combined | `data_result/sensitivity_suite.csv` |
 | `diet_sensitivity/tornado_analysis.py` | pipeline, meat P10/P90, decline rates | `data_result/sensitivity_tornado_results.csv`, 1 figure |
 | `drug_effect/analysis.py` | pipeline, drug footprint | `data_result/drug_emissions_by_country.csv`, `drug_footprint_summary.csv` |
-| `scripts/build_supplement_table.py` | pipeline, `full_simulation_results8.rds` | `data_result/supplement_results_table{,_raw}.csv` |
+| `scripts/build_supplement_table.py` | pipeline, `full_simulation_results9.rds` | `data_result/supplement_results_table{,_raw}.csv` |
 
 ## Pipeline
 
@@ -199,7 +213,7 @@ uses it for.
 
 `Data_Cleaning9.8.R` (now in `legacy/R_scripts/`) generates the synthetic population with baseline and treated BMI, caloric intake, and demographics for the 63 World Bank 2022 high-income countries (`Income == "H"`). Its output is the `.rds` file consumed by subsequent steps:
 
-- **Output:** `full_simulation_results8.rds`
+- **Output:** `full_simulation_results9.rds`
 
 `Mortality_model2.R` (now in `legacy/R_scripts/`) computes mortality tables and imputed demographic data:
 
@@ -207,7 +221,7 @@ uses it for.
 
 > These R scripts have already been run. The `.rds` outputs are required datasets (see below).
 
-> **Caveat on the BMI distribution.** The mixture step that turns the NCD-RisC category shares into continuous BMI values does not reproduce those shares: it inflates the population-weighted BMI >= 30 share by 1.57 pp (+5.82% relative, and +36% in Japan). Measured, not fixed. See "Known gaps and warts".
+> **The BMI distribution caveat is RESOLVED.** The mixture step used to inflate the population-weighted BMI >= 30 share by 1.57 pp (+5.82% relative, +36% in Japan). It has been replaced by a piecewise-linear CDF through the NCD-RisC cumulative points with a Kitahara class III top band, which reproduces the seven band shares by construction. Measured deviation is now **-0.23 pp**, inside one standard error, with Japan at -0.22 pp and Korea at -0.03 pp. See `diagnostics/reports/phase2_population_gates.md`.
 
 ### Step 2 — Carbon Intensity Build
 
@@ -234,7 +248,7 @@ Run the deterministic expected-value mortality model:
 python -m data_visualization.deterministic_mortality
 ```
 
-- Loads `final_df_imputed.pkl`, taking both the population and its imputed `mortality_rate` column from that one file — all 63 modelled countries
+- Loads `final_df_imputed9.pkl`, taking both the population and its imputed `mortality_rate` column from that one file — all 63 modelled countries
 - Replaces the old stochastic Monte Carlo headline calculation with deterministic expected survival probabilities over 10 years
 - Converts Human Life-Table `Mx` rates to annual death probabilities using `q = 1 - exp(-Mx)`
 - Computes person-years saved under both uptake scenarios
@@ -252,8 +266,10 @@ This helper uses the same deterministic mortality function and the same mortalit
 
 Current reconciled manuscript numbers:
 
-- Maximum uptake: average HR reduction `18.6%`, starting treated users `252.6 million`, extra survivors alive at year 10 `3.15 million`, cumulative 10-year person-years saved `16.83 million`
-- Moderate uptake: average HR reduction `18.4%`, starting treated users `132.2 million`, extra survivors alive at year 10 `1.66 million`, cumulative 10-year person-years saved `8.89 million`
+- Maximum uptake: average HR reduction `17.21%`, starting treated users `238.8 million`, extra survivors alive at year 10 `2.79 million`, cumulative 10-year person-years saved `14.92 million`
+- Moderate uptake: average HR reduction `17.28%`, starting treated users `126.6 million`, extra survivors alive at year 10 `1.47 million`, cumulative 10-year person-years saved `7.88 million`
+
+> These moved with the regeneration. The pre-regeneration figures were 18.6% / 252.6M / 3.15M / 16.83M and 18.4% / 132.2M / 1.66M / 8.89M. **The 18.6% is not a renumbering** -- the manuscript builds a rhetorical point on SELECT having found the same figure, and that coincidence no longer holds. See `diagnostics/reports/phase5_reconciliation.md`.
 
 These are on the imputed 63-country mortality source and cover all 63 countries.
 Survival weighting the food shock does not touch them — it changes the food side
@@ -277,7 +293,7 @@ This replaces the old World Bank territorial CO2 per-capita factor with OECD dem
 ### Step 4 — Price Rebound Model
 
 Run all cells in `Price rebound model.ipynb`:
-- Loads `full_simulation_results8.rds` and all `Food data/` files
+- Loads `full_simulation_results9.rds` and all `Food data/` files
 - Implements constant-elasticity supply/demand equilibrium (Hegwood et al., 2023)
 - Computes rebound effect, net food reduction, and carbon savings per country × food group
 - Includes sensitivity analysis (cells 15–17): re-runs the model with P10/Mean/P90 carbon intensity files and generates comparison figures
@@ -360,7 +376,7 @@ terms, `carbon_savings_t`) is therefore invariant to the index's base year. Only
 
 Generated figures are written to `figures/`; generated tabular outputs are written to `data_result/`.
 
-**All scripts share inputs:** `full_simulation_results8.rds`, OECD-updated `mortality model total emissions.csv`, all `Food data/` files
+**All scripts share inputs:** `full_simulation_results9.rds`, OECD-updated `mortality model total emissions.csv`, all `Food data/` files
 
 ### Step 6 — Diet-Composition Sensitivity Analysis
 
@@ -576,7 +592,7 @@ blobs rather than LFS pointers so they survive a clone made without LFS.
 | `mortality model total emissions.csv` | mortality-model person-years (LFS) |
 | `mortality model total emissions_oecd.csv` | generated; needs UN WPP, so not rebuildable from a clean clone |
 | `data_result/food_shock_survival_weight.csv` | generated from `final_df_imputed.pkl`; the survival weights the food side reads |
-| `full_simulation_results8.rds`, `final_df_imputed.pkl` | upstream simulation output (LFS) |
+| `full_simulation_results9.rds`, `final_df_imputed9.pkl` | upstream simulation output (LFS). `...8.rds` / `final_df_imputed.pkl` are retained unchanged as the pre-regeneration baseline and are read by no production path |
 | `mortality2.rds` | raw 41-country HLD extract; provenance for the imputation, not read at runtime (LFS) |
 | `oecd/consumption_ghg_2025.csv` | OECD extract (LFS) |
 
@@ -615,18 +631,18 @@ included here, and none is read at runtime by the Python analysis.
 |---|---|---|
 | Poore & Nemecek (2018) supplementary data (`aaq0216_datas1/2.xls`) | <https://www.science.org/doi/10.1126/science.aaq0216> | Provenance for the GHG values transcribed into `GHG_SCENARIOS` in `build_carbon_intensity.py`. No script opens the file. |
 | Human Life-Table Database, `Mx_1x1` | <https://www.lifetable.de/> | Upstream mortality tables. Extracted into `mortality2.rds` for the 41 countries HLD covers; the remaining 22 of the 63 modelled countries were imputed from those, and the imputed result is what `final_df_imputed.pkl` carries |
-| NCD-RisC BMI and diabetes distributions | <https://ncdrisc.org/> | Upstream simulation inputs (already baked into `full_simulation_results8.rds`) |
+| NCD-RisC BMI and diabetes distributions | <https://ncdrisc.org/> | Upstream simulation inputs (already baked into `full_simulation_results9.rds`) |
 
 ## Required Datasets (detail)
 
-### `full_simulation_results8.rds`
+### `full_simulation_results9.rds`
 > **Location:** project root
 
 Full synthetic population output from `Data_Cleaning9.8.R`. 1,890,000 rows: 945,000 simulated individuals, each appearing twice because the two uptake scenarios are bound together, with baseline/treated BMI, caloric intake, demographics, and population weights. Required by both notebooks.
 
-Measured directly off the file: **63 countries**, not ~200 — the R script filters to World Bank 2022 high income (`Income == "H"`) — across 2 sexes and 15 NCD-RisC age groups, giving 1,890 strata of exactly 500 individuals each, and one `weighting` value (`Population / 500`) per stratum. Baseline `bmi` is bit-identical across the two scenarios, so a distributional check must take one scenario only. `final_df_imputed.pkl` carries the same baseline `bmi` vector bit-for-bit, plus `Age`, `mortality_rate` and `Year`. Note the R script saves to `test/full_simulation_results8.rds` (line 585) but loads from the project root (line 637); the `test/` copy does not exist, and the root copy is what is upstream of the Python pipeline.
+Measured directly off the file: **63 countries**, not ~200 — the R script filters to World Bank 2022 high income (`Income == "H"`) — across 2 sexes and 15 NCD-RisC age groups, giving 1,890 strata of exactly 500 individuals each, and one `weighting` value (`Population / 500`) per stratum. Baseline `bmi` is bit-identical across the two scenarios, so a distributional check must take one scenario only. `final_df_imputed9.pkl` carries the same baseline `bmi` vector bit-for-bit, plus `Age`, `mortality_rate` and `Year`. It is built by `diagnostics/build_population_pickle.py`, which lifts the existing `(ISO, age, Sex) -> mortality_rate` map off the committed pickle rather than re-running the imputation; that imputation does not depend on the simulated population. The save path and the load path are now one `OUT_RDS` constant, read once at each site. They used to be separated by 50 lines and an interactive `setwd()`, and had diverged: measured, **no script on disk has ever written `test/`** except the repo's own copy of the R script, and `test/` does not exist. Three copies of the script and two distinct `.rds` artefacts were found on disk; see `diagnostics/reports/phase0_recon.md` section 2.
 
-### `final_df_imputed.pkl`
+### `final_df_imputed9.pkl` (and `final_df_imputed.pkl`, the baseline)
 > **Location:** project root
 
 The modelled population *and its mortality rates*. This is the single input to
@@ -634,6 +650,26 @@ The modelled population *and its mortality rates*. This is the single input to
 `mortality_rate` column is a complete, single-valued function of
 `(ISO, age, Sex)` over 63 countries × ages 18–89 × 2 sexes — 9,072 cells, no
 gaps, asserted at load.
+
+**Two files, and only one is live.** `final_df_imputed9.pkl` carries the
+regenerated population and is what `POPULATION_PKL` points at.
+`final_df_imputed.pkl` is the pre-regeneration baseline, retained unchanged; it
+is read by no production path, and by exactly one thing —
+`diagnostics/build_population_pickle.py`, which lifts the
+`(ISO, age, Sex) -> mortality_rate` map off it to attach to a new run.
+
+That indirection is deliberate. The imputation (regional median by age and sex,
+then global median, then a 0.00001 floor) is a function of `(ISO, age, Sex)`
+alone and does **not** depend on the simulated population, so re-running it on a
+new population would be a no-op. The only script that writes the pickle from
+scratch is `Mortality Model.ipynb`, which is out of the execution path and would
+restore removed columns and reintroduce the old survivor decline. Joining the
+existing map is both cheaper and safer. Totality is asserted at build time, not
+assumed: 9,072 of 9,072 keys matched, zero NA, zero rows added.
+
+Prose elsewhere in this file that says `final_df_imputed.pkl` without the `9`
+generally means "the population pickle" generically; where the distinction
+matters it is stated.
 
 Those rates are **imputed**, by cell 5 of `Mortality Model.ipynb`: regional
 median stratified by age and sex, then the global median for that age–sex cohort,
@@ -858,36 +894,17 @@ statements**. Arrows, box-drawing and typographic dashes break on this console.
 
 Recorded deliberately. None of these affects a published number unless stated.
 
-**The simulation has no committed build script.** `full_simulation_results8.rds`
-is the input to every food-emissions figure, and the script that produced it
-(`Data_Cleaning9.8.R`) is archived in `legacy/R_scripts/` but is not wired to run
-against data in this repository. Its NCD-RisC and UN WPP inputs are not present.
-So the simulation is **not reproducible from a clean clone** — it is consumed as
-a fixed, committed artifact. Anyone re-deriving the population from source data
-must reconstruct that step independently.
+**The simulation is reproducible on this machine but not from a clean clone.** `full_simulation_results9.rds` is the input to every food-emissions figure. `legacy/R_scripts/Data_Cleaning9.8.R` now runs end to end and regenerates it in about 15 minutes, driven entirely by environment variables (`SEMAG_DATA_DIR`, `SEMAG_OUT_RDS`, `SEMAG_COHORT_HEIGHT`, `SEMAG_HEIGHT_LOSS`, `SEMAG_BATCH_SIZE`), and it is deterministic: `GLOBAL_SEED = 43` keyed per stratum, verified bit-identical across repeat runs **and across a change of batch size**.
 
-**The simulated BMI distribution does not reproduce its NCD-RisC input, and this
-one does reach published numbers.** `fit_bmi_mixture()` in that same archived
-script does not fit a distribution to the NCD-RisC category shares: it draws
-skew-normal components at fixed midpoints with `scale = width/2.5`, concatenates
-them in the observed proportions, runs a KDE, and applies a moving-average
-smoother. Measured against the source shares at ISO x Sex x Age_Group — 1,890
-strata, zero asymmetry — **all seven categories deviate 9 to 52 standard errors
-from zero**, far outside the 0.98 pp binomial noise floor at 500 individuals per
-stratum. The population-weighted BMI >= 30 share is **0.28467 realized against
-0.26901 target: +1.57 pp, +5.82% relative**, with 51 of 63 countries overstating
-by more than 1.0 pp.
+What is still missing from a clean clone is the *inputs*: the NCD-RisC, UN WPP and World Bank files live under `SEMAG_DATA_DIR` (by default the researcher's OneDrive) and are not in this repository. Anyone re-deriving the population from source data needs those files; they do not need to reconstruct the step.
 
-The signature is flattening toward uniform rather than leakage in any one
-direction: deviation falls near-linearly in the target share (corr −0.684 over
-13,230 cells) and crosses zero at **0.142857, which is 1/7** — categories above
-the uniform share lose mass, categories below it gain. Because that amplifies
-relative error at low shares, the worst cases are the leanest countries: **Japan
-+36.2% and Korea +35.4%** on the BMI >= 30 share. Eligibility is `bmi >= 30` (or
-`bmi >= 27` with type-2 diabetes), so the treated population and every
-food-savings, mortality and emissions figure built on it inherit this.
+**The simulated BMI distribution used not to reproduce its NCD-RisC input. FIXED.** `fit_bmi_mixture()` drew skew-normal components at fixed midpoints, concatenated them in the observed proportions, ran a KDE and applied a moving-average smoother. All seven categories deviated 9 to 52 standard errors from zero; the population-weighted BMI >= 30 share was 0.28467 realized against 0.26901 target (**+1.57 pp, +5.82% relative**), with 51 of 63 countries overstating by more than 1.0 pp. The signature was flattening toward uniform: deviation fell near-linearly in the target share (corr -0.684 over 13,230 cells) and crossed zero at **1/7**, so the worst relative cases were the leanest countries -- Japan +36.2%, Korea +35.4%.
 
-Measured, not fixed — `diagnostics/bmi_mixture_reproduction_check.py`, read-only.
+It is now a **piecewise-linear CDF** through the NCD-RisC cumulative points, following the OECD SPHeP-NCDs precedent, with the top band split at 45/50/55/60 using the class III participant composition from Kitahara et al. (2014). The seven band shares are correct by construction: gate G1 evaluates the fitted CDF at all ten knots for all 1,890 strata and finds **max deviation 0.000e+00**. Realized deviation on BMI >= 30 is **-0.23 pp** pooled (bar 0.37 pp, 3 SE), Japan -0.22 pp, Korea -0.03 pp, and no country now overstates by more than 1.0 pp.
+
+The known and accepted cost is that the implied density is uniform within each band and discontinuous at band boundaries. That is the cost OECD accepted on the same data for the same reason.
+
+Verified by `diagnostics/reports/phase2_population_gates.md`. The pre-fix measurement is preserved at `diagnostics/reports/bmi_mixture_reproduction_check.md`.
 It needs the NCD-RisC CSVs, which are not in this repository (see `Lancet/` under
 "Required Datasets"); set `LANCET_DIR` to point at them. Which of the four smoothing stages
 contributes what is not isolated, and no remedy has been chosen. The full
@@ -983,8 +1000,8 @@ Legacy R scripts and documentation are tracked via regular Git. Large binary dat
 
 This repository uses [Git Large File Storage](https://git-lfs.com/) for binary data files. LFS-tracked patterns (defined in `.gitattributes`):
 
-- `*.rds` — R data files (`full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
-- `*.pkl` — Python pickle files (`final_df_imputed.pkl`)
+- `*.rds` — R data files (`full_simulation_results9.rds`, `full_simulation_results8.rds`, `mortality2.rds`, `legacy/data/*.rds`)
+- `*.pkl` — Python pickle files (`final_df_imputed9.pkl`, `final_df_imputed.pkl`)
 - `*.csv` — generated and cached tabular outputs tracked in Git, including diet sensitivity result tables and OECD validation/comparison tables
 
 **Exceptions stored as ordinary git blobs**, not LFS. These are small text files
