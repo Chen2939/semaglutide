@@ -581,18 +581,67 @@ set.seed(42)  # for reproducibility
 
 
 
+# --- sec 2.15: continuous hazard within the top band -------------------------
+#
+# THE DEFECT. The ladder used to assign a flat 2.76 to all `bmi >= 40` with no
+# upper bound. Two consequences. A bounded published estimate (top category
+# 40.0-59.9) was being applied to an unbounded bin. And because the bin had no
+# FLOOR, weight loss inside it produced a hazard ratio of exactly 1.0 between
+# baseline and treatment -- integrating over the weight-loss distribution, 36%
+# of top-band adherers stay above 40 and were credited with zero modelled
+# survival benefit, in the range where the real gradient is steepest.
+#
+# The converse error is the larger one. A flat bin gives everyone who CROSSES
+# out of it the whole band's mean hazard as their baseline. Crossers come
+# disproportionately from 40-45, whose true hazard is well below the band mean,
+# so their modelled benefit was systematically overstated. That is the defect
+# being fixed here.
+#
+# Kitahara et al. 2014, PLOS Medicine, Table 4: HR 1.40 per 5 kg/m^2 within
+# BMI 40.0-59.9. K is the composition-weighted mean of 1.4^((b-40)/5) over the
+# top band, using the same class III composition the BMI construction imposes
+# (Data_Cleaning9.8.R, sec 2.1.2). Normalising by K PRESERVES the existing 2.76
+# anchor: the population mean baseline hazard in the top band is unchanged, so
+# total baseline deaths barely move. What changes is the treatment contrast.
+#
+# The anchor is preserved stratum by stratum, not merely on average, because
+# sec 2.1.2 imposes the same conditional composition on every stratum's top
+# band -- so K is one constant everywhere.
+#
+# CLASS3_N is duplicated in three places by necessity (this file,
+# Data_Cleaning9.8.R and deterministic_mortality.py are three languages/two
+# runtimes). The stopifnot below is what actually stops them drifting: if any
+# copy is edited, K moves and this fails loudly at source time.
+CLASS3_N      <- c(6803, 1978, 627, 156)          # participants, not deaths
+CLASS3_SHARE  <- CLASS3_N / sum(CLASS3_N)
+HR_TOP_BASE   <- 2.76
+HR_PER_5      <- 1.40
+# Under a piecewise-linear CDF each sub-band is uniform, so the mean of
+# 1.4^((b-40)/5) over a five-unit segment starting at 40 + 5j is
+# 1.4^j * (1.4 - 1) / ln(1.4).
+HR_TOP_K      <- sum(CLASS3_SHARE *
+                     ((HR_PER_5 - 1) / log(HR_PER_5)) * HR_PER_5^(0:3))
+HR_TOP_ANCHOR <- HR_TOP_BASE / HR_TOP_K           # 1.977378
+stopifnot(abs(HR_TOP_K - 1.395788) < 1e-6,
+          abs(HR_TOP_ANCHOR - 1.977378) < 1e-6)
+
+# pmin at 60 is the terminal knot of the BMI construction. It never binds on
+# `bmi` -- the knot vector guarantees that -- but it DOES bind on `new_bmi` for
+# a handful of rows, because negative draws of individual_effect push them
+# above 60. Do not assert that never happens; the rate is seed-dependent.
+hr_top <- function(b) HR_TOP_ANCHOR * HR_PER_5^((pmin(b, 60) - 40) / 5)
+
 # All-cause mortality hazard ratio as a function of BMI.
 #
-# STRUCTURAL ONLY -- this is one function replacing two byte-identical
-# case_when blocks, one keyed on `bmi` and one on `new_bmi`. No value changes.
-# Two copies of a ladder are two places for a future edit to land in one and
-# not the other, which is exactly the failure mode that would be invisible
-# here: baseline and treated hazards would come from different ladders and the
-# ratio would still look plausible.
+# One function called twice, on `bmi` and on `new_bmi`. Two copies of a ladder
+# are two places for a future edit to land in one and not the other, which is
+# exactly the failure mode that would be invisible here: baseline and treated
+# hazards would come from different ladders and the ratio -- the only thing the
+# pipeline consumes -- would still look plausible.
 #
-# The values must stay in step with get_raw_bmi_hazard_ratio() in
-# data_visualization/deterministic_mortality.py. They are checked against each
-# other by diagnostics/ladder_diff.py.
+# The bins BELOW 40 must stay in step with get_raw_bmi_hazard_ratio() in
+# data_visualization/deterministic_mortality.py, and so must the top-band form.
+# They are checked against each other by diagnostics/ladder_diff.py.
 bmi_hazard_ratio <- function(b) {
   case_when(
     b < 18.5 ~ 1.51,  # Now includes all BMI < 18.5
@@ -602,7 +651,7 @@ bmi_hazard_ratio <- function(b) {
     b >= 27.5 & b < 30.0 ~ 1.20,
     b >= 30.0 & b < 35.0 ~ 1.45,
     b >= 35.0 & b < 40.0 ~ 1.94,
-    b >= 40.0 ~ 2.76,
+    b >= 40.0 ~ hr_top(b),
     TRUE ~ NA_real_
   )
 }

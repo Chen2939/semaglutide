@@ -54,20 +54,94 @@ Usage:
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pandas as pd
 
-from .pipeline import ROOT, output_path
+from .pipeline import POPULATION_PKL, ROOT, output_path
 
 
-SIMULATION_FILE = ROOT / "final_df_imputed.pkl"
+# Named once, in pipeline.py, beside the .rds it is derived from. See the
+# comment there for why the two artefacts of a run live in one place.
+SIMULATION_FILE = POPULATION_PKL
 OUTPUT_FILE = ROOT / "mortality model total emissions.csv"
 PREVIOUS_OUTPUT_FILE = ROOT / "mortality model total emissions_pre_deterministic_backup.csv"
 COMPARISON_FILE = output_path("deterministic_mortality_comparison.csv")
 
 
+# --- Continuous hazard within the top band ----------------------------------
+#
+# THE DEFECT THIS FIXES. The ladder assigned a flat 2.76 to all BMI >= 40 with
+# no upper bound, so a bounded published estimate (top category 40.0-59.9) was
+# applied to an unbounded bin, and -- because the bin had no FLOOR -- weight
+# loss inside it produced a hazard ratio of exactly 1.0 between baseline and
+# treatment. About 36% of top-band adherers stay above 40 and were credited
+# with zero modelled survival benefit, in the range where the real gradient is
+# steepest.
+#
+# The converse error is the larger one and is the reason for the change: a flat
+# bin gives everyone who CROSSES out of it the whole band's mean hazard as
+# their baseline, and crossers come disproportionately from 40-45, whose true
+# hazard is well below the band mean. Their modelled benefit was systematically
+# overstated.
+#
+# Kitahara et al. 2014, PLOS Medicine, Table 4: HR 1.40 per 5 kg/m^2 within BMI
+# 40.0-59.9. K is the composition-weighted mean of 1.4^((b-40)/5) over the top
+# band, using the same class III participant composition the BMI construction
+# imposes in Data_Cleaning9.8.R. Normalising by K PRESERVES the 2.76 anchor, so
+# the population mean baseline hazard in the top band is unchanged and total
+# baseline deaths barely move; what changes is the treatment contrast.
+#
+# Only the RATIO semaglutide_bmi_hr / baseline_bmi_hr enters this module's
+# output. The level never does and there is no calibration constant anywhere in
+# the conversion, so the aggregate treated-versus-baseline figure is an output,
+# not a target. HR_TOP_ANCHOR cancels entirely for anyone whose baseline and
+# treated BMI both sit above 40 -- their ratio is just 1.4^(-0.118*bmi/5). What
+# K buys is the size of the step at the 40 boundary, and therefore the benefit
+# credited to crossers.
+#
+# CLASS3_N is necessarily duplicated across this file, Mortality_model2.R and
+# Data_Cleaning9.8.R (three files, two runtimes). The assertion below is what
+# stops them drifting: edit any copy and K moves and this fails at import.
+CLASS3_N = np.array([6803.0, 1978.0, 627.0, 156.0])  # participants, not deaths
+CLASS3_SHARE = CLASS3_N / CLASS3_N.sum()
+HR_TOP_BASE = 2.76
+HR_PER_5 = 1.40
+# Under a piecewise-linear CDF each sub-band is uniform, so the mean of
+# 1.4^((b-40)/5) over a five-unit segment starting at 40 + 5j is
+# 1.4^j * (1.4 - 1) / ln(1.4).
+HR_TOP_K = float(
+    (CLASS3_SHARE
+     * ((HR_PER_5 - 1.0) / math.log(HR_PER_5))
+     * HR_PER_5 ** np.arange(4)).sum()
+)
+HR_TOP_ANCHOR = HR_TOP_BASE / HR_TOP_K  # 1.977378
+assert abs(HR_TOP_K - 1.395788) < 1e-6, HR_TOP_K
+assert abs(HR_TOP_ANCHOR - 1.977378) < 1e-6, HR_TOP_ANCHOR
+
+
+def hr_top(bmi) -> np.ndarray:
+    """Continuous hazard ratio within BMI 40-60, anchored to preserve 2.76.
+
+    The clip at 60 is the terminal knot of the BMI construction. It never binds
+    on ``bmi`` -- the knot vector guarantees that -- but it DOES bind on
+    ``new_bmi`` for a handful of rows, because negative draws of
+    ``individual_effect`` push them above 60. Do not assert that never happens;
+    the rate is seed-dependent.
+    """
+    b = np.asarray(bmi, dtype=float)
+    return HR_TOP_ANCHOR * HR_PER_5 ** ((np.minimum(b, 60.0) - 40.0) / 5.0)
+
+
 def get_raw_bmi_hazard_ratio(bmi: pd.Series) -> np.ndarray:
-    """Map BMI to published all-cause mortality hazard-ratio categories."""
+    """Map BMI to published all-cause mortality hazard-ratio categories.
+
+    Bins below 40 are unchanged step values. Above 40 the ladder is continuous;
+    see the block comment above. Must stay in step with ``bmi_hazard_ratio()``
+    in ``legacy/R_scripts/Mortality_model2.R``; ``diagnostics/ladder_diff.py``
+    checks that they do.
+    """
     return np.where(
         bmi < 18.5,
         1.51,
@@ -89,7 +163,7 @@ def get_raw_bmi_hazard_ratio(bmi: pd.Series) -> np.ndarray:
                             np.where(
                                 (bmi >= 35.0) & (bmi < 40.0),
                                 1.94,
-                                np.where(bmi >= 40.0, 2.76, np.nan),
+                                np.where(bmi >= 40.0, hr_top(bmi), np.nan),
                             ),
                         ),
                     ),
