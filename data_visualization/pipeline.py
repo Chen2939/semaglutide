@@ -21,6 +21,33 @@ from scipy.optimize import root_scalar
 
 ROOT = Path(__file__).resolve().parent.parent
 
+# Single source of truth for the simulated-population artefact.
+#
+# This filename used to be repeated as a literal in four places
+# (pipeline.py, drug_footprint.py, scripts/build_supplement_table.py,
+# diagnostics/figure_pass_cache.py). That is the Python form of the defect the
+# R side just had fixed: a save path and a load path that had to be kept in
+# step by hand, and were not. Import it; do not re-type it.
+#
+# ``...9.rds`` is the regenerated population -- piecewise-linear BMI CDF with a
+# Kitahara top band, birth-cohort-matched height net of Sorkin age-related loss,
+# per-stratum seeding, and common random numbers across the two uptake
+# scenarios. ``...8.rds`` is retained UNCHANGED beside it as the pre-
+# regeneration baseline that the reconciliation table is computed against; it is
+# not read by any production path.
+SIMULATION_RDS = ROOT / "full_simulation_results9.rds"
+BASELINE_SIMULATION_RDS = ROOT / "full_simulation_results8.rds"
+
+# The same population with the imputed ``mortality_rate`` column attached, which
+# is what the mortality side reads. Built by
+# ``diagnostics/build_population_pickle.py``, which lifts the existing
+# (ISO, age, Sex) -> rate map off the baseline pickle rather than re-running the
+# imputation -- that imputation does not depend on the simulated population, and
+# the only script that writes it is the superseded notebook. Kept beside
+# SIMULATION_RDS so the two artefacts of one run are named in one place.
+POPULATION_PKL = ROOT / "final_df_imputed9.pkl"
+BASELINE_POPULATION_PKL = ROOT / "final_df_imputed.pkl"
+
 # Single source of truth for the FAOSTAT parent-level aggregate items that
 # double-count their sub-items. build_carbon_intensity.py excludes these from
 # its carbon-intensity weighting; the food-quantity step below applies the
@@ -558,7 +585,7 @@ def compute_food_savings(
 
     # ── Simulation results (from R) ────────────────────────────────────
     sim_result = list(
-        pyreadr.read_r(str(ROOT / "full_simulation_results8.rds")).values()
+        pyreadr.read_r(str(SIMULATION_RDS)).values()
     )[0]
     sim_result["weighted_eer"] = sim_result["weighting"] * sim_result["eer"]
     sim_result["weighted_treatment_eer"] = (

@@ -15,7 +15,7 @@ from __future__ import annotations
 import pandas as pd
 import pyreadr
 
-from .pipeline import ROOT
+from .pipeline import ROOT, SIMULATION_RDS
 
 API_1MG_US_KG_CO2E_PER_YEAR = 1.2
 DEVICE_US_KG_CO2E_PER_YEAR = 2.1
@@ -32,7 +32,7 @@ ANNUAL_DRUG_KG_CO2E_PER_USER = (
 
 def load_treated_users() -> pd.DataFrame:
     """Calculate initial treated users by country and uptake scenario."""
-    sim = list(pyreadr.read_r(str(ROOT / "full_simulation_results8.rds")).values())[0]
+    sim = list(pyreadr.read_r(str(SIMULATION_RDS)).values())[0]
     treated = sim[sim["adheres_to_treatment"]].copy()
     return (
         treated.groupby(["ISO", "scenario"], as_index=False)["weighting"]

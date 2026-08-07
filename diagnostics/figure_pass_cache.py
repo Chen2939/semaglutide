@@ -49,6 +49,7 @@ def build() -> dict:
 
     from data_visualization.pipeline import (
         ROOT,
+        SIMULATION_RDS,
         compute_food_savings,
         load_mortality_emissions,
     )
@@ -71,7 +72,7 @@ def build() -> dict:
     drug = build_drug_emissions()
 
     print("[5/5] slimming the simulation frame for gate B6 ...")
-    sim = list(pyreadr.read_r(str(ROOT / "full_simulation_results8.rds")).values())[0]
+    sim = list(pyreadr.read_r(str(SIMULATION_RDS)).values())[0]
     sim_slim = sim[SIM_COLUMNS].copy()
 
     return {

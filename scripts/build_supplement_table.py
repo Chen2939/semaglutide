@@ -51,6 +51,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from data_visualization.pipeline import (  # noqa: E402
     ROOT as PIPELINE_ROOT,
+    SIMULATION_RDS,
     compute_food_savings,
     output_path,
 )
@@ -58,7 +59,7 @@ from data_visualization.pipeline import (  # noqa: E402
 # ── Configuration constants (adjust here) ─────────────────────────────────
 CI_FILE = "carbon_intensity.csv"          # carbon-intensity file inside Food data/
 CI_SCENARIO_LABEL = "mean"                 # which CI scenario CI_FILE represents
-SIM_PATH = PIPELINE_ROOT / "full_simulation_results8.rds"
+SIM_PATH = SIMULATION_RDS
 
 SCENARIOS = ["max_uptake", "mod_uptake"]
 SCENARIO_LABELS = {"max_uptake": "Max uptake", "mod_uptake": "Moderate uptake"}
