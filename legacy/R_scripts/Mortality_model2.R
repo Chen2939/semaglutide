@@ -581,31 +581,37 @@ set.seed(42)  # for reproducibility
 
 
 
+# All-cause mortality hazard ratio as a function of BMI.
+#
+# STRUCTURAL ONLY -- this is one function replacing two byte-identical
+# case_when blocks, one keyed on `bmi` and one on `new_bmi`. No value changes.
+# Two copies of a ladder are two places for a future edit to land in one and
+# not the other, which is exactly the failure mode that would be invisible
+# here: baseline and treated hazards would come from different ladders and the
+# ratio would still look plausible.
+#
+# The values must stay in step with get_raw_bmi_hazard_ratio() in
+# data_visualization/deterministic_mortality.py. They are checked against each
+# other by diagnostics/ladder_diff.py.
+bmi_hazard_ratio <- function(b) {
+  case_when(
+    b < 18.5 ~ 1.51,  # Now includes all BMI < 18.5
+    b >= 18.5 & b < 20.0 ~ 1.13,
+    b >= 20.0 & b < 25.0 ~ 1.00,
+    b >= 25.0 & b < 27.5 ~ 1.07,
+    b >= 27.5 & b < 30.0 ~ 1.20,
+    b >= 30.0 & b < 35.0 ~ 1.45,
+    b >= 35.0 & b < 40.0 ~ 1.94,
+    b >= 40.0 ~ 2.76,
+    TRUE ~ NA_real_
+  )
+}
+
 # Calculate BMI hazard ratios with updated grouping
 simulation_results <- final_df_imputed %>%
   mutate(
-    bmi_hr = case_when(
-      bmi < 18.5 ~ 1.51,  # Now includes all BMI < 18.5
-      bmi >= 18.5 & bmi < 20.0 ~ 1.13,
-      bmi >= 20.0 & bmi < 25.0 ~ 1.00,
-      bmi >= 25.0 & bmi < 27.5 ~ 1.07,
-      bmi >= 27.5 & bmi < 30.0 ~ 1.20,
-      bmi >= 30.0 & bmi < 35.0 ~ 1.45,
-      bmi >= 35.0 & bmi < 40.0 ~ 1.94,
-      bmi >= 40.0 ~ 2.76,
-      TRUE ~ NA_real_
-    ),
-    new_bmi_hr = case_when(
-      new_bmi < 18.5 ~ 1.51,  # Now includes all BMI < 18.5
-      new_bmi >= 18.5 & new_bmi < 20.0 ~ 1.13,
-      new_bmi >= 20.0 & new_bmi < 25.0 ~ 1.00,
-      new_bmi >= 25.0 & new_bmi < 27.5 ~ 1.07,
-      new_bmi >= 27.5 & new_bmi < 30.0 ~ 1.20,
-      new_bmi >= 30.0 & new_bmi < 35.0 ~ 1.45,
-      new_bmi >= 35.0 & new_bmi < 40.0 ~ 1.94,
-      new_bmi >= 40.0 ~ 2.76,
-      TRUE ~ NA_real_
-    ),
+    bmi_hr = bmi_hazard_ratio(bmi),
+    new_bmi_hr = bmi_hazard_ratio(new_bmi),
     baseline_alive = 1,
     semaglutide_alive = 1
   )
