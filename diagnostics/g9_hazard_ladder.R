@@ -81,10 +81,42 @@ note(isTRUE(all.equal(CLASS3_SHARE, c(6803, 1978, 627, 156) / 9564)),
 cat("\n2. composition-weighted mean of hr_top, integrated against the\n")
 cat("   ELEVEN-KNOT CDF the sampler receives (not the closed form)\n")
 
-lancet <- readRDS("diagnostics/inputs_cache_cohort.rds")$lancet_dia
 SHARE_COLS <- c("BMI_under_18.5", "BMI_18.5to20", "BMI_20to25",
                 "BMI_25to30", "BMI_30to35", "BMI_35to40", "BMI_over_40")
-cat(sprintf("   strata: %d\n", nrow(lancet)))
+
+# The stratum shares come from the NCD-RisC source, NOT from the run's input
+# cache. The cache is a scratch file under diagnostics/ that is safe to delete
+# at any time, and a gate that silently depends on scratch state is a gate that
+# stops working the first time somebody tidies up -- which is exactly what
+# happened. Only the seven share columns are needed here, so no join is
+# involved and the read is cheap.
+DATA_DIR <- Sys.getenv(
+  "SEMAG_DATA_DIR",
+  "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data"
+)
+.bmi_csv <- file.path(DATA_DIR, c(
+  "Lancet/NCD_RisC_Lancet_2024_BMI_female_age_specific_country.csv",
+  "Lancet/NCD_RisC_Lancet_2024_BMI_male_age_specific_country.csv"))
+if (!all(file.exists(.bmi_csv))) {
+  stop("NCD-RisC BMI CSVs not found under SEMAG_DATA_DIR=", DATA_DIR)
+}
+.raw <- bind_rows(lapply(.bmi_csv, function(f)
+  suppressMessages(readr::read_csv(f, show_col_types = FALSE, progress = FALSE))))
+.orig <- c("Prevalence of BMI<18.5 kg/m\u00b2 (underweight)",
+           "Prevalence of BMI 18.5 kg/m\u00b2 to <20 kg/m\u00b2",
+           "Prevalence of BMI 20 kg/m\u00b2 to <25 kg/m\u00b2",
+           "Prevalence of BMI 25 kg/m\u00b2 to <30 kg/m\u00b2",
+           "Prevalence of BMI 30 kg/m\u00b2 to <35 kg/m\u00b2",
+           "Prevalence of BMI 35 kg/m\u00b2 to <40 kg/m\u00b2",
+           "Prevalence of BMI >=40 kg/m\u00b2 (morbid obesity)")
+missing <- setdiff(.orig, names(.raw))
+if (length(missing)) stop("share column(s) not found: ", paste(missing, collapse = " | "))
+lancet <- .raw %>%
+  filter(Year == 2022) %>%
+  select(ISO, Sex, `Age group`, all_of(.orig)) %>%
+  rename_with(~SHARE_COLS, all_of(.orig)) %>%
+  rename(Age_Group = `Age group`)
+cat(sprintf("   strata (all NCD-RisC countries): %d\n", nrow(lancet)))
 
 # Fine grid on the conditional top band, inverted through the constructed CDF.
 NU <- 200000
