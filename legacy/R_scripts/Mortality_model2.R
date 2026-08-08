@@ -597,6 +597,11 @@ set.seed(42)  # for reproducibility
 # so their modelled benefit was systematically overstated. That is the defect
 # being fixed here.
 #
+# The 2.76 anchor, and the whole ladder below 40, is Di Angelantonio et al.
+# 2016, Lancet 388:776-786 (Global BMI Mortality Collaboration). Its top
+# category is obesity grade 3, BMI 40.0 to <60.0 -- so normalising K over
+# 40-60 averages over the source's OWN interval rather than assuming one.
+#
 # Kitahara et al. 2014, PLOS Medicine, Table 4: HR 1.40 per 5 kg/m^2 within
 # BMI 40.0-59.9. K is the composition-weighted mean of 1.4^((b-40)/5) over the
 # top band, using the same class III composition the BMI construction imposes

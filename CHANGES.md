@@ -1510,6 +1510,55 @@ sharp as what it replaced.
   verified to carry the same two dips in the same places, so section 2.15
   introduces none.
 
+### The 2.76 anchor: source and category definition — RESOLVED
+
+Supplied by Seth, and it settles the one thing section 2.15 was stipulating.
+
+**Source: Di Angelantonio et al. 2016, *Lancet* 388:776–786** — the Global BMI
+Mortality Collaboration (GBMC). Already **reference 37** in the draft. The top
+category is **obesity grade 3, BMI 40.0 to <60.0, HR 2.76**.
+
+This matters more than a citation. Section 2.15 normalises `hr_top` by K so the
+composition-weighted mean over the top band returns 2.76, and until now the
+claim that 2.76 *is* an average over 40–60 was an assumption the normalisation
+relied on. **It is the source's own interval.** So the normalisation averages
+over exactly the range the published figure was estimated on, and the
+composition assumption can be stated as fact rather than as a modelling choice.
+It also retrospectively justifies the terminal knot at 60 in the BMI
+construction (section 2.1.2), which was chosen independently.
+
+**Owed to methods — two bin definitions where our ladder differs from GBMC's,
+both verified inert.**
+
+1. **Our 20–25 reference merges GBMC's 20–22.5 and 22.5–25.** Both are 1.00, so
+   the merge changes no value.
+2. **Our bottom bin is unbounded below; GBMC's is 15–18.5.** Individuals below
+   BMI 15 therefore receive 1.51 where GBMC publishes no estimate. The BMI
+   construction's lower knot is 13, so the affected range is 13–15.
+
+Neither reaches a number, and this is **measured rather than argued**:
+
+| check | value |
+|---|--:|
+| rows with `bmi` < 27 (the eligibility floor) | 965,012 |
+| of those, adhering to treatment | **0** |
+| lowest `bmi` of any adherer | **27.0002** |
+| rows with `bmi` < 18.5 | 27,533 |
+| rows with `bmi` < 15 (outside GBMC's bottom bin) | 9,889 |
+| rows with 20 <= `bmi` < 25 (the merged reference) | 288,281 |
+| of those, adhering | **0** |
+
+Because nobody below 27 is eligible, their treated and baseline hazard ratios
+are the same value and the ratio — the only thing
+`deterministic_mortality.py` consumes — is exactly 1.
+
+One wrinkle worth recording, because it looks like a counterexample and is not.
+`new_bmi` is **not** bit-identical to `bmi` for every non-adherer: it is a
+`×h²` then `÷h²` round-trip, so **120,558 of the 965,012 sub-27 rows differ by
+1 ULP**. That never crosses a bin boundary, so the hazard ratio differs on
+**exactly 0** of them and `max |ratio − 1| = 0.000e+00`. The inertness is a
+property of the step function, not of the arithmetic happening to be exact.
+
 ### An R/Python 1-ULP divergence that reaches nothing
 
 After section 2.15, `HR_TOP_K` differs between the runtimes by 1 ULP (R

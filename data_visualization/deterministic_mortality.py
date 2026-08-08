@@ -86,6 +86,20 @@ COMPARISON_FILE = output_path("deterministic_mortality_comparison.csv")
 # hazard is well below the band mean. Their modelled benefit was systematically
 # overstated.
 #
+# The 2.76 anchor is Di Angelantonio et al. 2016, Lancet 388:776-786 (the
+# Global BMI Mortality Collaboration), obesity grade 3, BMI 40.0 to <60.0.
+# The whole ladder below 40 is from the same source. Two bin definitions
+# differ from it and both are inert, measured: our 20-25 reference merges
+# GBMC's 20-22.5 and 22.5-25 (both 1.00), and our bottom bin is unbounded
+# below where GBMC's is 15-18.5. Nobody below BMI 27 is eligible -- the
+# lowest BMI of any adherer is 27.0002 -- so for all 965,012 sub-27 rows
+# the treated and baseline hazard ratios are the same value and the ratio,
+# which is the only thing this module consumes, is exactly 1.
+#
+# That the anchor is an average over 40.0-60.0 is the SOURCE'S OWN
+# interval, not an assumption this normalisation makes. K therefore
+# averages hr_top over exactly the range 2.76 was estimated on.
+#
 # Kitahara et al. 2014, PLOS Medicine, Table 4: HR 1.40 per 5 kg/m^2 within BMI
 # 40.0-59.9. K is the composition-weighted mean of 1.4^((b-40)/5) over the top
 # band, using the same class III participant composition the BMI construction
