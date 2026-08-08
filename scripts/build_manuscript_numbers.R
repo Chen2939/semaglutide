@@ -256,6 +256,39 @@ for (i in seq_len(nrow(T1))) {
       "all_sensitivity_overview_results.csv", "n_complete_countries")
 }
 
+# ================================================ calorie reduction, as a %
+# Built by scripts/build_calorie_reduction.R, which is the one script that
+# reads the .rds. Three different denominators, all carried, all labelled --
+# quoting one where a reader expects another is the trap. The draft states
+# calories only in absolute kcal/yr, so these have no draft value to compare.
+cal_path <- file.path(DR, "calorie_reduction_percent.csv")
+if (file.exists(cal_path)) {
+  cal <- read_dr("calorie_reduction_percent.csv") %>% filter(scope == "global")
+  for (sc in c("max_uptake", "mod_uptake")) {
+    r <- cal %>% filter(scenario == sc)
+    add("Results p1 / discussion",
+        "Calories reduced, % PER TREATED PATIENT", sc, "baseline", "%",
+        r$per_treated_patient_pct, NA,
+        "calorie_reduction_percent.csv", "per_treated_patient_pct [global]",
+        "the manuscript's ~7%; says nothing about national demand")
+    add("Results p1", "Calories reduced, % of ALL-ADULT requirement", sc,
+        "baseline", "%", r$adults_aggregate_pct, NA,
+        "calorie_reduction_percent.csv", "adults_aggregate_pct [global]",
+        "denominator is adults only")
+    add("Results p1", "Calories reduced, % of ALL-AGES requirement", sc,
+        "baseline", "%", r$all_ages_aggregate_pct, NA,
+        "calorie_reduction_percent.csv", "all_ages_aggregate_pct [global]",
+        "THE DEMAND SHOCK the food model applies to FAOSTAT supply")
+    add("Results p1", "Treated share of the adult population", sc, "baseline",
+        "%", r$treated_share_of_adults_pct, NA,
+        "calorie_reduction_percent.csv", "treated_share_of_adults_pct [global]",
+        "why the per-patient and aggregate figures differ by ~4x")
+  }
+} else {
+  warning("calorie_reduction_percent.csv absent; run ",
+          "Rscript scripts/build_calorie_reduction.R")
+}
+
 # ================================================ tornado ordering
 for (i in seq_len(nrow(torn))) {
   add("Results, tornado", paste0("Tornado range: ", torn$parameter[i]),
