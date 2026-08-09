@@ -40,7 +40,7 @@ semaglutide/
 ├── diet_sensitivity/              # Diet-composition and carbon-intensity sensitivity analyses
 │   ├── scenarios.py               # Literature-motivated food-group shock assumptions
 │   ├── analysis.py                # Three diet scenarios, CSVs + figures
-│   ├── combined_analysis.py       # Combined conservative case (diet shift + all-food P10 CI)
+│   ├── combined_analysis.py       # Combined conservative case (diet shift + all-food P10 CI, now referred to in the manuscript as "Conservative Floor")
 │   ├── sensitivity_overview.py    # All six specifications, max uptake, overview figure
 │   ├── sensitivity_suite.py       # Both uptake levels + year-10 annual ratio (manuscript table)
 │   └── tornado_analysis.py        # Tornado plot over the sensitivity ranges
@@ -409,7 +409,7 @@ less. In the cereals/sweets scenario **3 countries tip** into net positive
 emissions, Hungary lowest at **0.93×**; the uniform baseline and fatty-foods
 scenarios have none, Lithuania closest at 1.29× and 1.51× respectively.
 
-### Step 7 — Combined Conservative Sensitivity Analysis
+### Step 7 — Combined Conservative Sensitivity Analysis (Now referred to in the manuscript as Conservative Floor)
 
 ```bash
 python -m diet_sensitivity.combined_analysis
