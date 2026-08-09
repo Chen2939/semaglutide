@@ -46,7 +46,12 @@ UPTAKES = ["max_uptake", "mod_uptake"]
 # Committed values this must reproduce exactly. Sources:
 #   before -> data_result/drug_footprint_summary.csv        (ratio_without_drug)
 #   after  -> data_result/all_sensitivity_overview_results.csv (ratio_food_to_mort)
-BAR = {"before": 1.8933028079285414, "after": 1.8473655359514574}
+# Pinned baseline max-uptake ratios, gross and net of the drug charge. Refreshed
+# with the reference snapshots after the population regeneration (447e688), which
+# is what moved them; the previous pin was 1.8933028079285414 / 1.8473655359514574
+# and predated that commit, so this guard was failing on every run. Moderate
+# uptake moved the same way, 1.832 -> 2.0007 gross and 1.787 -> 1.9519 net.
+BAR = {"before": 1.9912545286046903, "after": 1.9427609867232756}
 
 
 def build() -> pd.DataFrame:

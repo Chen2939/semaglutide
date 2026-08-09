@@ -27,7 +27,14 @@ A and B share a y-axis and a country order, so a reader can track a country
 between them. Panel A is deliberately per-patient: as an absolute it was a
 population ranking that duplicated panel B.
 
-Output: figures/country_dashboard.png
+The food-group breakdown this module also writes is on the **t = 0** basis for
+the same reason panel A is, and goes further: it is the no-mortality
+counterfactual in full -- pi off, and neither the drug charge nor survivor
+emissions subtracted -- so it carries waterfall Panel A's "mortality effects
+excluded" wording. It is fed from the unweighted call's ``result_df``, not the
+weighted one.
+
+Output: figures/country_dashboard.png, figures/food_group_breakdown.png
 
 Usage:
     python -m data_visualization.generate_dashboard_figure
@@ -117,7 +124,11 @@ def build_dashboard_data():
     # than year 1 of a declining series, and it is the basis the manuscript's
     # annual figures are quoted on.
     print("[2/6] Running Price Rebound pipeline (unweighted, t=0)...")
-    food_t0, _ = compute_food_savings(survival_weighted=False)
+    # ``result_t0`` is the row-level detail behind this same t = 0 solve, and it
+    # is what the food-group breakdown is built from -- see
+    # plot_food_group_breakdown for why that figure is on this basis and not the
+    # survival-weighted one above.
+    food_t0, result_t0 = compute_food_savings(survival_weighted=False)
 
     print("[3/6] Loading mortality data...")
     mort = load_mortality_emissions()
@@ -201,9 +212,17 @@ def build_dashboard_data():
     print(f"      food-data universe N = {len(universe)}; "
           f"complete-data set N = {len(complete_isos)}")
 
-    # Food-group breakdown for stacked bars
+    # Food-group breakdown for stacked bars, on the t = 0 basis.
+    #
+    # ``result_t0``, NOT ``result_df``. The weighted frame's carbon_savings_t is
+    # the year-1 solve -- the shock scaled by pi(1), which is a mortality channel
+    # and runs 0.990-0.999 across the 63 modelled countries. The breakdown is a
+    # no-mortality counterfactual on the same terms as waterfall Panel A (all
+    # three channels off), so it has to come off the call with weighting
+    # disabled. Panels B and C are cumulative 10-year quantities and stay on
+    # ``result_df``, which is correct for them.
     food_by_group = (
-        result_df.groupby(["ISO", "Country", "scenario", "final_food_group"])[
+        result_t0.groupby(["ISO", "Country", "scenario", "final_food_group"])[
             "carbon_savings_t"
         ]
         .sum()
@@ -543,7 +562,14 @@ def plot_dashboard(dashboard, food_by_group, complete_isos, panel_a_isos):
 
 
 def plot_food_group_breakdown(food_by_group):
-    """Stacked horizontal bars showing food-group composition of savings."""
+    """Stacked horizontal bars showing food-group composition of savings.
+
+    **t = 0, mortality effects excluded**, matching waterfall Panel A. The
+    caller must pass the breakdown built from the ``survival_weighted=False``
+    solve; passing the weighted frame would make the axis label false by 0.3-1.0%
+    per country and would put this figure on a different basis from the only two
+    others carrying the same phrase.
+    """
 
     # Single source, shared with the rebound figure, which derives its
     # light/mid/dark triples from the same base colours. The values are
@@ -597,13 +623,24 @@ def plot_food_group_breakdown(food_by_group):
         left += vals
 
     ax.set_yticks(y)
+    # Same display-only shortening the dashboard panels use. The pivot is keyed
+    # on the unmodified (ISO, Country) pair; only the label strings are mapped.
     ax.set_yticklabels(
-        [c for _, c in pivot.index.tolist()], fontsize=9
+        display_countries([c for _, c in pivot.index.tolist()]), fontsize=9
     )
-    ax.set_xlabel("Carbon Emissions Saved in Year 1 (kt CO₂eq)", fontsize=10)
+    # Wording fixed by generate_waterfall_1yr_figure, which owns the phrase: it
+    # means all three mortality channels off (food-side pi, drug-side pi_dose,
+    # survivor emissions), not merely "no survivor emissions". This figure
+    # qualifies on all three -- pi is off via the survival_weighted=False call
+    # feeding food_by_group, and neither the drug charge nor survivor emissions
+    # is subtracted here at all.
+    ax.set_xlabel(
+        "Carbon Emissions Saved at t = 0 (kt CO₂eq), mortality effects excluded",
+        fontsize=10,
+    )
     ax.set_title(
         "Food-Group Breakdown of Emission Savings\n"
-        "(Max Uptake, Top Countries, year 1 of 10)",
+        "(Max Uptake, Top Countries, t = 0)",
         fontsize=13, fontweight="bold", pad=12,
     )
     ax.xaxis.set_major_formatter(

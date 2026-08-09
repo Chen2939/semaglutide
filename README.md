@@ -138,6 +138,7 @@ python -m diet_sensitivity.tornado_analysis
 python -m drug_effect.analysis
 python scripts/build_supplement_table.py
 python scripts/build_per_capita_table.py
+python scripts/build_country_coverage.py
 
 # 6. Share of world GDP covered  (needs step 5's break-even output)
 Rscript gdp_share_of_global_economy.R
@@ -206,6 +207,7 @@ uses it for.
 | `diet_sensitivity/tornado_analysis.py` | pipeline, meat P10/P90, decline rates | `data_result/sensitivity_tornado_results.csv`, 1 figure |
 | `drug_effect/analysis.py` | pipeline, drug footprint | `data_result/drug_emissions_by_country.csv`, `drug_footprint_summary.csv` |
 | `scripts/build_supplement_table.py` | pipeline, `full_simulation_results9.rds` | `data_result/supplement_results_table{,_raw}.csv` |
+| `scripts/build_country_coverage.py` | pipeline, `..._oecd.csv`, `World Bank/World_Bank_National_GDP.csv` (names only) | `data_result/country_data_coverage.csv` |
 
 ## Pipeline
 
@@ -339,9 +341,9 @@ construction and is excluded with the rest when the arm is run; it is the most
 defensible of the seven on other grounds, which is a methods point rather than a
 code-level exception.
 
-Excluding all three moves the cumulative 10-year ratio **−0.59%** (max uptake,
-1.8474 → 1.8364) and the year-10 annual ratio −0.54%, with Hungary and Lithuania
-still binding and N going 40 → 37. Immaterial to every conclusion — so the
+Excluding all three moves the cumulative 10-year ratio **−0.63%** (max uptake,
+1.9428 → 1.9305) and the year-10 annual ratio −0.58%, with Lithuania still
+binding either way and N going 40 → 37. Immaterial to every conclusion — so the
 decision rests on other grounds, and those grounds are **coverage**: Saudi Arabia
 alone is 1.20 percentage points of world GDP, and the three together take the
 complete-data sample from **58.96% to 57.22%** of the global economy. Coverage is a
@@ -401,11 +403,11 @@ Current headline result, with deterministic mortality on the imputed 63-country
 mortality source, OECD consumption-based survivor emissions, survival-weighted
 food savings, and pharmaceutical emissions folded in. For maximum uptake across
 the **N = 40** countries with complete food and OECD survivor data, the global
-10-year ratio is **1.85×** in the uniform baseline, **2.33×** when fatty foods
-decrease more, and **1.25×** when cereals/sweets decrease more and meat decreases
-less. In the cereals/sweets scenario **5 countries tip** into net positive
-emissions, Hungary lowest at **0.86×**; the uniform baseline and fatty-foods
-scenarios have none, Hungary closest at 1.21× and Lithuania at 1.41×.
+10-year ratio is **1.94×** in the uniform baseline, **2.46×** when fatty foods
+decrease more, and **1.31×** when cereals/sweets decrease more and meat decreases
+less. In the cereals/sweets scenario **3 countries tip** into net positive
+emissions, Hungary lowest at **0.93×**; the uniform baseline and fatty-foods
+scenarios have none, Lithuania closest at 1.29× and 1.51× respectively.
 
 ### Step 7 — Combined Conservative Sensitivity Analysis
 
@@ -430,10 +432,10 @@ Outputs:
 - **Figure:** `figures/combined_sensitivity_lowest_ratio_countries.png`
 
 Current headline result: the stacked conservative case **does** tip. For maximum
-uptake the global 10-year ratio falls from **1.25×** in the cereals/sweets
-diet-shift scenario at mean carbon intensities to **0.69×** on all-food P10 —
-below break-even — with **21 of 40** countries individually net positive and
-Hungary lowest at **0.53×**. Moderate uptake behaves the same, at 0.67× with 21
+uptake the global 10-year ratio falls from **1.31×** in the cereals/sweets
+diet-shift scenario at mean carbon intensities to **0.73×** on all-food P10 —
+below break-even — with **20 of 40** countries individually net positive and
+Poland lowest at **0.56×**. Moderate uptake behaves the same, at 0.73× with 20
 tipping.
 
 ### Step 8 — All Sensitivities Overview
@@ -450,12 +452,12 @@ Outputs:
 - **Figure:** `figures/all_sensitivity_overview.png`
 
 Current headline result: for maximum uptake over **N = 40** countries, the global
-10-year net-food-savings-to-survivor ratio ranges from **0.69×** in the combined
-conservative case (cereals/sweets + all-food P10) up to **2.57×** under all-food
-P90. The baseline is **1.85×**. Two specifications fall below break-even
-globally — combined conservative at 0.69×, and all-food P10 marginally above at
-**1.05×** with 9 countries individually tipping. The lowest country-level margin
-is Hungary at **0.53×** in the combined conservative case.
+10-year net-food-savings-to-survivor ratio ranges from **0.73×** in the combined
+conservative case (cereals/sweets + all-food P10) up to **2.70×** under all-food
+P90. The baseline is **1.94×**. One specification falls below break-even
+globally — combined conservative at 0.73×. All-food P10 clears it, but only
+just, at **1.11×**, and 7 countries tip individually there. The lowest
+country-level margin is Poland at **0.56×** in the combined conservative case.
 
 ### Step 9 — Drug Carbon Footprint Accounting
 
@@ -492,9 +494,9 @@ Outputs:
 
 Current headline result: pharmaceutical emissions are folded into the baseline
 break-even comparison as a subtraction from food savings. Under maximum uptake
-this lowers the 10-year ratio from **1.893×** (gross food / survivor) to
-**1.847×** ((food − drug) / survivor); under moderate uptake, from 1.832× to
-1.787×. No complete-data country tips into net positive emissions in the
+this lowers the 10-year ratio from **1.991×** (gross food / survivor) to
+**1.943×** ((food − drug) / survivor); under moderate uptake, from 2.001× to
+1.952×. No complete-data country tips into net positive emissions in the
 baseline specification.
 
 ### Step 10 — Share of the global economy covered
@@ -806,18 +808,30 @@ about whether they are the same as last time.
 ### Current status — the references pass
 
 `python -m reference.metrics` passes on this branch, at **exactly 0.0** on all 47
-values. The snapshots were refreshed once, after the survival-weighting change,
-covering the four changes that had accumulated since they were last taken:
+values, verified on a `--write` run and again on a verify-only re-run.
 
-| Commit | Change |
-|---|---|
-| `6e826a4` | Fix aggregate double-count in `load_kcal_shares`' calorie-share weights |
-| `be44eb4` | Weight the oilcrops composite by P&N food-and-waste supply volumes |
-| `5aa62ed` | Take mortality rates from the pickle's imputed column, restoring 27 zeroed countries |
-| *(this commit)* | Survival-weight the food-side demand shock by `pi(t)` |
+The snapshots have been refreshed twice. The second refresh is the current one:
 
-Refreshing them was deferred until all four had landed rather than done four
-times; see `CHANGES.md` for what each moved.
+| Refresh | Covering | Result |
+|---|---|---|
+| First | `6e826a4` calorie-share double-count · `be44eb4` oilcrops weighting · `5aa62ed` mortality rates from the pickle's imputed column · survival weighting by `pi(t)` | passed at 0.0 |
+| **Second (current)** | `218d09b` / `447e688` — the population regeneration: BMI construction, height, seeding | passed at 0.0 |
+
+**The second refresh was overdue and the check had been failing.** The snapshots
+carried 2026-07-31 values while the population was regenerated on 2026-08-07, so
+`metrics.py` was failing at a worst relative difference of 3.33e-01 against a
+1e-12 tolerance. 36 values moved: annual food savings **fell** 5.88% (max uptake,
+53.94 → 50.77 Mt) while every ratio **rose** — about +5% at max uptake and +9% at
+moderate. Three binding-country flips, all off Hungary: HUN → LTU on the headline
+and on P90 max, HUN → POL on combined-conservative max. Tipping counts fell (P10
+max 9 → 7, mod 9 → 6; combined-conservative 21 → 20 in both). `n_complete` held
+at 40 in every configuration.
+
+`scripts/build_ratio_table.py` carried the same class of stale pin and was
+failing its own guard on every run while still writing its CSV. Repinned with the
+snapshots.
+
+See `CHANGES.md` for the per-value table.
 
 `--write` regenerates both snapshots from a fresh pipeline run:
 

@@ -126,22 +126,57 @@ netsum <- net %>% group_by(scenario) %>%
             drug10 = sum(total_drug_emissions_10yr, na.rm = TRUE) / 1e6,
             n_na = sum(is.na(annual_food_savings_gross_t)),
             .groups = "drop")
+# The Results-paragraph emissions chain is taken WITHOUT mortality, from the
+# t = 0 no-mortality panel, not from net_emissions_with_drug.csv.
+#
+# Why this changed. These four figures used to come off netsum, which is the
+# pi-weighted year-1 solve -- mortality partly on. Everything else in the same
+# paragraph is t = 0: the calories, the tonnage and the rebound offset come from
+# supplement_results_table_raw.csv (survival_weighted = FALSE), and the
+# per-patient figures come from this same panel A. So one paragraph was quoting
+# two bases, differing by about 0.5% (51.0 vs 50.8 Mt after rebound, 49.8 vs
+# 49.5 net), and the text disagreed with Figure 1 Panel A sitting beside it --
+# which is the t = 0 series and says so in its caption.
+#
+# The mortality-weighted versions are not lost: they are what every 10-year
+# ratio in the paper is built from, and they remain in
+# net_emissions_with_drug.csv and in the break-even rows below. They just have
+# no business in this chain.
+pa <- function(uptake, step_name) {
+  pcap %>% filter(panel == "A_1yr_no_mortality", spec == "baseline_mean_ci",
+                  uptake == !!uptake, step == !!step_name) %>%
+    slice(1) %>% pull(value_Mt)
+}
 for (sc in c("max_uptake", "mod_uptake")) {
   r <- netsum %>% filter(scenario == sc)
   add("Results p2", "Annual emissions saved, after rebound", sc, "baseline", "MtCO2e",
-      r$gross, if (sc == "max_uptake") 54.2 else 27.8,
-      "net_emissions_with_drug.csv", "sum(annual_food_savings_gross_t)/1e6")
+      pa(sc, "actual_food_savings"), if (sc == "max_uptake") 54.2 else 27.8,
+      "per_capita_emissions_savings.csv",
+      "value_Mt [A_1yr_no_mortality, actual_food_savings]")
   add("Results p2", "Annual emissions saved, net of pharmaceutical production",
       sc, "baseline", "MtCO2e",
-      r$net, if (sc == "max_uptake") 52.9 else 27.1,
-      "net_emissions_with_drug.csv", "sum(annual_food_savings_t)/1e6")
+      pa(sc, "net_savings"), if (sc == "max_uptake") 52.9 else 27.1,
+      "per_capita_emissions_savings.csv",
+      "value_Mt [A_1yr_no_mortality, net_savings]")
   add("Results p2", "Drug footprint per treated patient-year", sc, "baseline",
       "kgCO2e",
       drug %>% filter(scenario == sc) %>% pull(annual_drug_kg_co2e_per_user),
       5.38, "drug_footprint_summary.csv", "annual_drug_kg_co2e_per_user")
+  # One-year manufacturing total, same t = 0 basis as the two rows above, so the
+  # chain closes exactly: after-rebound minus this equals net. The ten-year row
+  # below cannot do that -- it is pi_dose-weighted and spans a different country
+  # set (see its note).
+  add("Results p2", "Drug manufacturing emissions, one year", sc, "baseline",
+      "MtCO2e", pa(sc, "manufacturing"), NA,
+      "per_capita_emissions_savings.csv",
+      "value_Mt [A_1yr_no_mortality, manufacturing]",
+      "no-mortality basis; closes the chain: after_rebound - this = net")
   add("Results p2", "Drug emissions over ten years", sc, "baseline", "MtCO2e",
       r$drug10, if (sc == "max_uptake") 12.5 else NA,
-      "net_emissions_with_drug.csv", "sum(total_drug_emissions_10yr)/1e6")
+      "net_emissions_with_drug.csv", "sum(total_drug_emissions_10yr)/1e6",
+      paste("spans all 56 ISO in net_emissions_with_drug, including GUY/NRU/TWN",
+            "which have treated patients but no price index and so no food",
+            "savings; over the 53-country food sample it is 12.12 Mt"))
 }
 
 # ================================================ Mortality model results
@@ -297,9 +332,51 @@ for (i in seq_len(nrow(torn))) {
       "draft claims meat carbon intensity is the largest range")
 }
 
+# ------------------------------------------------ mortality basis
+# Which mortality channels are live behind each number.
+#
+# This column exists because the Results paragraph mixes both WITHIN ITSELF.
+# p1's calories, tonnage and rebound offset come from the t = 0 supplement
+# table (survival_weighted = FALSE, no survivor emissions). p2's emissions come
+# from net_emissions_with_drug.csv, which is the pi-weighted year-1 solve. The
+# two bases differ by about 0.5%: 51.0 vs 50.8 Mt CO2e after rebound, 49.8 vs
+# 49.5 net of the drug charge. Nothing in the table said so, and the per-patient
+# figures sit on the t = 0 side, so the paragraph reads as one chain when it is
+# two.
+#
+# Derived from source_csv and metric rather than written at each add() call, so
+# a new row cannot forget it. Anything unmapped lands on UNCLASSIFIED and the
+# run warns -- a blank would be indistinguishable from "mortality-neutral".
+mortality_basis_of <- function(source_csv, metric, source_field) {
+  case_when(
+    # Panel first. per_capita_emissions_savings.csv carries BOTH bases in one
+    # file and the panel name is the authority on which -- keying off the panel
+    # in source_field rather than off the metric text means a new row drawn from
+    # that file is classified correctly without anyone naming it "no mortality".
+    grepl("A_1yr_no_mortality", source_field, fixed = TRUE)  ~ "without",
+    grepl("B_10yr_with_survivorship", source_field, fixed = TRUE) ~ "with",
+    grepl("no mortality", metric, fixed = TRUE)              ~ "without",
+    grepl("with survivorship", metric, fixed = TRUE)         ~ "with",
+    metric == "Total population of nations studied"          ~ "n/a (population count)",
+    # 5.38 kg/user-year is a product constant; no survival weight touches it.
+    metric == "Drug footprint per treated patient-year"      ~ "n/a (constant)",
+    source_csv %in% c("supplement_results_table_raw.csv",
+                      "global_emissions_waterfall_1yr.csv",
+                      "calorie_reduction_percent.csv")       ~ "without",
+    source_csv %in% c("net_emissions_with_drug.csv",
+                      "drug_footprint_summary.csv",
+                      "global_emissions_waterfall.csv",
+                      "sensitivity_tornado_results.csv",
+                      "all_sensitivity_overview_results.csv") ~ "with",
+    source_csv == "survivor_manuscript_numbers.csv"          ~ "mortality model output",
+    TRUE                                                     ~ "UNCLASSIFIED"
+  )
+}
+
 # ================================================ assemble
 res <- bind_rows(rows) %>%
   mutate(
+    mortality_basis = mortality_basis_of(source_csv, metric, source_field),
     abs_change = regenerated_value - draft_value,
     pct_change = ifelse(!is.na(draft_value) & draft_value != 0,
                         (regenerated_value / draft_value - 1) * 100, NA_real_),
@@ -318,7 +395,15 @@ res <- bind_rows(rows) %>%
       TRUE ~ "minor"
     )
   ) %>%
-  relocate(abs_change, pct_change, changed, .after = draft_text)
+  relocate(abs_change, pct_change, changed, .after = draft_text) %>%
+  relocate(mortality_basis, .after = unit)
+
+unmapped <- res %>% filter(mortality_basis == "UNCLASSIFIED")
+if (nrow(unmapped) > 0) {
+  warning("mortality_basis UNCLASSIFIED for ", nrow(unmapped), " row(s) from: ",
+          paste(unique(unmapped$source_csv), collapse = ", "),
+          " -- classify these in mortality_basis_of() before quoting the table.")
+}
 
 write_csv(res, OUT, na = "")
 cat(sprintf("wrote %s  (%d rows)\n", OUT, nrow(res)))

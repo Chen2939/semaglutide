@@ -1604,6 +1604,210 @@ naming), `a59aa83` (section 2.15 behavioural).
 
 ---
 
+## Post-regeneration sweep — figure bases, stale pins, and a coverage table
+
+Session of 2026-08-08, on top of the population regeneration (`218d09b` /
+`447e688`). Nothing here changes the model: no module that computes anything was
+touched, and `mortality model total emissions{,_oecd}.csv` are byte-identical
+throughout (sha256 checked before and after every run below).
+
+### 1. Two figures were on the wrong basis and said nothing about it
+
+`figures/food_group_breakdown.png` and `figures/rebound_decomposition.png` were
+built from the default `compute_food_savings()` call, which is
+`survival_weighted=True` — the pi(1)-weighted **year-1** solve, not t = 0. Both
+now pass `survival_weighted=False`, matching waterfall Panel A.
+
+The gap this closed is small and that is exactly why it survived: pi(1) runs
+0.9898-0.9988 across the 63 modelled countries, so every bar moved by only
+0.3-1.0% and the output stayed entirely plausible either way. Measured, the
+movement is pi(1) and nothing else — max |ratio - 1/pi(1)| = 6.9e-05 over 1,452
+cells, the residue being the solver nonlinearity, since the shock passes through
+`(1+delta)^(Es/(Es-Ed))` rather than scaling linearly.
+
+For the rebound figure this reached **all three panels**, not just the carbon
+one: `expected_demand_reduction`, `actual_reduction` and `carbon_savings_t` are
+all written from `per_year[1]`. Its column units also read "Mt / year" with no
+year named — the constant-annual-rate reading the README warns against — and now
+name the timepoint. Rebound percentages are unaffected: pi enters numerator and
+denominator almost proportionally, largest shift 0.0085 pp.
+
+Neither figure ever included survivor emissions or the drug charge. Those come
+from the mortality side, which neither module reads; `_survivor_food_factor`
+lives on `result_df.attrs` and never reaches `carbon_savings_t`.
+
+### 2. `country_data_coverage.csv` — a producer for a file that had none
+
+`data_result/country_data_coverage.xlsx` was untracked, had no git history, and
+no script in the tree wrote it — the only reference on disk was a comment in
+`.Rhistory` saying the country sets were taken *from* it. It had gone stale
+silently: its header column still read "In 35-country complete set".
+
+Replaced by `scripts/build_country_coverage.py`: **one row per modelled country,
+all 63**, every exclusion reason derived. That is wider than the two artefacts it
+overlaps, both of which carry 53 rows — the food-data sample — so the seven
+countries with no FAOSTAT food data appear in neither.
+
+| reason | n | ISOs |
+|---|--:|---|
+| None (complete data) | 40 | |
+| No FAOSTAT food data | 7 | AND ASM BMU BRN GRL PRI SGP |
+| No FAOSTAT price index | 3 | GUY NRU TWN |
+| No OECD survivor-emissions factor | 13 | ATG BHR BHS BRB KNA KWT OMN PAN PYF QAT SYC TTO URY |
+
+Cross-checks: the 40 match `_complete_data_subset()` computed live, and match
+`gdp_share_of_global_economy.csv` exactly. Reading the raw flags rather than the
+cascade gives 22 countries without an OECD factor and 0 without mortality,
+reconciling with the README three-gap account. The old xlsx is renamed
+`country_data_coverage_SUPERSEDED_2026-07-22.xlsx` rather than deleted — it is
+untracked, so deleting it is unrecoverable.
+
+### 3. Three stale pins, all predating the regeneration
+
+`reference/metrics.py` was **failing** at a worst relative difference of 3.33e-01
+against a 1e-12 tolerance: the snapshots were dated 2026-07-31, the population
+was regenerated 2026-08-07. Refreshed with `--write`; a separate verify-only
+re-run passes at exactly 0.0 on all 47.
+
+`scripts/build_ratio_table.py` carried the same class of defect and was worse —
+its `BAR` pin held the pre-regeneration 1.8933028079 / 1.8473655360, so it
+printed *"BAR FAILED ... do not use these numbers"* on every run **while still
+writing its CSV**. Repinned to 1.9912545286 / 1.9427609867. Moderate uptake moved
+1.832 -> 2.0007 gross and 1.787 -> 1.9519 net.
+
+Also regenerated, both gitignored: `data_result/gdp_share_of_global_economy.csv`
+(58.96% / 59.72% of 2022 world GDP, N = 40 / 53) and
+`data_result/survivor_food_factor.csv`. Both had sat at 2026-07-31.
+
+What moved in the snapshots — the record the README "Reproduction check" section
+points here for:
+
+```
+36 reference values moved with the population regeneration (447e688)
+
+Relative change is SIGNED: annual food savings FELL, every ratio ROSE.
+
+file     key                             metric                                      old          new    change
+----------------------------------------------------------------------------------------------------------------
+headline max_uptake                      total_annual_food_savings_mt          53.942134    50.772646    -5.88%
+headline mod_uptake                      total_annual_food_savings_mt          27.632962    26.889189    -2.69%
+headline max_uptake                      cum_food_to_survivor_ratio_10yr        1.847366     1.942761    +5.16%
+headline mod_uptake                      cum_food_to_survivor_ratio_10yr        1.786549     1.951931    +9.26%
+headline max_uptake                      annual_food_to_survivor_ratio_y10      0.948769     0.998853    +5.28%
+headline mod_uptake                      annual_food_to_survivor_ratio_y10      0.919059     1.005764    +9.43%
+headline max_uptake                      min_country_ratio_10yr                 1.205338     1.291371    +7.14%
+headline mod_uptake                      min_country_ratio_10yr                 1.181063     1.248114    +5.68%
+headline max_uptake                      min_country_iso                             HUN          LTU        ->
+headline max_uptake                      min_country_name                        Hungary    Lithuania        ->
+suite    P10 max_uptake                  cum_ratio_10yr                         1.054180     1.107383    +5.05%
+suite    P10 mod_uptake                  cum_ratio_10yr                         1.018155     1.111790    +9.20%
+suite    P90 max_uptake                  cum_ratio_10yr                         2.566234     2.701315    +5.26%
+suite    P90 mod_uptake                  cum_ratio_10yr                         2.483566     2.715913    +9.36%
+suite    combined_conservative max_uptake cum_ratio_10yr                         0.693456     0.728075    +4.99%
+suite    combined_conservative mod_uptake cum_ratio_10yr                         0.669920     0.731201    +9.15%
+suite    P10 max_uptake                  annual_ratio_y10                       0.541382     0.569340    +5.16%
+suite    P10 mod_uptake                  annual_ratio_y10                       0.523755     0.572886    +9.38%
+suite    P90 max_uptake                  annual_ratio_y10                       1.317930     1.388814    +5.38%
+suite    P90 mod_uptake                  annual_ratio_y10                       1.277572     1.399329    +9.53%
+suite    combined_conservative max_uptake annual_ratio_y10                       0.356112     0.374314    +5.11%
+suite    combined_conservative mod_uptake annual_ratio_y10                       0.344592     0.376756    +9.33%
+suite    P10 max_uptake                  min_country_ratio                      0.745228     0.797311    +6.99%
+suite    P10 mod_uptake                  min_country_ratio                      0.729418     0.771269    +5.74%
+suite    P90 max_uptake                  min_country_ratio                      1.572533     1.694427    +7.75%
+suite    P90 mod_uptake                  min_country_ratio                      1.549364     1.636967    +5.65%
+suite    combined_conservative max_uptake min_country_ratio                      0.525066     0.556928    +6.07%
+suite    combined_conservative mod_uptake min_country_ratio                      0.518744     0.546903    +5.43%
+suite    P90 max_uptake                  min_country_iso                             HUN          LTU        ->
+suite    combined_conservative max_uptake min_country_iso                             HUN          POL        ->
+suite    P90 max_uptake                  min_country_name                        Hungary    Lithuania        ->
+suite    combined_conservative max_uptake min_country_name                        Hungary       Poland        ->
+suite    P10 max_uptake                  n_tipping_countries                           9            7        ->
+suite    P10 mod_uptake                  n_tipping_countries                           9            6        ->
+suite    combined_conservative max_uptake n_tipping_countries                          21           20        ->
+suite    combined_conservative mod_uptake n_tipping_countries                          21           20        ->
+```
+
+`n_complete_countries` held at 40 in every configuration. The `committed_legacy`
+and `corrected_fix3` provenance rows are untouched and still carry the historical
+35, which is correct: `ACTIVE_RUN` is `survival_weighted`.
+
+### 4. `manuscript_headline_numbers.csv` mixed two bases inside one paragraph
+
+The Results paragraph drew its calories, tonnage and rebound offset from
+`supplement_results_table_raw.csv` (t = 0, `survival_weighted=False`) but its
+emissions from `net_emissions_with_drug.csv` (pi-weighted year 1). Nothing in the
+table said so, the two differ by about 0.5%, and the text therefore disagreed
+with Figure 1 Panel A beside it — which is the t = 0 series and says so in its
+caption.
+
+Three changes to `scripts/build_manuscript_numbers.R`:
+
+* New **`mortality_basis`** column (with / without / mortality model output /
+  n/a), derived centrally from `source_csv`, `metric` and the panel recorded in
+  `source_field`, so a new `add()` cannot forget it. Unmapped rows land on
+  `UNCLASSIFIED` and the run warns. Currently 0 unclassified across 85 rows.
+* The four **"Annual emissions saved"** rows moved to the no-mortality panel:
+  51.045 / 49.784 (max) and 27.031 / 26.362 (mod), up from 50.773 / 49.519 /
+  26.889 / 26.224.
+* New **"Drug manufacturing emissions, one year"** row on the same basis: 1.261
+  Mt (max), 0.669 Mt (mod). The chain now closes exactly
+  (`51.044657 - 1.260831 = 49.783826`) and matches
+  `global_emissions_waterfall_1yr.csv` to the last decimal on all three steps.
+
+The ten-year drug row is kept and now annotated: it sums all 56 ISO in
+`net_emissions_with_drug`, including GUY/NRU/TWN, which have treated patients but
+no price index and so no food savings. Over the 53-country food sample it is
+12.12 Mt rather than 12.25 — the distinction matters because the draft attributes
+12.3 to a sample it does not span.
+
+### 5. Tornado label placement
+
+`figures/sensitivity_tornado.png` had labels running past the right spine.
+Descriptive text now sits inside the bar with only the value outside, all
+vertically centred on the bar rather than offset +/-0.33 into the inter-row gap.
+
+Placement is decided by **measuring** the rendered string against the bar width,
+not by a hardcoded exception, and the measurement corrected the expectation:
+"Survivor GHG decline" was the obvious candidate for the both-outside fallback
+(19 Mt bar), but **"Diet preference" needs it too** — 322 Mt of names against a
+278 Mt bar, still 23 Mt short with padding at zero. Only "Carbon intensity" holds
+both names. A hardcoded list would have encoded the wrong guess and clipped a
+label. Label colour went to a single `#08306b`: the old low-end `#9ecae1`
+measures 1.8:1 on white and is nearly the bar own colour, so it would have
+vanished once moved inside.
+
+Re-plotted from the committed CSV rather than re-running the analysis, so no
+model number moved.
+
+### 6. README
+
+Steps 6-9 and the imputation-sensitivity paragraph still quoted pre-regeneration
+figures (1.85x, 2.33x, 1.25x, 0.69x, 2.57x, 1.893x -> 1.847x, Hungary binding).
+All updated against the live outputs. One logic error fixed while there: the
+Step 8 text said "Two specifications fall below break-even globally" and then
+named all-food P10 as "marginally above", which contradicted itself. One
+specification falls below.
+
+### Known, not fixed
+
+* `data_result/oecd_vs_worldbank_survivor_emissions.csv` (2026-07-22) **cannot be
+  regenerated**: `mortality model total emissions_worldbank_backup.csv` does not
+  exist, and `consumption_ghg.py` deliberately skips writing the comparison
+  without it rather than overwrite a real table with zeros. Its
+  `total_person_years_saved` column is stale. Fixing it means restoring that
+  baseline or retiring the file, not re-running anything.
+* `figures/breakeven_stock_flow_all_countries.png`, `sensitivity_ci_scenarios.png`
+  and `sensitivity_country_range.png` remain orphaned, as recorded above.
+* `scripts/build_ratio_table.py` is still absent from the README run order, which
+  is the likely reason the regeneration sweep missed its output.
+* The draft values in `manuscript_headline_numbers.csv` are older than the current
+  manuscript — its `draft_text` says Hungary where the manuscript now says
+  Lithuania — so the `changed` flag understates agreement.
+* Manuscript text reports 6.7% calories reduced per treated patient; the measured
+  figure is 6.775% (63-country) / 6.779% (53-country), which rounds to 6.8%.
+
+---
+
 ## How to reproduce
 
 ```

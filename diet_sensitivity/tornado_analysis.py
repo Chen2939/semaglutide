@@ -204,46 +204,125 @@ def build_tornado_results(ci_scenario: str = "mean") -> pd.DataFrame:
     return results.sort_values("range_Mt", ascending=True)
 
 
+BAR_COLOR = "#6baed6"
+# One colour for every label, inside the bar and out. The old scheme keyed the
+# low end to #9ecae1 and the high end to #08519c, which did two things badly:
+# #9ecae1 on white measures 1.8:1 and was barely readable outside the bar, and
+# it is nearly the bar's own colour, so it would vanish entirely once the text
+# moved inside. The low/high distinction was redundant anyway -- each end is
+# named ("All foods P10" vs "All foods P90") and sits at its own end of the bar.
+# #08306b measures 5.35:1 on the bar and 15.9:1 on white, so one colour is legible
+# in both placements.
+LABEL_COLOR = "#08306b"
+LABEL_PT = 8
+BAR_HEIGHT = 0.55
+
+# Gap between a bar edge and the text on either side of it, as a fraction of the
+# axes width. Applied in data units at render time so it stays a constant
+# distance on the page whatever the x-range works out to.
+PAD_FRAC = 0.008
+
+
+def _data_width(ax, text: str) -> float:
+    """Rendered width of ``text`` in x-axis DATA units at the current xlim.
+
+    Measured off the renderer rather than estimated from character counts: the
+    whole point of the placement rule below is that it knows whether a string
+    actually fits, and a guess would reintroduce the overflow it exists to stop.
+    """
+    fig = ax.figure
+    t = ax.text(0, 0, text, fontsize=LABEL_PT, fontweight="bold")
+    fig.canvas.draw()
+    bb = t.get_window_extent(renderer=fig.canvas.get_renderer())
+    t.remove()
+    inv = ax.transData.inverted()
+    return abs(inv.transform((bb.width, 0))[0] - inv.transform((0, 0))[0])
+
+
+def _plan_row_labels(ax, row) -> list[dict]:
+    """Where each of a row's two end labels goes, decided by measurement.
+
+    The rule: put the descriptive text INSIDE the bar and leave only the numeric
+    value outside, so a long parameter name cannot push past the axes. Where the
+    bar is too narrow to hold both names, that row falls back to the old
+    behaviour -- name and value together, outside the bar.
+
+    The fallback is DERIVED, not listed, and measurement is why: the obvious
+    guess is that only "Survivor GHG decline" needs it, since its bar spans
+    19 Mt against a ~900 Mt axis. Measured, "Diet preference" needs it too --
+    its two names want 322 Mt against a 278 Mt bar, short by 45 Mt, and still
+    23 Mt short with the padding taken to zero. Only "Carbon intensity (all
+    foods)" holds both names, at 240 Mt inside a 541 Mt bar. A hardcoded
+    exception list would have encoded the wrong guess and clipped a label.
+
+    Because it is a width comparison, a future run in which a range narrows gets
+    the fallback automatically, and one in which the survivor range widens stops
+    needing it. diagnostics/check_tornado_labels.py pins the current outcome.
+    """
+    low = float(row["low_net_savings_10yr_Mt"])
+    high = float(row["high_net_savings_10yr_Mt"])
+    lo_x, hi_x = min(low, high), max(low, high)
+    span = hi_x - lo_x
+
+    # Which named endpoint sits at which edge. low is not guaranteed to be the
+    # left edge -- nothing in build_tornado_results orders the pair.
+    left_end = ("low", low) if low <= high else ("high", high)
+    right_end = ("high", high) if low <= high else ("low", low)
+
+    pad = PAD_FRAC * (ax.get_xlim()[1] - ax.get_xlim()[0])
+    name = {"low": str(row["low_label"]), "high": str(row["high_label"])}
+    value = {"low": f"{low:,.0f} Mt", "high": f"{high:,.0f} Mt"}
+
+    w_left = _data_width(ax, name[left_end[0]])
+    w_right = _data_width(ax, name[right_end[0]])
+    # Three pads: one inside each bar edge, one keeping the two names apart.
+    fits = (w_left + w_right + 3 * pad) <= span
+
+    out = []
+    if fits:
+        for end, edge in ((left_end, "left"), (right_end, "right")):
+            key, x = end
+            inward, outward = (1, -1) if edge == "left" else (-1, 1)
+            out.append({"x": x + inward * pad, "s": name[key],
+                        "ha": "left" if edge == "left" else "right",
+                        "inside": True, "end": key})
+            out.append({"x": x + outward * pad, "s": value[key],
+                        "ha": "right" if edge == "left" else "left",
+                        "inside": False, "end": key})
+    else:
+        for end, edge in ((left_end, "left"), (right_end, "right")):
+            key, x = end
+            outward = -1 if edge == "left" else 1
+            out.append({"x": x + outward * pad,
+                        "s": f"{name[key]}: {value[key]}",
+                        "ha": "right" if edge == "left" else "left",
+                        "inside": False, "end": key})
+    return out
+
+
 def plot_tornado(results: pd.DataFrame) -> Path:
-    """Generate a horizontal tornado plot."""
+    """Generate a horizontal tornado plot.
+
+    Labels are placed by measurement, in two passes: the x-limits have to be
+    final before any string can be converted to data units, and the strings then
+    decide whether the x-limits are wide enough. See ``_plan_row_labels``.
+    """
     baseline = float(results["baseline_net_savings_10yr_Mt"].iloc[0])
     fig, ax = plt.subplots(figsize=(9, 4.8))
 
-    y = np.arange(len(results))
-    colors = {"low": "#9ecae1", "high": "#08519c"}
+    rows = results.reset_index(drop=True)
+    y = np.arange(len(rows))
 
-    for idx, (_, row) in enumerate(results.reset_index(drop=True).iterrows()):
+    for idx, (_, row) in enumerate(rows.iterrows()):
         low = row["low_net_savings_10yr_Mt"]
         high = row["high_net_savings_10yr_Mt"]
-        left = min(low, high)
-        width = abs(high - low)
         ax.barh(
             idx,
-            width,
-            left=left,
-            height=0.55,
-            color="#6baed6",
+            abs(high - low),
+            left=min(low, high),
+            height=BAR_HEIGHT,
+            color=BAR_COLOR,
             edgecolor="white",
-        )
-        ax.text(
-            low,
-            idx - 0.33,
-            f"{row['low_label']}: {low:,.0f} Mt",
-            ha="right" if low < baseline else "left",
-            va="center",
-            fontsize=8,
-            color=colors["low"],
-            fontweight="bold",
-        )
-        ax.text(
-            high,
-            idx + 0.33,
-            f"{row['high_label']}: {high:,.0f} Mt",
-            ha="left" if high >= baseline else "right",
-            va="center",
-            fontsize=8,
-            color=colors["high"],
-            fontweight="bold",
         )
 
     ax.axvline(
@@ -254,7 +333,7 @@ def plot_tornado(results: pd.DataFrame) -> Path:
         label=f"Baseline: {baseline:,.0f} Mt",
     )
     ax.set_yticks(y)
-    ax.set_yticklabels(results["parameter"], fontsize=10)
+    ax.set_yticklabels(rows["parameter"], fontsize=10)
     ax.set_xlabel("Global 10-year net GHG savings (Mt CO2e)")
     ax.set_title(
         "Sensitivity of Net Emissions Results (Max Uptake)",
@@ -266,10 +345,47 @@ def plot_tornado(results: pd.DataFrame) -> Path:
     ax.legend(loc="lower right", fontsize=8)
 
     span = max(
-        abs(results["low_net_savings_10yr_Mt"].min() - baseline),
-        abs(results["high_net_savings_10yr_Mt"].max() - baseline),
+        abs(rows["low_net_savings_10yr_Mt"].min() - baseline),
+        abs(rows["high_net_savings_10yr_Mt"].max() - baseline),
     )
     ax.set_xlim(baseline - span * 1.35, baseline + span * 1.35)
+
+    # Widen until every label fits, then place. Widening the axes makes a
+    # fixed-pixel string cover MORE data units, so the requirement moves as the
+    # limits do and one pass is not enough. It converges geometrically because a
+    # label is a small fraction of the range; the loop asserts that rather than
+    # trusting it, since a silent non-convergence would clip a label -- the exact
+    # defect this replaces.
+    for attempt in range(12):
+        plans = [_plan_row_labels(ax, row) for _, row in rows.iterrows()]
+        need_lo, need_hi = ax.get_xlim()
+        for plan in plans:
+            for p in plan:
+                w = _data_width(ax, p["s"])
+                x0 = p["x"] - w if p["ha"] == "right" else p["x"]
+                need_lo, need_hi = min(need_lo, x0), max(need_hi, x0 + w)
+        lo, hi = ax.get_xlim()
+        margin = 0.01 * (hi - lo)
+        if need_lo >= lo and need_hi <= hi:
+            break
+        ax.set_xlim(min(lo, need_lo - margin), max(hi, need_hi + margin))
+    else:
+        raise RuntimeError(
+            "Tornado label placement did not converge in 12 passes. A label is "
+            "wide enough relative to the axis that widening to fit it makes it "
+            "wider still; shorten the label or drop the font size."
+        )
+
+    # va='center' on every label, inside and out: they sit on the bar's
+    # centreline rather than the old +/-0.33 offsets, which put them in the gap
+    # between rows and made a two-ended bar read as two separate annotations.
+    for idx, plan in enumerate(plans):
+        for p in plan:
+            ax.text(
+                p["x"], idx, p["s"],
+                ha=p["ha"], va="center",
+                fontsize=LABEL_PT, color=LABEL_COLOR, fontweight="bold",
+            )
 
     plt.tight_layout()
     out = output_path("sensitivity_tornado.png")

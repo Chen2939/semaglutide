@@ -7,10 +7,28 @@ One row per food group, three columns:
 
 **Every food group is shown.** The figure used to carry a hardcoded
 ``["Meat", "Dairy", "Cereals"]``, and no rule reproduced that set: Meat and
-Dairy are 1st and 2nd by year-1 carbon savings, but Cereals is 5th, behind Fish
+Dairy are 1st and 2nd by t = 0 carbon savings, but Cereals is 5th, behind Fish
 and Other, and ranking by tonnage instead gives a different three again. Rather
 than caption an editorial choice, the choice is removed. Rows are ordered by
-descending year-1 max-uptake carbon savings, which is a rule and is stated.
+descending t = 0 max-uptake carbon savings, which is a rule and is stated.
+
+**All three panels are t = 0, mortality effects excluded**, on the same basis as
+``generate_waterfall_1yr_figure``'s Panel A and the dashboard's food-group
+breakdown:
+
+    1. food-side survival weighting pi(t)         OFF  (survival_weighted=False)
+    2. pharmaceutical-side weighting pi_dose(t)   OFF  (no drug term here)
+    3. survivor emissions                         OFF  (no mortality file read)
+
+Channels 2 and 3 are off by construction rather than by choice -- this module
+reads no mortality data and subtracts no manufacturing charge, so there is
+nothing to switch off. Only channel 1 is a decision, and it is made in ``main``.
+
+This figure was previously on the pi(1)-weighted year-1 basis while its column
+units said only "/ year", which reads as a constant annual rate. It is not one:
+under weighting the series declines each year, which is exactly what the README
+warns about. Both halves are fixed -- the basis is now genuinely t = 0, and the
+units name the timepoint.
 
 Top countries shown per food group, ranked by max-uptake actual reduction.
 The gap between columns A and B is the rebound effect.
@@ -95,7 +113,7 @@ def _tick_decimals(ticks):
 
 
 def food_group_order(max_up: pd.DataFrame) -> list[str]:
-    """Every food group present, ordered by descending year-1 carbon savings.
+    """Every food group present, ordered by descending t = 0 carbon savings.
 
     This is the selection rule, and it is a rule rather than a list: whatever
     groups the pipeline emits is what the figure shows, in an order derived from
@@ -112,12 +130,26 @@ def food_group_order(max_up: pd.DataFrame) -> list[str]:
 
 def main():
     print("Building rebound decomposition figure...")
-    _, result_df = compute_food_savings()
+    # t = 0, all three mortality channels off, on the same terms as waterfall
+    # Panel A and the food-group breakdown. survival_weighted=False runs years=[1]
+    # with the pi vector set to exact 1.0 through the same solver, so this is an
+    # instantaneous shock and not year 1 of a declining series.
+    #
+    # The other two channels are off by construction here rather than by choice:
+    # this module reads no mortality file and subtracts no manufacturing charge,
+    # so no survivor-emissions or drug term exists to switch off.
+    #
+    # Do NOT restore the bare call. The three columns this figure plots --
+    # expected_demand_reduction, actual_reduction, carbon_savings_t -- are all
+    # written from per_year[1], so a bare call silently puts every panel back on
+    # the pi(1)-weighted year-1 basis while the labels keep saying t = 0. The
+    # movement is only about 0.54%, so the output stays entirely plausible.
+    _, result_df = compute_food_savings(survival_weighted=False)
 
     max_up = result_df[result_df["scenario"] == "max_uptake"].copy()
     food_groups = food_group_order(max_up)
     n_rows = len(food_groups)
-    print(f"  Food groups: {n_rows} (all present), ordered by year-1 carbon savings")
+    print(f"  Food groups: {n_rows} (all present), ordered by t = 0 carbon savings")
     print(f"  Countries per row: {N_COUNTRIES}")
 
     fig_h_in = (
@@ -148,10 +180,14 @@ def main():
         "B.  Actual (after rebound)",
         "C.  Carbon Emissions Saved",
     ]
+    # "at t = 0", not "/ year". These are the instantaneous annual-rate shock,
+    # and "/ year" alone read as a CONSTANT annual rate -- which is the exact
+    # reading the README warns against, since the weighted series declines with
+    # pi(t). Naming the timepoint is what stops a reader multiplying by ten.
     col_units = [
-        "Mt / year",
-        "Mt / year",
-        "kt CO₂eq / year",
+        "Mt at t = 0",
+        "Mt at t = 0",
+        "kt CO₂eq at t = 0",
     ]
     col_fields = [
         "expected_demand_reduction",
@@ -300,15 +336,26 @@ def main():
             annotation_clip=False,
         )
 
-    # Add rebound annotation between columns A and B
+    # Add rebound annotation between columns A and B, and the basis statement.
+    #
+    # The basis is split across two places because neither holds both. Measured
+    # at print size by diagnostics/measure_rebound_labels.py: the full
+    # "(Max Uptake 95%, t = 0, mortality effects excluded)" suptitle is 196.1 mm
+    # against 183 mm of page, so it renders clipped. The timepoint goes in the
+    # suptitle (144.8 mm) and the mortality statement in this footnote
+    # (129.5 mm), which has the room. "mortality effects excluded" is the exact
+    # wording generate_waterfall_1yr_figure uses, and it means the same three
+    # channels here.
     fig.text(
         0.5, 0.006,
-        "Gap between A and B = rebound effect (price-induced consumption recovery)",
+        "Gap between A and B = rebound effect (price-induced consumption "
+        "recovery).  All panels at t = 0, mortality effects excluded.",
         ha="center", fontsize=PT["note"], style="italic", color="#555555",
     )
 
     fig.suptitle(
-        "Rebound Decomposition by Food Group and Country (Max Uptake 95%)",
+        "Rebound Decomposition by Food Group and Country "
+        "(Max Uptake 95%, t = 0)",
         fontsize=PT["suptitle"], fontweight="bold",
         y=1 - 0.10 / fig_h_in, va="top",
     )
