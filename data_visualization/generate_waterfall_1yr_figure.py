@@ -20,7 +20,7 @@ survival-weight table and none is needed.
     naïve food-emission reductions
   − rebound offset
   − manufacturing (drug) emissions
-  = net climate savings
+  = net emissions savings
 
 **Do not "fix" the drug side to use a survival-weighted column.** It reads
 ``drug_emissions_1yr_t``, which is ``treated_users_initial x kg_per_user_year``
@@ -180,7 +180,7 @@ def compute_waterfall_components() -> pd.DataFrame:
         },
         {
             "step": "net_savings",
-            "label": "Net climate\nsavings",
+            "label": "Net emissions\nsavings",
             "kind": "total",
             "plot": True,
             "value_Mt": net_annual / 1e6,

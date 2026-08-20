@@ -58,6 +58,17 @@ scenario     <- "max_uptake"   # the country sets are identical across scenarios
                                # asserted below rather than assumed
 out_csv      <- file.path("data_result", "gdp_share_of_global_economy.csv")
 
+# Food-energy coverage: the same two sets, measured against world food supply.
+fbs_path     <- file.path("Food data",
+                          "FoodBalanceSheets_E_All_Data_(Normalized)",
+                          "FoodBalanceSheets_E_All_Data_(Normalized).csv")
+iso_map_path <- file.path("Food data", "faostat_country_mapping.csv")
+kcal_out_csv <- file.path("diagnostics", "calorie_share_coverage.csv")
+fbs_year     <- 2022L
+kcal_item    <- "Grand Total"                 # FAOSTAT's own national aggregate
+kcal_element <- "Food supply (kcal)"          # national TOTAL, million kcal/year
+world_area   <- "World"
+
 # --- Derive the country sets from the committed model outputs -----------------
 if (!file.exists(breakeven_csv)) {
   stop("Break-even output not found: ", breakeven_csv,
@@ -200,9 +211,153 @@ share_complete <- sum(result$share_of_world_pct[result$in_complete_subset],
 n_food     <- sum(!is.na(result$gdp_current_usd))
 n_complete <- sum(!is.na(result$gdp_current_usd) & result$in_complete_subset)
 
+# --- Share of global food energy supply ---------------------------------------
+# The second half of the same manuscript sentence, over THE SAME two sets. It
+# lives here rather than in a script of its own for one reason: a second script
+# would have to derive the sets again, and two derivations of one thing is
+# exactly the failure this file was rewritten to remove (see the header). Both
+# vectors below are the ones derived above, reused as-is -- nothing here
+# re-derives them and no ISO is listed anywhere in this section.
+#
+# Which element, and why no population step
+# -----------------------------------------
+# FAOSTAT publishes the national TOTAL, "Food supply (kcal)" in million kcal per
+# year, alongside the familiar per-capita rate. Measured on this vintage: the
+# World row is 8.658029e+09 million kcal against a World per-capita rate of
+# 2984.86 kcal/cap/day, which back out to 7.95 billion people -- the two agree,
+# and the total is annual. Reading the total directly removes the population
+# multiplication entirely, and with it the question of whose population to use:
+# FAO divided by its own, so anything else would turn an identity into an
+# approximation.
+#
+# "Grand Total" is FAOSTAT's published national aggregate and is taken as
+# published. It is NOT rebuilt by summing the mapped items -- the Food Balance
+# Sheets carry parent items and their components in the same table, which is the
+# double-count `pipeline.py` keeps AGGREGATE_ITEMS to avoid. Taking the
+# aggregate sidesteps that rather than re-solving it.
+if (!requireNamespace("data.table", quietly = TRUE)) {
+  stop("data.table is required to read the Food Balance Sheets (about 610 MB).",
+       "\nInstall it with: install.packages('data.table')")
+}
+if (!file.exists(fbs_path)) {
+  stop("FAOSTAT Food Balance Sheets not found: ", fbs_path,
+       "\nSee 'External data' in README.md -- this is a documented download.")
+}
+if (!file.exists(iso_map_path)) stop("ISO mapping not found: ", iso_map_path)
+
+# select= keeps the read to the seven columns that matter; the frame is subset to
+# the target year and element immediately and the full table dropped, so the
+# 610 MB file never sits in memory in full.
+fbs_all <- data.table::fread(
+  fbs_path,
+  select = c("Area Code", "Area", "Item", "Element", "Year", "Unit", "Value"),
+  showProgress = FALSE
+)
+fbs <- fbs_all[Year == fbs_year & Item == kcal_item & Element == kcal_element]
+rm(fbs_all)
+invisible(gc(verbose = FALSE))
+
+if (nrow(fbs) == 0) {
+  stop("No rows for Item '", kcal_item, "' / Element '", kcal_element,
+       "' / Year ", fbs_year, " in ", fbs_path,
+       "\nFAOSTAT element labels vary between vintages -- inspect ",
+       "unique(Element) for this item before assuming a replacement.")
+}
+kcal_unit <- unique(fbs$Unit)
+if (length(kcal_unit) != 1 || kcal_unit != "million Kcal") {
+  stop("Unexpected unit for '", kcal_element, "': ",
+       paste(kcal_unit, collapse = ", "), " (expected 'million Kcal'). ",
+       "The million-kcal scaling below would be wrong.")
+}
+
+# --- Denominator: FAOSTAT's published World row -------------------------------
+world_kcal_row <- fbs[Area == world_area]
+if (nrow(world_kcal_row) == 1) {
+  world_kcal_year  <- as.numeric(world_kcal_row$Value) * 1e6
+  kcal_denom_source <- "FAOSTAT published 'World' row"
+} else {
+  # Fallback only. Guarded twice: regional aggregates carry Area Code >= 5000,
+  # and the 'China' aggregate (code 351) spans 'China, mainland' (41) plus Hong
+  # Kong, Macao and Taiwan, so keeping both double-counts all four. NOTE the
+  # codes: this vintage numbers mainland 41 and the aggregate 351; there is no
+  # 357. Verified against the file rather than assumed.
+  ctry <- fbs[`Area Code` < 5000 & `Area Code` != 351L]
+  world_kcal_year  <- sum(as.numeric(ctry$Value), na.rm = TRUE) * 1e6
+  kcal_denom_source <- paste0("summed country rows (no World row present; ",
+                              "aggregates and the China 351 duplicate excluded)")
+}
+if (!is.finite(world_kcal_year) || world_kcal_year <= 0) {
+  stop("World food-energy denominator is not a positive finite number.")
+}
+
+# Cross-check denominator, computed even when the World row is used: the same
+# guarded sum of country rows. Reported, not substituted -- a large gap between
+# the two would mean the guards or the aggregate flags have moved.
+ctry_chk <- fbs[`Area Code` < 5000 & `Area Code` != 351L]
+world_kcal_year_summed <- sum(as.numeric(ctry_chk$Value), na.rm = TRUE) * 1e6
+
+# --- Map FAOSTAT areas to ISO3 ------------------------------------------------
+iso_map <- read.csv(iso_map_path, check.names = FALSE, stringsAsFactors = FALSE)
+if (!all(c("Area", "ISO") %in% names(iso_map))) {
+  stop("Expected 'Area' and 'ISO' columns in ", iso_map_path)
+}
+fbs_iso <- merge(
+  data.frame(Area = fbs$Area, kcal_year = as.numeric(fbs$Value) * 1e6,
+             stringsAsFactors = FALSE),
+  iso_map, by = "Area", all.x = FALSE
+)
+
+# One FBS row per ISO, or the sum below is silently wrong. Fires if the mapping
+# ever points two FAOSTAT areas at one ISO -- e.g. a 'China' / 'China, mainland'
+# pair -- for any ISO actually in our sets.
+dup_iso <- fbs_iso$ISO[duplicated(fbs_iso$ISO) & fbs_iso$ISO %in% iso_food]
+if (length(dup_iso) > 0) {
+  stop("Multiple FAOSTAT areas map to one ISO in the food sample: ",
+       paste(sort(unique(dup_iso)), collapse = ", "),
+       " -- summing these would double-count.")
+}
+
+# --- Per-country table --------------------------------------------------------
+kcal <- data.frame(ISO3 = iso_food, stringsAsFactors = FALSE)
+kcal <- merge(kcal, fbs_iso[, c("ISO", "Area", "kcal_year")],
+              by.x = "ISO3", by.y = "ISO", all.x = TRUE)
+names(kcal)[names(kcal) == "Area"] <- "faostat_area"
+kcal$matched            <- !is.na(kcal$kcal_year)
+kcal$in_complete_subset <- kcal$ISO3 %in% iso_complete
+kcal$kcal_day           <- kcal$kcal_year / 365      # 2022 is not a leap year
+kcal$share_of_world_pct <- 100 * kcal$kcal_year / world_kcal_year
+
+# --- The load-bearing check: anything unmatched understates the numerator ------
+# An ISO that fails to match drops out of the sum and quietly shrinks the
+# reported coverage, which is the same failure shape as the three countries that
+# sat at exactly zero food savings for the life of the model with nothing said.
+# So this reports by name and by count, and it is a stop rather than a warning:
+# an understated coverage figure is not reportable.
+kcal_unmatched <- sort(kcal$ISO3[!kcal$matched])
+n_kcal_food     <- sum(kcal$matched)
+n_kcal_complete <- sum(kcal$matched & kcal$in_complete_subset)
+
+share_kcal_food     <- sum(kcal$share_of_world_pct[kcal$matched], na.rm = TRUE)
+share_kcal_complete <- sum(
+  kcal$share_of_world_pct[kcal$matched & kcal$in_complete_subset], na.rm = TRUE)
+
 # --- Output -------------------------------------------------------------------
 if (!dir.exists("data_result")) dir.create("data_result", recursive = TRUE)
 write.csv(result, out_csv, row.names = FALSE)
+
+# Food-energy detail. Written BEFORE the unmatched check stops the run, so a
+# failure leaves the evidence on disk to diagnose from rather than nothing.
+if (!dir.exists("diagnostics")) dir.create("diagnostics", recursive = TRUE)
+kcal_out <- kcal[order(!kcal$in_complete_subset, -kcal$share_of_world_pct),
+                 c("ISO3", "faostat_area", "matched", "in_complete_subset",
+                   "kcal_year", "kcal_day", "share_of_world_pct")]
+# Both denominators travel with the rows: the published World row that the
+# reported share uses, and the guarded sum-of-countries cross-check.
+kcal_out$world_kcal_year        <- world_kcal_year
+kcal_out$world_kcal_day         <- world_kcal_year / 365
+kcal_out$world_kcal_year_summed <- world_kcal_year_summed
+kcal_out$denominator_source     <- kcal_denom_source
+write.csv(kcal_out, kcal_out_csv, row.names = FALSE)
 
 cat("\n============================================================\n")
 cat(" Share of global economy (", target_year,
@@ -229,6 +384,45 @@ cat(sprintf("Food-data sample     : %.2f%% of world GDP  (n = %d)\n",
             share_food, n_food))
 cat("------------------------------------------------------------\n")
 
+# --- Food-energy coverage, beside the GDP figures it is quoted with -----------
+cat("\n============================================================\n")
+cat(sprintf(" Share of global food energy supply (%d, FAOSTAT FBS)\n", fbs_year))
+cat("============================================================\n")
+cat(sprintf("Element    : %s / %s (million Kcal, annual)\n",
+            kcal_item, kcal_element))
+cat(sprintf("Denominator: %s\n", kcal_denom_source))
+cat(sprintf("World food supply %d: %.4e kcal/year  (%.0f kcal/day)\n",
+            fbs_year, world_kcal_year, world_kcal_year / 365))
+cat(sprintf("Cross-check, summed country rows: %.4e kcal/year  (%+.2f%% vs the ",
+            world_kcal_year_summed,
+            100 * (world_kcal_year_summed / world_kcal_year - 1)))
+cat("reported denominator)\n")
+
+cat(sprintf("\nMatched %d of %d in the food-data sample, %d of %d in the ",
+            n_kcal_food, length(iso_food),
+            n_kcal_complete, length(iso_complete)))
+cat("complete-data subset\n")
+if (length(kcal_unmatched) == 0) {
+  cat("Unmatched: none\n")
+} else {
+  cat(sprintf("Unmatched (%d) -- each drops out of the numerator and ",
+              length(kcal_unmatched)))
+  cat("understates coverage:\n")
+  for (iso in kcal_unmatched) {
+    cat(sprintf("  %-4s no FAOSTAT '%s' row for %d\n", iso, kcal_item, fbs_year))
+  }
+}
+
+cat("\n------------------------------------------------------------\n")
+cat(sprintf("Complete-data subset : %.1f%% of global food energy supply  (n = %d)\n",
+            share_kcal_complete, n_kcal_complete))
+cat(sprintf("Food-data sample     : %.1f%% of global food energy supply  (n = %d)\n",
+            share_kcal_food, n_kcal_food))
+cat("------------------------------------------------------------\n")
+cat("NOTE: the FBS element measures food SUPPLY at household availability,\n")
+cat("      which includes waste and is not intake. The manuscript sentence\n")
+cat("      should read 'global food energy supply', not 'calorie consumption'.\n")
+
 cat(sprintf("\nExcluded from the complete-data subset (%d):\n",
             length(iso_excluded)))
 if (length(iso_excluded) == 0) {
@@ -249,3 +443,14 @@ if (length(iso_no_food) > 0) {
 }
 
 cat("\nSaved per-country table to: ", out_csv, "\n", sep = "")
+cat("Saved food-energy coverage to: ", kcal_out_csv, "\n", sep = "")
+
+# Last, so everything above is on screen and both CSVs are on disk first. An
+# unmatched country means the food-energy percentages above are understated by an
+# unknown amount, so they are not reportable until it is resolved.
+if (length(kcal_unmatched) > 0) {
+  stop("Food-energy coverage is understated: no FAOSTAT match for ",
+       paste(kcal_unmatched, collapse = ", "),
+       ". The two percentages above exclude them. Resolve the mapping in ",
+       iso_map_path, " before quoting either figure.")
+}

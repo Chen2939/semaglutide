@@ -77,6 +77,11 @@ legacy/data/.Rhistory
 !/data_result/per_capita_emissions_savings.csv
 !/data_result/country_data_coverage.csv
 !/data_result/manuscript_headline_numbers.csv
+# Input to the manuscript-numbers collector, written by scripts/build_us_share.py.
+# Tracked because the collector guards it with file.exists() and warn-and-skips
+# when absent, so an untracked copy means a clean clone rebuilds the workbook
+# quietly missing its six US-share rows rather than failing.
+!/data_result/us_share_year1.csv
 # Required input to the food side: compute_food_savings raises without it, so a
 # clean clone cannot run the model unless this is tracked. Rebuildable only from
 # final_df_imputed.pkl, which is itself a committed artifact.

@@ -1808,6 +1808,87 @@ specification falls below.
 
 ---
 
+## US share of year-1 food-emission savings
+
+Added on a co-author's question — what fraction of the savings is the United
+States alone — for the main-text sentence beginning "Most emissions savings are
+concentrated in the United States." Six rows in
+`data_result/manuscript_headline_numbers.csv`, from
+`scripts/build_us_share.py` → `data_result/us_share_year1.csv`.
+
+**Result.** **53.95%** at max uptake (27.536 of 51.045 Mt CO2e) and **54.26%**
+at moderate uptake (14.666 of 27.031 Mt). Three values are written, not one: the
+share, its numerator and its denominator. A percentage whose denominator is not
+recorded cannot be re-checked if the sample is later disputed, and the sample is
+the only contestable thing about this figure.
+
+**Basis.** Year 1, mean carbon intensity, no diet variant,
+`survival_weighted=False`, gross of pharmaceutical emissions, over the
+53-country food-data sample. This is Supplementary Figure 1's basis, which is
+what the question was asked about.
+
+Three parts of that are choices rather than defaults, so each is recorded.
+
+**53 countries, not 40.** The 40-country complete-data subset exists because a
+food:survivor ratio needs an OECD demand-based per-capita factor, and 13
+countries lack one. That is a constraint on the *survivor* side. This figure has
+no survivor term anywhere in it — numerator and denominator are both food
+savings — so the constraint does not apply, and imposing it would drop 13
+countries from a denominator for a reason belonging to a different quantity.
+It would also bias the answer in a specific direction: dropping countries from
+the denominator while keeping the USA in the numerator inflates the share.
+
+**Gross of the drug charge.** Supp Fig 1 is a food-group breakdown and the
+pharmaceutical term is not a food group, so the figure is gross by construction.
+The drug step is not called at all rather than called and subtracted, so there is
+no gross/net ambiguity to resolve later.
+
+**`survival_weighted=False`, and why it is not worth reopening.** Supp Fig 1's
+caption says "mortality effects excluded". It was written before the food-savings
+term was survival weighted at all, so it has two readings: exclude only the
+survivor-emissions term, or exclude the `pi` weighting too. Measured rather than
+argued (`data_result/us_share_diagnostic.txt`, one extra pipeline call):
+
+| scenario | `False` (reported) | `True` | difference |
+|---|--:|--:|--:|
+| max uptake | 53.9452% | 53.9302% | **−0.0151 pp** |
+| mod uptake | 54.2577% | 54.2469% | **−0.0109 pp** |
+
+The share is insensitive because `pi` scales numerator and denominator together.
+The *levels* are not: both fall about 0.5%. So the reading does not matter for
+this figure and does matter for anything quoting a level, which is why the basis
+is stated explicitly in the README rather than left to the caption. The reported
+basis was fixed before the diagnostic ran and was not changed by its result.
+
+**Gates, declared before the run.** Sample exactly 53 (holds, both scenarios and
+both weightings; the three excluded are GUY/NRU/TWN, all missing a FAOSTAT price
+index); `USA` matches exactly one row; the per-country sum reproduces the
+reported total at exactly `0.0`, reconstructed by selecting on the ISO list
+rather than re-applying the `> 0` mask so the check is not a restatement;
+`0 < share < 1`; and no existing workbook value moves — verified by diffing the
+rebuilt workbook against a pre-run snapshot with the six new rows stripped, which
+came back byte-identical.
+
+The denominator is also a cross-check that was not planned as one. At max uptake
+it is `51.04465743048842` Mt, bit-for-bit the workbook's existing "Annual
+emissions saved, after rebound" row, which reaches the same t = 0 quantity from
+`per_capita_emissions_savings.csv` by an unrelated route.
+
+**A collector rule this exposed.** `build_manuscript_numbers.R` derives each
+row's `mortality_basis` from its `source_csv` in `mortality_basis_of()`, so **a
+new input CSV must be registered there or every row drawn from it lands on
+`UNCLASSIFIED`**. The function warns rather than blanking, which is what makes
+this recoverable — a blank would be indistinguishable from "mortality-neutral".
+`us_share_year1.csv` is registered as `without`.
+
+`us_share_year1.csv` is tracked as an ordinary git blob, not LFS: it is a
+collector *input*, and an unhydrated LFS pointer would not fail loudly. `read_csv`
+would parse the pointer as a one-column table, the `nrow(r) != 1` guard would
+fire, and the workbook would build quietly six rows short.
+`us_share_diagnostic.txt` stays untracked — a one-time measurement, not an input.
+
+---
+
 ## How to reproduce
 
 ```
@@ -1912,4 +1993,13 @@ PYTHONUTF8=1 C:\Python314\python.exe diagnostics\check_rebound_axis_format.py
 
 # the regeneration itself, still outstanding
 UN_WPP_DIR=... PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.generate_rebound_figure
+```
+
+US share of year-1 savings. `--diagnostic` adds the `survival_weighted=True`
+call behind the pi measurement; without it the script makes one pipeline call
+and writes only the CSV. The collector must run after it, in that order:
+
+```
+PYTHONUTF8=1 C:\Python314\python.exe scripts\build_us_share.py --diagnostic
+Rscript scripts\build_manuscript_numbers.R
 ```

@@ -42,3 +42,12 @@ data_result/ratio_table_before_after_drug.csv -filter -diff -merge -text
 # scripts/build_per_capita_table.py. Same reasoning as the line above: a small
 # results table whose point is to be diffed between runs.
 data_result/per_capita_emissions_savings.csv -filter -diff -merge -text
+
+# US share of year-1 food-emission savings, written by scripts/build_us_share.py
+# and read by scripts/build_manuscript_numbers.R. Same reasoning again, with one
+# addition: it is a collector INPUT, so if a clone without LFS hydrated it as a
+# 130-byte pointer the R side would not fail -- read_csv would parse the pointer
+# as a one-column table, the `nrow(r) != 1` guard would fire, and the workbook
+# would come out silently missing its six US-share rows. At 317 bytes the pointer
+# would also be larger than the content.
+data_result/us_share_year1.csv -filter -diff -merge -text

@@ -139,6 +139,10 @@ python -m drug_effect.analysis
 python scripts/build_supplement_table.py
 python scripts/build_per_capita_table.py
 python scripts/build_country_coverage.py
+python scripts/build_us_share.py
+#    MUST run before step 7. The collector reads its CSV behind a file.exists()
+#    guard, so if it has not run the workbook is still written -- just quietly
+#    six rows short.
 
 # 6. Share of world GDP covered  (needs step 5's break-even output)
 Rscript gdp_share_of_global_economy.R
@@ -186,6 +190,34 @@ reproduces the legacy behaviour exactly and is the right basis for an
 instantaneous t = 0 quantity, which is what `scripts/build_supplement_table.py`
 uses it for.
 
+### Basis convention: t = 0 figures use `survival_weighted=False`
+
+Every one-year / t = 0 quantity in the paper is computed with
+`survival_weighted=False`, and every cumulative or multi-year quantity with
+`True`. This is the existing convention rather than a per-script choice, and it
+is worth stating because both settings return a plausible number and nothing
+about a single output reveals which was used.
+
+The convention is load-bearing in three places already:
+`generate_waterfall_1yr_figure` passes `False` to build Panel A of the published
+emissions waterfall (all three mortality channels off);
+`scripts/build_supplement_table.py` passes `False` for its instantaneous
+quantities; and `scripts/build_us_share.py` passes `False` for the US share of
+year-1 savings.
+
+The three agree numerically, which is the check that they are one basis and not
+three: the US-share denominator is **51.04465743048842 Mt**, bit-for-bit the
+`Annual emissions saved, after rebound` row of
+`data_result/manuscript_headline_numbers.csv` — the manuscript's 51.0 Mt, which
+reaches the same quantity from `per_capita_emissions_savings.csv` by a different
+route. A basis slip on any of them would break that equality.
+
+Where a caption says "mortality effects excluded", read it as excluding the
+`pi` weighting as well as the survivor-emissions term. That is the wider reading
+and the one these scripts implement; see `CHANGES.md` for the measurement
+showing the choice is immaterial to a *share* while it moves *levels* by about
+0.5%.
+
 ### Script → inputs → outputs
 
 | Script | Reads | Writes |
@@ -208,6 +240,8 @@ uses it for.
 | `drug_effect/analysis.py` | pipeline, drug footprint | `data_result/drug_emissions_by_country.csv`, `drug_footprint_summary.csv` |
 | `scripts/build_supplement_table.py` | pipeline, `full_simulation_results9.rds` | `data_result/supplement_results_table{,_raw}.csv` |
 | `scripts/build_country_coverage.py` | pipeline, `..._oecd.csv`, `World Bank/World_Bank_National_GDP.csv` (names only) | `data_result/country_data_coverage.csv` |
+| `scripts/build_us_share.py` | pipeline (one call; two with `--diagnostic`) | `data_result/us_share_year1.csv`, and `data_result/us_share_diagnostic.txt` under `--diagnostic` |
+| `scripts/build_manuscript_numbers.R` | committed `data_result/` CSVs only | `data_result/manuscript_headline_numbers.csv` |
 
 ## Pipeline
 
@@ -958,6 +992,21 @@ The same artifact was previously recorded here as "2–3 ULP, 8 of 4536 cells",
 measured when the file still carried 22 emissions columns and was compared
 against `..._oecd.csv`. The figures above supersede it: the file is person-years
 only now, so the comparison is 126 × 12.
+
+**The same class of artifact appears on the R side, via `readr`.** A value that
+passes through `read_csv` → `write_csv` can come back with its last digit
+changed: `scripts/build_manuscript_numbers.R` re-serialises `mod_uptake`
+`usa_mt` as `14.666380327388184` where `data_result/us_share_year1.csv` holds
+`14.666380327388183`. Those are adjacent doubles — 1 ULP, `1.8e-15` relative —
+and the difference is in R's decimal formatting, not in anything computed.
+
+The consequence is a rule about where exact gates can be applied. **An
+exactly-0.0 bar is only meaningful for same-process recomputation**, such as
+comparing two `compute_food_savings()` calls inside one Python run. Any check
+that reads a value back out of a CSV — and every check against the workbook does
+— has a ULP floor it did not choose, the same floor the person-years file has.
+Gate against the producing script's output, or allow a relative tolerance; do
+not gate bit-for-bit on a value that has made a round trip through R.
 
 **Dependency direction is inverted between two packages.**
 `data_visualization/pipeline.py` imports `SCENARIOS` from

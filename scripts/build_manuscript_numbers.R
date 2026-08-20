@@ -324,6 +324,46 @@ if (file.exists(cal_path)) {
           "Rscript scripts/build_calorie_reduction.R")
 }
 
+# ================================================ US share of year-1 savings
+# Built by scripts/build_us_share.py, which is the only route to it -- the share
+# is not a ratio of anything already in data_result/, so it needs its own
+# pipeline call. Basis is Supplementary Figure 1's: year 1, mean CI, no diet
+# variant, survival_weighted = FALSE, pharmaceuticals excluded, and all 53
+# countries with computable food savings rather than the 40-country
+# complete-data subset. The 40-country set exists because a food:survivor ratio
+# needs an OECD per-capita factor; nothing here touches survivor emissions, so
+# that constraint does not apply and imposing it would inflate the share.
+#
+# total_mt is carried alongside the percentage on purpose. A share whose
+# denominator is not written down cannot be audited if the sample is later
+# disputed. It is also the cross-check: it equals the Results p2
+# "Annual emissions saved, after rebound" row above, which comes from a
+# different CSV on the same t = 0 basis.
+us_path <- file.path(DR, "us_share_year1.csv")
+if (file.exists(us_path)) {
+  us <- read_dr("us_share_year1.csv")
+  for (sc in c("max_uptake", "mod_uptake")) {
+    r <- us %>% filter(scenario == sc)
+    if (nrow(r) != 1) { warning("us_share_year1 row not matched: ", sc); next }
+    add("Results p2", "US share of year-1 food-emission savings", sc, "baseline",
+        "%", r$share_pct, NA, "us_share_year1.csv", "share_pct",
+        paste("Supp Fig 1 basis; denominator is the 53-country food sample.",
+              "Quoted near 'Most emissions savings are concentrated in the",
+              "United States.'"))
+    add("Results p2", "US year-1 food-emission savings", sc, "baseline",
+        "MtCO2e", r$usa_mt, NA, "us_share_year1.csv", "usa_mt",
+        "numerator of the share row")
+    add("Results p2", "Total year-1 food-emission savings, 53-country sample",
+        sc, "baseline", "MtCO2e", r$total_mt, NA,
+        "us_share_year1.csv", "total_mt",
+        paste("denominator of the share row; equals the Results p2",
+              "after-rebound row, which is the same t = 0 basis"))
+  }
+} else {
+  warning("us_share_year1.csv absent; run ",
+          "python scripts/build_us_share.py")
+}
+
 # ================================================ tornado ordering
 for (i in seq_len(nrow(torn))) {
   add("Results, tornado", paste0("Tornado range: ", torn$parameter[i]),
@@ -362,7 +402,8 @@ mortality_basis_of <- function(source_csv, metric, source_field) {
     metric == "Drug footprint per treated patient-year"      ~ "n/a (constant)",
     source_csv %in% c("supplement_results_table_raw.csv",
                       "global_emissions_waterfall_1yr.csv",
-                      "calorie_reduction_percent.csv")       ~ "without",
+                      "calorie_reduction_percent.csv",
+                      "us_share_year1.csv")                  ~ "without",
     source_csv %in% c("net_emissions_with_drug.csv",
                       "drug_footprint_summary.csv",
                       "global_emissions_waterfall.csv",

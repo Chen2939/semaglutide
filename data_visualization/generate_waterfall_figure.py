@@ -8,7 +8,7 @@ countries into a continuous bridge:
   − rebound offset
   − survivorship emissions
   − manufacturing (drug) emissions
-  = net climate savings
+  = net emissions savings
 
 Reconciliation with ``breakeven_stock_all_countries``
 -----------------------------------------------------
@@ -169,7 +169,7 @@ def compute_waterfall_components() -> pd.DataFrame:
         },
         {
             "step": "net_savings",
-            "label": "Net climate\nsavings",
+            "label": "Net emissions\nsavings",
             "kind": "total",
             "plot": True,
             "value_Mt": net_10yr / 1e6,
