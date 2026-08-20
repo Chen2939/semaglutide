@@ -10,8 +10,6 @@
 #
 # The answer is reported as a MULTIPLE of the manuscript's headline savings.
 #
-# THIS IS A SCOPE SENSITIVITY, NOT A FORECAST. It belongs in the discussion of
-# scope limitations and nowhere else.
 #
 # THE ARITHMETIC, in full:
 #
@@ -25,7 +23,7 @@
 # oversight, and none of them appears anywhere below:
 #
 #   - Year 1 only (t = 0). No accumulation and no time series.
-#   - No mortality and no survivorship.
+#   - No survivorship.
 #   - No pharmaceutical manufacturing emissions.
 #   - Eligibility is BMI >= 30 only. No diabetes arm and no BMI 27-30 group.
 #   - BMI prevalence is 2022 and is NOT projected forward; only population is 2050.
@@ -36,7 +34,7 @@
 #     need Chinese elasticities and food-balance data, which is the whole point
 #     of not doing it this way.
 #
-# ONE HONEST QUALIFICATION to "no mortality". No mortality term is computed
+# ONE QUALIFICATION to "no mortality". No mortality term is computed
 # anywhere in this script, but the borrowed Korea per-patient value is not
 # perfectly free of one. annual_food_savings_gross_t is survival-weighted (it
 # carries Korea's first-year food-side weight pi(1) = 0.997094), while its
@@ -87,11 +85,7 @@ options(width = 130)
 # --- Input locations --------------------------------------------------------
 
 # UN WPP 2024 revision, single-age population by sex. This is the directory
-# given in the brief. Note that a third copy of the male workbook exists at
-# "...\Data Analysis\UN" and is a DIFFERENT file (295,655,615 bytes vs
-# 212,442,460 here); it is deliberately not used. The two files below are
-# byte-size-identical to the copies in C:\Users\sethw\Downloads that CLAUDE.md
-# records as verified against committed pipeline output.
+# given in the brief. Not
 UN_DIR <- "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data/UN"
 F_POP_MALE   <- file.path(UN_DIR, "WPP2024_POP_F01_2_POPULATION_SINGLE_AGE_MALE.xlsx")
 F_POP_FEMALE <- file.path(UN_DIR, "WPP2024_POP_F01_3_POPULATION_SINGLE_AGE_FEMALE.xlsx")
@@ -489,7 +483,7 @@ multiple_mod <- savings_mod / HEADLINE_MOD
 
 
 # ============================================================================
-# GATE 3. Results for human review
+# GATE 3. Results for review
 # ============================================================================
 
 cat("\n================ GATE 3: results ================\n")
