@@ -16,8 +16,17 @@ from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-import pyreadr
 from scipy.optimize import root_scalar
+
+# pyreadr reads the R .rds population, but its unsigned native library (librdata)
+# is blocked by Smart App Control on this machine. compute_food_savings reads an
+# arrow/parquet export of the SAME frame instead (SIMULATION_PARQUET, see below).
+# The import is kept optional so this module still loads where pyreadr is
+# unavailable; nothing in this file calls pyreadr after the parquet reader swap.
+try:
+    import pyreadr  # noqa: F401
+except Exception:
+    pyreadr = None
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -37,6 +46,64 @@ ROOT = Path(__file__).resolve().parent.parent
 # not read by any production path.
 SIMULATION_RDS = ROOT / "full_simulation_results9.rds"
 BASELINE_SIMULATION_RDS = ROOT / "full_simulation_results8.rds"
+
+# Arrow/parquet export of SIMULATION_RDS, read in place of pyreadr (see the
+# import note above). Same stem, written once from R with:
+#     arrow::write_parquet(readRDS("full_simulation_results9.rds"),
+#                          "full_simulation_results9.parquet")
+# Parquet preserves the float64 columns bit-for-bit, so the equilibrium solve is
+# unchanged; only the file format the population is loaded from differs.
+SIMULATION_PARQUET = SIMULATION_RDS.with_suffix(".parquet")
+
+# Expected schema of the simulated-population frame, keyed to what the downstream
+# code reads: the numeric energy/weight columns must be float, the treatment mask
+# boolean, and ISO/scenario string groupers. Taken from
+# full_simulation_results9.rds (1,890,000 rows x 26 columns). The parquet reader
+# asserts against this before use, so a truncated, re-typed or stale export stops
+# the run rather than silently moving a headline number.
+EXPECTED_SIM_ROWS = 1_890_000
+EXPECTED_SIM_SCHEMA = {
+    "bmi": "f", "height": "f", "height_used": "f", "weight": "f", "age": "f",
+    "pal": "f", "bmr": "f", "eer": "f", "diabetes": "i", "diabetes_prob": "f",
+    "Age_Group": "s", "Sex": "s", "ISO": "s", "Population": "f",
+    "weighting": "f", "diabetes_type": "f", "scenario": "s",
+    "qualifies_for_treatment": "b", "adheres_to_treatment": "b",
+    "individual_effect": "f", "treatment_weight": "f", "treatment_bmr": "f",
+    "treatment_eer": "f", "weight_diff": "f", "eer_diff": "f", "new_bmi": "f",
+}
+
+
+def _assert_sim_schema(df: pd.DataFrame) -> None:
+    """Stop the run if the parquet-loaded population does not match the .rds.
+
+    Guards the reader swap (pyreadr -> pd.read_parquet). Checks column names, row
+    count and dtype KIND (float / int / string / bool -- so int32-vs-int64 or
+    object-vs-str is not a false alarm). Any mismatch raises: the pipeline must
+    never run on a truncated or re-typed population.
+    """
+    import pandas.api.types as pt
+
+    kind_check = {
+        "f": pt.is_float_dtype, "i": pt.is_integer_dtype,
+        "s": pt.is_string_dtype, "b": pt.is_bool_dtype,
+    }
+    problems: List[str] = []
+    got, exp = set(df.columns), set(EXPECTED_SIM_SCHEMA)
+    if exp - got:
+        problems.append(f"missing columns: {sorted(exp - got)}")
+    if got - exp:
+        problems.append(f"unexpected columns: {sorted(got - exp)}")
+    if len(df) != EXPECTED_SIM_ROWS:
+        problems.append(f"row count {len(df)} != expected {EXPECTED_SIM_ROWS}")
+    for col, kind in EXPECTED_SIM_SCHEMA.items():
+        if col in df.columns and not kind_check[kind](df[col].dtype):
+            problems.append(f"{col}: dtype {df[col].dtype} is not {kind!r}-kind")
+    if problems:
+        raise RuntimeError(
+            "Simulation parquet schema does not match "
+            "full_simulation_results9.rds; refusing to run on a mismatched "
+            "population:\n  - " + "\n  - ".join(problems)
+        )
 
 # The same population with the imputed ``mortality_rate`` column attached, which
 # is what the mortality side reads. Built by
@@ -584,9 +651,13 @@ def compute_food_savings(
     multipliers = SCENARIOS[diet_scenario] if diet_scenario is not None else {}
 
     # ── Simulation results (from R) ────────────────────────────────────
-    sim_result = list(
-        pyreadr.read_r(str(SIMULATION_RDS)).values()
-    )[0]
+    # Reader swapped from pyreadr to parquet (see SIMULATION_PARQUET and the
+    # import note at the top of this module); pyreadr's native lib is SAC-blocked
+    # here. Only the reader changed -- the parquet is an arrow export of the same
+    # frame -- and the schema is asserted before anything downstream touches it.
+    #   was: sim_result = list(pyreadr.read_r(str(SIMULATION_RDS)).values())[0]
+    sim_result = pd.read_parquet(SIMULATION_PARQUET)
+    _assert_sim_schema(sim_result)
     sim_result["weighted_eer"] = sim_result["weighting"] * sim_result["eer"]
     sim_result["weighted_treatment_eer"] = (
         sim_result["weighting"] * sim_result["treatment_eer"]

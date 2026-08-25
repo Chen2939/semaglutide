@@ -31,6 +31,16 @@ does not apply to it -- and would inflate the US share.
 Pharmaceuticals are out because Supp Fig 1 is a food-group breakdown and the
 drug is not a food group; the figure is gross by construction.
 
+Also emits ``baseline_food_emissions_mt`` -- the baseline (pre-treatment)
+national food emissions of the same 53-country sample, so the manuscript can
+quote year-1 savings as a share of baseline food-system emissions. It is the sum
+over country x food group of ``initial_eql_quantity * carbon_intensity_t`` (the
+pipeline's ``pn_food_footprint``, reused verbatim), on pre-shock tonnage, so it
+is delta-independent and independent of all three mortality channels. Emitting
+it here rather than in a separate script pairs it with ``total_mt`` by
+construction: same basis, same country set, one pipeline call. See
+``_baseline_food_emissions`` for the two gates it enforces.
+
 Writes:
   data_result/us_share_year1.csv        (read by scripts/build_manuscript_numbers.R)
   data_result/us_share_diagnostic.txt   (--diagnostic only)
@@ -88,6 +98,90 @@ def _missing_inputs_for(result_df: pd.DataFrame, iso: str) -> str:
         if col not in rows.columns or rows[col].isna().all()
     ]
     return ", ".join(missing) if missing else "inputs present; solve produced NaN"
+
+
+def _baseline_food_emissions(
+    result_df: pd.DataFrame, scenario: str, total_mt_isos: set
+) -> dict:
+    """Baseline (pre-treatment) national food emissions for the total_mt sample.
+
+    Baseline food emissions = sum over country x food group of
+    ``initial_eql_quantity * carbon_intensity_t``, on the no-diet baseline. That
+    is exactly the pipeline's ``pn_food_footprint`` (per ISO x scenario), built
+    inside ``_survivor_food_factor`` and carried on
+    ``result_df.attrs["survivor_food_factor"]``. It is REUSED verbatim, never
+    reimplemented: this only selects the scenario, restricts to the country set
+    that feeds ``total_mt``, enforces two gates, and sums.
+
+    Pre-shock tonnage, so no equilibrium solve enters -- delta-independent and
+    independent of all three mortality channels (pi, pi_dose, survivor
+    emissions).
+
+    Two of the baseline feature's declared gates are enforced here (both
+    stop-on-failure). They are numbered per the task spec, NOT per
+    ``compute_share``'s own internal gate 1-4:
+
+      * Baseline gate 2 -- the ISO set actually summed must equal the ISO set
+        feeding ``total_mt``. The symmetric difference is reported and any
+        non-empty difference raises. Countries that carry baseline tonnage but
+        have no price index (GUY/NRU/TWN as of writing) drop out of ``total_mt``
+        and so must not be summed here; restricting to ``total_mt_isos`` is what
+        excludes them, and ``carries_no_price`` establishes -- rather than
+        assumes -- that they do carry tonnage.
+      * Baseline gate 3 -- a country whose baseline footprint is NaN has no
+        FAOSTAT tonnage on any food group (``pn_food_footprint`` uses
+        ``min_count=1``, so it stays NaN rather than collapsing to a silent 0).
+        Such a country is dropped and named, never handed to a skipna sum that
+        would treat it as a zero contribution.
+
+    Baseline gate 1 (bit-identity across scenarios) is checked in ``main()``,
+    where both scenarios' values are in hand.
+    """
+    factor = result_df.attrs["survivor_food_factor"]
+    scoped = factor[factor["scenario"] == scenario]
+
+    on_set = scoped[scoped["ISO"].isin(total_mt_isos)]
+
+    # ---- Baseline gate 3: exclude and name any NaN-footprint country; never zero it.
+    nan_isos = sorted(on_set.loc[on_set["pn_food_footprint"].isna(), "ISO"])
+    if nan_isos:
+        raise GateFailure(
+            f"[{scenario}] {len(nan_isos)} country(ies) in the total_mt set have "
+            f"NaN baseline food footprint and would be silently zeroed: "
+            + ", ".join(nan_isos[:10])
+            + (f" (+{len(nan_isos) - 10} more)" if len(nan_isos) > 10 else "")
+        )
+
+    # Sorted by ISO so the summation order is identical across scenarios; the
+    # per-ISO footprints are already bit-identical (pre-shock, delta-free), so
+    # this makes the total bit-identical too -- what gate 1 checks in main().
+    summed = on_set[on_set["pn_food_footprint"].notna()].sort_values("ISO")
+    summed_isos = set(summed["ISO"])
+
+    # ---- Baseline gate 2: the summed set must equal the total_mt set, exactly.
+    sym_diff = sorted(summed_isos ^ set(total_mt_isos))
+    if sym_diff:
+        raise GateFailure(
+            f"[{scenario}] baseline ISO set does not match the total_mt ISO set. "
+            f"Symmetric difference has {len(sym_diff)} ISO(s): "
+            + ", ".join(sym_diff[:10])
+            + (f" (+{len(sym_diff) - 10} more)" if len(sym_diff) > 10 else "")
+        )
+
+    carries_no_price = sorted(
+        set(scoped.loc[scoped["pn_food_footprint"].notna(), "ISO"])
+        - set(total_mt_isos)
+    )
+
+    baseline_t = float(summed["pn_food_footprint"].sum())
+    return {
+        "baseline_mt": baseline_t / 1e6,
+        "baseline_t": baseline_t,
+        "summed_isos": summed_isos,
+        "nan_isos": nan_isos,
+        "sym_diff": sym_diff,
+        "carries_no_price": carries_no_price,
+    }
 
 
 def compute_share(
@@ -154,6 +248,11 @@ def compute_share(
             f"(usa {usa_t!r} / total {total_t!r})."
         )
 
+    # Baseline (pre-treatment) national food emissions over exactly this
+    # total_mt sample, so the two are paired by construction. Gates 2 and 3 are
+    # enforced inside. The ISO set feeding total_mt is set(valid["ISO"]).
+    baseline = _baseline_food_emissions(result_df, scenario, set(valid["ISO"]))
+
     return {
         "scenario": scenario,
         "usa_mt": usa_t / 1e6,
@@ -161,6 +260,8 @@ def compute_share(
         "share_pct": share * 100.0,
         "n_countries": len(valid),
         "fsum_delta_t": fsum_delta,
+        "baseline_food_emissions_mt": baseline["baseline_mt"],
+        "baseline_diag": baseline,
     }
 
 
@@ -191,8 +292,24 @@ def main() -> None:
 
     reported = [compute_share(fs_unweighted, rd_unweighted, sc) for sc in SCENARIOS]
 
+    # ---- Baseline gate 1: baseline food emissions is delta-independent
+    # (pre-shock tonnage, no equilibrium solve), so it must be bit-identical
+    # across the two uptake scenarios. Any nonzero difference is a stop -- not
+    # rounded, not tolerated. One pipeline call produced both, so this compares
+    # like with like.
+    by_sc = {r["scenario"]: r for r in reported}
+    b_max = by_sc["max_uptake"]["baseline_food_emissions_mt"]
+    b_mod = by_sc["mod_uptake"]["baseline_food_emissions_mt"]
+    if b_max != b_mod:
+        raise GateFailure(
+            "Baseline food emissions differ between scenarios (must be "
+            f"delta-independent): max_uptake {b_max!r} vs mod_uptake {b_mod!r} "
+            f"(difference {b_max - b_mod!r})."
+        )
+
     out = pd.DataFrame(reported)[
-        ["scenario", "usa_mt", "total_mt", "share_pct", "n_countries"]
+        ["scenario", "usa_mt", "total_mt", "share_pct", "baseline_food_emissions_mt",
+         "n_countries"]
     ]
     out["survival_weighted"] = False
     out["ci_file"] = "carbon_intensity.csv"
@@ -211,6 +328,25 @@ def main() -> None:
         )
         print(f"              fsum-vs-pandas delta: {r['fsum_delta_t']:.6e} t "
               f"(reported, not gated)")
+
+    # Baseline food emissions -- printed at full float precision, not rounded.
+    print("\nBaseline (pre-treatment) national food emissions, 53-country sample:")
+    print(f"  delta-independent value (max_uptake == mod_uptake, gate 1 held):")
+    print(f"    {b_max!r} MtCO2e")
+    for r in reported:
+        d = r["baseline_diag"]
+        yr1_pct = r["total_mt"] / r["baseline_food_emissions_mt"] * 100.0
+        print(
+            f"  {r['scenario']:<11} baseline {r['baseline_food_emissions_mt']!r} Mt  "
+            f"(summed {len(d['summed_isos'])} ISO; gate2 sym-diff {len(d['sym_diff'])}; "
+            f"gate3 NaN-excluded {len(d['nan_isos'])})"
+        )
+        print(f"              year-1 savings = {yr1_pct:.4f}% of baseline")
+    probe = by_sc["max_uptake"]["baseline_diag"]["carries_no_price"]
+    print(
+        f"  carry baseline tonnage but no price index -> in neither total_mt nor "
+        f"baseline: {len(probe)} ISO [{', '.join(probe[:10])}]"
+    )
 
     if not args.diagnostic:
         return

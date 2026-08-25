@@ -358,6 +358,29 @@ if (file.exists(us_path)) {
         "us_share_year1.csv", "total_mt",
         paste("denominator of the share row; equals the Results p2",
               "after-rebound row, which is the same t = 0 basis"))
+    # Baseline (pre-treatment) food-system emissions of the same 53-country
+    # sample, emitted by build_us_share.py from the pipeline's pn_food_footprint
+    # on pre-shock tonnage. Paired with total_mt by construction -- same basis,
+    # same country set, one pipeline call -- so the manuscript can quote year-1
+    # savings as a share of baseline food-system emissions. draft_ref is
+    # "Discussion" because draft_ref is free text here, not validated against a
+    # fixed list. draft_value is left empty on both rows: no draft number exists
+    # to compare, so `changed` resolves to "no draft value".
+    add("Discussion", "Baseline food emissions, 53-country sample", sc,
+        "baseline", "MtCO2e", r$baseline_food_emissions_mt, NA,
+        "us_share_year1.csv", "baseline_food_emissions_mt",
+        paste("delta-independent and independent of all three mortality",
+              "channels; denominator matching the 'Total year-1 food-emission",
+              "savings' row"))
+    # Row B: the percentage itself, computed HERE from the unrounded total_mt
+    # and baseline_food_emissions_mt, so it can never be reconstructed from the
+    # rounded values printed in the sheet.
+    add("Discussion", "Year-1 food-emission savings, % of baseline food emissions",
+        sc, "baseline", "%",
+        r$total_mt / r$baseline_food_emissions_mt * 100, NA,
+        "us_share_year1.csv", "total_mt / baseline_food_emissions_mt",
+        paste("year-1 total food savings as a share of baseline food",
+              "emissions; computed from unrounded values"))
   }
 } else {
   warning("us_share_year1.csv absent; run ",
@@ -400,6 +423,12 @@ mortality_basis_of <- function(source_csv, metric, source_field) {
     metric == "Total population of nations studied"          ~ "n/a (population count)",
     # 5.38 kg/user-year is a product constant; no survival weight touches it.
     metric == "Drug footprint per treated patient-year"      ~ "n/a (constant)",
+    # us_share_year1.csv is survival_weighted = FALSE end to end, so EVERY field
+    # drawn from it is "without" -- the US share/numerator/denominator rows and
+    # the baseline_food_emissions_mt denominator + its percentage row added
+    # alongside them. Classified by source_csv, not metric text, per this
+    # function's rule that a new field from a known file is classified without
+    # anyone having to name it.
     source_csv %in% c("supplement_results_table_raw.csv",
                       "global_emissions_waterfall_1yr.csv",
                       "calorie_reduction_percent.csv",

@@ -20,6 +20,9 @@
 *.docx
 *.pdf
 *.pkl
+# Derived arrow/parquet exports of the .rds population (see pipeline.py
+# SIMULATION_PARQUET). Regenerated from the committed .rds; never a source.
+*.parquet
 
 # R workspace/session files (never track these)
 .RData

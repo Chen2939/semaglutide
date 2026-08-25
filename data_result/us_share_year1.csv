@@ -1,3 +1,3 @@
-scenario,usa_mt,total_mt,share_pct,n_countries,survival_weighted,ci_file,diet_scenario,includes_drug
-max_uptake,27.536154729653223,51.04465743048842,53.9452238799945,53,False,carbon_intensity.csv,none,False
-mod_uptake,14.666380327388183,27.03094546124655,54.25774081197022,53,False,carbon_intensity.csv,none,False
+scenario,usa_mt,total_mt,share_pct,baseline_food_emissions_mt,n_countries,survival_weighted,ci_file,diet_scenario,includes_drug
+max_uptake,27.536154729653223,51.04465743048842,53.9452238799945,6427.067118912999,53,False,carbon_intensity.csv,none,False
+mod_uptake,14.666380327388183,27.03094546124655,54.25774081197022,6427.067118912999,53,False,carbon_intensity.csv,none,False

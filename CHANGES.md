@@ -1889,6 +1889,119 @@ fire, and the workbook would build quietly six rows short.
 
 ---
 
+## Baseline food-emissions denominator — `us_share_year1.csv` + four sheet rows
+
+Added so the manuscript can quote year-1 savings as a share of *baseline*
+food-system emissions. One new column in `data_result/us_share_year1.csv`
+(`baseline_food_emissions_mt`) and four new rows in
+`data_result/manuscript_headline_numbers.csv`, all from the same
+`scripts/build_us_share.py` run that already produces `total_mt`.
+
+**Result.** Baseline (pre-treatment) national food emissions of the 53-country
+food sample = **`6427.067118912999` Mt CO2e**, and the year-1 saving is **0.7942%**
+of it at max uptake, **0.4206%** at moderate. The baseline is **δ-independent**:
+`max_uptake` and `mod_uptake` come out **bit-identical**, because it is built on
+pre-shock tonnage and no equilibrium solve enters it.
+
+**Definition, reused not reimplemented.** Baseline food emissions = sum over
+country x food group of `initial_eql_quantity * carbon_intensity_t`, on the
+no-diet baseline with the mean CI and `survival_weighted=False`. That is exactly
+the pipeline's `pn_food_footprint`, built inside `_survivor_food_factor` and
+carried on `result_df.attrs["survivor_food_factor"]`. `build_us_share.py` reads
+that expression straight off `.attrs` and sums it over the ISO set that feeds
+`total_mt`; it does not rebuild the term, and the `_survivor_food_factor` call
+site is untouched.
+
+**Gates, declared before the run (all held):**
+
+1. **δ-independence** — `baseline_food_emissions_mt` is bit-identical between
+   `max_uptake` and `mod_uptake`. Checked in `main()`; any nonzero difference
+   stops. Held at `6427.067118912999` both ways.
+2. **ISO-set identity** — the set summed for the baseline must equal the set
+   feeding `total_mt`; symmetric difference `0` both scenarios. The load-bearing
+   subtlety: **GUY, NRU and TWN carry baseline tonnage but have no FAOSTAT price
+   index**, so they drop out of `total_mt` (NaN food savings) — and would inflate
+   the denominator if summed. Restricting to the `total_mt` ISO set excludes
+   them; `carries_no_price` prints them (`[GUY, NRU, TWN]`) to establish, rather
+   than assume, that they do carry tonnage.
+3. **NaN exclusion** — any country with NaN `initial_eql_quantity`
+   (NaN `pn_food_footprint` via `min_count=1`) is excluded and named, never
+   summed as a silent zero; `0` such countries in the valid set.
+4. **Nothing else moves** — `total_mt` and `share_pct` reproduce at **exactly
+   `0.0`** against the pre-edit `us_share_year1.csv` (byte-for-byte on
+   `scenario,usa_mt,total_mt,share_pct`). This edit adds a column; it moves no
+   value.
+
+**Collector rows.** Two metrics x two scenarios, via the existing `add()` helper
+in `build_manuscript_numbers.R`, inside the US-share loop so they are paired with
+`total_mt` in code as well as basis:
+
+- `Baseline food emissions, 53-country sample` (`MtCO2e`), and
+- `Year-1 food-emission savings, % of baseline food emissions` (`%`).
+
+Row B is computed **in the collector** from the unrounded `total_mt` and
+`baseline_food_emissions_mt`, so it can never be reconstructed from the rounded
+values the sheet prints. `draft_value` is left empty on all four (`changed`
+resolves to `no draft value`); `draft_ref` is `Discussion` because `draft_ref`
+is free text here, not validated against a fixed list. `mortality_basis` is
+derived centrally — `us_share_year1.csv` already routes to `without` in
+`mortality_basis_of()`, so both new fields classify as `without` with the mapping
+documented rather than special-cased; the run reports **`UNCLASSIFIED = 0`**.
+
+**Regression scope.** Blast radius is one column and four rows. A keyed
+comparison against the committed workbook: **4 rows added, 0 removed, and all 91
+pre-existing rows identical across every column** — including the supplement- and
+calorie-derived rows, which were regenerated through the parquet reader below and
+still match byte-for-byte.
+
+---
+
+## Simulation reader — parquet bypass for Smart App Control
+
+**Why.** On this machine Smart App Control (enforced) blocks `pyreadr`'s unsigned
+native library `librdata.cp314-win_amd64.pyd`, and the pipeline read the
+population artefact `full_simulation_results9.rds` through
+`pyreadr.read_r`. SAC has no per-file allowlist and is not a Mark-of-the-Web
+block, so `Unblock-File` does nothing; disabling SAC is a one-way security
+downgrade and was ruled out. Every other native dependency (pandas, numpy,
+scipy, pyarrow) loads fine — `pyreadr` was the sole blocker.
+
+**Change — the reader only.** `data_visualization/pipeline.py` now loads an
+arrow/parquet export of the same frame:
+
+```
+was: sim_result = list(pyreadr.read_r(str(SIMULATION_RDS)).values())[0]
+now: sim_result = pd.read_parquet(SIMULATION_PARQUET); _assert_sim_schema(sim_result)
+```
+
+`SIMULATION_PARQUET` is the `.rds` stem with a `.parquet` suffix, written once
+from R with `arrow::write_parquet(readRDS("full_simulation_results9.rds"),
+"full_simulation_results9.parquet")`. The top-level `import pyreadr` is made
+optional (`try/except -> None`) so the module still loads where the DLL is
+blocked. Nothing downstream is touched; parquet preserves the float64 columns
+bit-for-bit, so the equilibrium solve is unchanged.
+
+**Schema gate.** `_assert_sim_schema` stops the run unless the loaded frame
+matches `full_simulation_results9.rds`: all 26 column names, `1,890,000` rows,
+and dtype **kind** (float / int / string / bool — so int32-vs-int64 or
+object-vs-str is not a false alarm). A truncated, re-typed or stale export halts
+rather than silently moving a number.
+
+**Evidence it is faithful.** The reader swap is validated by outputs, not
+argument: `total_mt`/`share_pct` reproduce byte-for-byte against the committed
+`pyreadr`-path values, and all 91 workbook rows — including the supplement and
+calorie rows, whose generators were run through the same parquet frame (a
+`read_r` shim for `build_supplement_table.py`; native `readRDS` for
+`build_calorie_reduction.R`) — are identical to the committed workbook.
+
+**Environment.** Installed `pyarrow` (Python venv) and `arrow` (R), both of which
+load under SAC. The `.parquet` export is git-ignored (`*.parquet`): it is derived
+from the committed `.rds`, never a source. **Prerequisite:** generate the parquet
+(the `write_parquet` line above) before running any pipeline entry point on a
+SAC-blocked machine.
+
+---
+
 ## How to reproduce
 
 ```
@@ -1995,11 +2108,18 @@ PYTHONUTF8=1 C:\Python314\python.exe diagnostics\check_rebound_axis_format.py
 UN_WPP_DIR=... PYTHONUTF8=1 C:\Python314\python.exe -m data_visualization.generate_rebound_figure
 ```
 
-US share of year-1 savings. `--diagnostic` adds the `survival_weighted=True`
-call behind the pi measurement; without it the script makes one pipeline call
-and writes only the CSV. The collector must run after it, in that order:
+US share of year-1 savings, and the baseline-emissions denominator.
+`--diagnostic` adds the `survival_weighted=True` call behind the pi measurement;
+without it the script makes one pipeline call and writes only the CSV (now
+including `baseline_food_emissions_mt`). The collector must run after it, in that
+order. On a Smart-App-Control machine, write the parquet export first (see
+"Simulation reader — parquet bypass") so the pipeline can load the population
+without `pyreadr`:
 
 ```
+# one-time on a SAC-blocked machine: arrow/parquet export of the population .rds
+Rscript -e "arrow::write_parquet(readRDS('full_simulation_results9.rds'), 'full_simulation_results9.parquet')"
+
 PYTHONUTF8=1 C:\Python314\python.exe scripts\build_us_share.py --diagnostic
 Rscript scripts\build_manuscript_numbers.R
 ```

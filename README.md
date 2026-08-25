@@ -212,6 +212,14 @@ three: the US-share denominator is **51.04465743048842 Mt**, bit-for-bit the
 reaches the same quantity from `per_capita_emissions_savings.csv` by a different
 route. A basis slip on any of them would break that equality.
 
+The same `build_us_share.py` run also emits `baseline_food_emissions_mt`, the
+**pre-treatment** food-system emissions of the 53-country sample
+(**6427.067118912999 Mt CO2e**, δ-independent so `max_uptake == mod_uptake`
+bit-for-bit). It reuses the pipeline's `pn_food_footprint`
+(`sum(initial_eql_quantity * carbon_intensity_t)`) verbatim, summed over the same
+ISO set that feeds `total_mt`, and lets the manuscript state year-1 savings as a
+share of baseline food emissions (0.79% max, 0.42% moderate). See `CHANGES.md`.
+
 Where a caption says "mortality effects excluded", read it as excluding the
 `pi` weighting as well as the survivor-emissions term. That is the wider reading
 and the one these scripts implement; see `CHANGES.md` for the measurement
@@ -228,7 +236,7 @@ showing the choice is immaterial to a *share* while it moves *levels* by about
 | `data_visualization/deterministic_mortality.py` | `final_df_imputed9.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
 | `data_visualization/survival_weighting.py` | `final_df_imputed9.pkl` | `data_result/food_shock_survival_weight.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
-| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results9.rds`, `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
+| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results9.parquet` (arrow export of `...9.rds`; reader swapped from `pyreadr` — see CHANGES "parquet bypass"), `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
 | `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
 | `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed9.pkl` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
 | `data_visualization/generate_*_figure.py` | pipeline | `figures/*.png` (+ waterfall CSVs) |
@@ -240,7 +248,7 @@ showing the choice is immaterial to a *share* while it moves *levels* by about
 | `drug_effect/analysis.py` | pipeline, drug footprint | `data_result/drug_emissions_by_country.csv`, `drug_footprint_summary.csv` |
 | `scripts/build_supplement_table.py` | pipeline, `full_simulation_results9.rds` | `data_result/supplement_results_table{,_raw}.csv` |
 | `scripts/build_country_coverage.py` | pipeline, `..._oecd.csv`, `World Bank/World_Bank_National_GDP.csv` (names only) | `data_result/country_data_coverage.csv` |
-| `scripts/build_us_share.py` | pipeline (one call; two with `--diagnostic`) | `data_result/us_share_year1.csv`, and `data_result/us_share_diagnostic.txt` under `--diagnostic` |
+| `scripts/build_us_share.py` | pipeline (one call; two with `--diagnostic`) | `data_result/us_share_year1.csv` (incl. `baseline_food_emissions_mt`), and `data_result/us_share_diagnostic.txt` under `--diagnostic` |
 | `scripts/build_manuscript_numbers.R` | committed `data_result/` CSVs only | `data_result/manuscript_headline_numbers.csv` |
 
 ## Pipeline
