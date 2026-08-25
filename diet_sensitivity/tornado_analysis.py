@@ -204,6 +204,25 @@ def build_tornado_results(ci_scenario: str = "mean") -> pd.DataFrame:
     return results.sort_values("range_Mt", ascending=True)
 
 
+# Display-only renaming of endpoint labels, applied at plot time.
+#
+# The label that reaches the figure comes from the ``low_label``/``high_label``
+# columns of the committed results CSV, which are written by the endpoint specs
+# in ``build_tornado_results``. Renaming at plot time keeps the scenario key
+# (``fatty_food_down``), the spec label and the CSV column values untouched, so
+# no stored value changes and the figure can be re-plotted from the committed
+# CSV without re-running the analysis. A label with no entry here passes through
+# unchanged.
+DISPLAY_LABELS = {
+    "Fatty foods down": "Meat/Dairy/Oils down",
+}
+
+
+def _display_label(label: str) -> str:
+    """Figure text for a stored endpoint label."""
+    return DISPLAY_LABELS.get(label, label)
+
+
 BAR_COLOR = "#6baed6"
 # One colour for every label, inside the bar and out. The old scheme keyed the
 # low end to #9ecae1 and the high end to #08519c, which did two things badly:
@@ -250,10 +269,13 @@ def _plan_row_labels(ax, row) -> list[dict]:
     The fallback is DERIVED, not listed, and measurement is why: the obvious
     guess is that only "Survivor GHG decline" needs it, since its bar spans
     19 Mt against a ~900 Mt axis. Measured, "Diet preference" needs it too --
-    its two names want 322 Mt against a 278 Mt bar, short by 45 Mt, and still
-    23 Mt short with the padding taken to zero. Only "Carbon intensity (all
-    foods)" holds both names, at 240 Mt inside a 541 Mt bar. A hardcoded
-    exception list would have encoded the wrong guess and clipped a label.
+    its two names want 352 Mt against a 278 Mt bar, and are still 52 Mt over
+    with the padding taken to zero. Only "Carbon intensity (all foods)" holds
+    both names, at 240 Mt inside a 541 Mt bar. A hardcoded exception list would
+    have encoded the wrong guess and clipped a label.
+
+    The names are the DISPLAY names, so a rename in ``DISPLAY_LABELS`` is
+    measured like any other string rather than assumed to fit.
 
     Because it is a width comparison, a future run in which a range narrows gets
     the fallback automatically, and one in which the survivor range widens stops
@@ -270,7 +292,10 @@ def _plan_row_labels(ax, row) -> list[dict]:
     right_end = ("high", high) if low <= high else ("low", low)
 
     pad = PAD_FRAC * (ax.get_xlim()[1] - ax.get_xlim()[0])
-    name = {"low": str(row["low_label"]), "high": str(row["high_label"])}
+    name = {
+        "low": _display_label(str(row["low_label"])),
+        "high": _display_label(str(row["high_label"])),
+    }
     value = {"low": f"{low:,.0f} Mt", "high": f"{high:,.0f} Mt"}
 
     w_left = _data_width(ax, name[left_end[0]])

@@ -2002,6 +2002,44 @@ SAC-blocked machine.
 
 ---
 
+## Tornado diet label — "Fatty foods down" -> "Meat/Dairy/Oils down"
+
+**Cosmetic. No model output moved.** The diet endpoint in
+`figures/sensitivity_tornado.png` now reads **"Meat/Dairy/Oils down"**, naming the
+food groups the scenario actually shocks instead of the vaguer "fatty foods".
+
+Renamed **at plot time only**, via a `DISPLAY_LABELS` map in
+`diet_sensitivity/tornado_analysis.py` applied in `_plan_row_labels`. The
+scenario key `fatty_food_down`, the endpoint spec's `high_label`,
+`diet_sensitivity/scenarios.py` and every CSV value are untouched — so the stored
+label still joins to `sensitivity_tornado_results.csv` and nothing keyed on it
+breaks. The figure was **re-plotted from the committed CSV**, not recomputed.
+
+**Verification** (`diagnostics/replot_tornado_label.py`, bars declared first):
+
+- results CSV byte-identical across the re-plot (sha256 `aeac4299a6d96a95…`);
+- new label present, old absent, nothing clipped by the axes;
+- final x-limits `[-218.9, 677.0]` **identical** to the old label's, and of the
+  ten placements exactly one differs — the renamed string itself;
+- `diagnostics/check_tornado_labels.py` G1–G5 all PASS, G4 unchanged: the
+  both-outside fallback still fires for exactly "Diet preference" and "Survivor
+  GHG decline".
+
+The longer name was handled by the existing measurement, with no hardcoded
+exception: the diet row's two names now want 352 Mt against its 278 Mt bar (was 322 Mt at the
+same x-limits), so it was already on the both-outside path and stays there. The docstring
+figures in `_plan_row_labels` were updated to the re-measured values.
+
+**Not changed, for a decision.** "Fatty foods down" is still the label in
+`figures/all_sensitivity_overview.png` and `diet_sensitivity_*` figures, in the
+`overview_label` column of `all_sensitivity_overview_results.csv` /
+`ratio_table_before_after_drug.csv`, and in the Table 1 rows of
+`manuscript_headline_numbers.csv`. Note the Table 1 label in
+`scripts/build_manuscript_numbers.R` is a **join key** against `overview_label`,
+so those two would have to move together or the row silently fails to match.
+
+---
+
 ## How to reproduce
 
 ```
@@ -2122,4 +2160,12 @@ Rscript -e "arrow::write_parquet(readRDS('full_simulation_results9.rds'), 'full_
 
 PYTHONUTF8=1 C:\Python314\python.exe scripts\build_us_share.py --diagnostic
 Rscript scripts\build_manuscript_numbers.R
+```
+
+Tornado diet label. Re-plots from the committed results CSV; no model run, and
+the CSV's digest is checked either side of the write:
+
+```
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.replot_tornado_label
+PYTHONUTF8=1 C:\Python314\python.exe -m diagnostics.check_tornado_labels
 ```
