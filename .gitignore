@@ -133,6 +133,7 @@ diagnostics/full_pass/
 
 # IDE/editor files
 .idea/
+.cursor/
 .ipynb_checkpoints/
 .DS_Store
 

@@ -76,6 +76,18 @@ semaglutide/
 └── venv/                          # Python virtual environment (not tracked)
 ```
 
+**A note on names.** Some directory names describe how the code grew
+rather than what it now holds, and are kept as they are because scripts
+resolve inputs by path and renaming them silently breaks things. In
+particular: `data_visualization/` holds the model itself --
+`pipeline.py`, `deterministic_mortality.py`, `consumption_ghg.py`,
+`survival_weighting.py` and `breakeven_analysis.py` -- as well as the
+figure scripts it is named for. `diet_sensitivity/scenarios.py` is pure
+data and is imported by the pipeline, so that package is a dependency of
+`data_visualization/` rather than a consumer of it. `code/` holds a
+single R script. The table under "Script -> inputs -> outputs" below is
+the reliable guide to what reads and writes what.
+
 There is no `UN/` directory: the UN WPP workbooks are read from wherever they
 already live, via the `UN_WPP_DIR` environment variable. Point it at the
 directory containing
