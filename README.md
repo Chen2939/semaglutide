@@ -2,6 +2,12 @@
 
 Modelling the population-level impact of broad semaglutide (GLP-1 weight-loss drug) adoption on food demand, mortality, and greenhouse-gas emissions across the 63 World Bank high-income countries.
 
+Three country sets appear throughout. The simulation covers 63 countries
+(World Bank 2022 high-income). Food-emission savings are reported for the
+53 with a solvable demand equilibrium. The food-to-survivor ratio is
+reported for the 40 that also have an OECD demand-based emissions factor.
+Step 10 explains which countries drop out at each step and why.
+
 ## Research Question
 
 If semaglutide were prescribed to all eligible individuals (BMI ≥ 30, or BMI ≥ 27 with Type 2 diabetes, age < 75), what are the downstream effects on:
@@ -17,7 +23,7 @@ Two uptake scenarios: **maximum (95%)** and **moderate (50%)** of eligible popul
 
 ```
 semaglutide/
-├── Mortality Model.ipynb          # Mortality data prep and legacy exploratory diagnostics
+├── Mortality_Model.ipynb          # Mortality data prep and legacy exploratory diagnostics
 ├── Price rebound model.ipynb      # Price rebound economics: equilibrium solver, carbon savings by country & food group
 ├── build_carbon_intensity.py      # Builds country-specific carbon intensity from Poore & Nemecek (2018) + FAOSTAT
 ├── requirements.txt               # Python dependencies
@@ -302,7 +308,7 @@ python -m data_visualization.deterministic_mortality
 - Computes person-years saved under both uptake scenarios
 - **Output:** `mortality model total emissions.csv`
 
-`Mortality Model.ipynb` remains as the exploratory notebook for mortality data preparation and legacy diagnostics, but the deterministic script is the reproducible headline path.
+`Mortality_Model.ipynb` remains as the exploratory notebook for mortality data preparation and legacy diagnostics, but the deterministic script is the reproducible headline path.
 
 For manuscript text that needs starting treated users (`Y`), average BMI-driven hazard-ratio reduction, and extra survivors alive at year 10 (`X`), run:
 
@@ -332,7 +338,7 @@ Then rebuild survivor emissions with the OECD consumption-based GHG source:
 python -m data_visualization.consumption_ghg
 ```
 
-This replaces the old World Bank territorial CO2 per-capita factor with OECD demand-based final-consumption GHG, including direct household emissions and excluding gross capital formation. The script filters `oecd/consumption_ghg_2025.csv` to final consumption (`FINAL_DEMAND_CATEGORY == CONS`), all activities (`ACTIVITY == _T`), 2022, tonnes CO2e, and unit multiplier 6 (Mt CO2e). It divides national totals by UN WPP 2022 total population to produce t CO2e/person, validates the professor's USA check (`5892.9 Mt`, about `17.25 t/person`), and rewrites `mortality model total emissions.csv` while preserving the downstream schema.
+This replaces the old World Bank territorial CO2 per-capita factor with OECD demand-based final-consumption GHG, including direct household emissions and excluding gross capital formation. The script filters `oecd/consumption_ghg_2025.csv` to final consumption (`FINAL_DEMAND_CATEGORY == CONS`), all activities (`ACTIVITY == _T`), 2022, tonnes CO2e, and unit multiplier 6 (Mt CO2e). It divides national totals by UN WPP 2022 total population to produce t CO2e/person, validates against the published USA total (`5892.9 Mt`, about `17.25 t/person`), and rewrites `mortality model total emissions.csv` while preserving the downstream schema.
 
 **OECD rebuild outputs:** `mortality model total emissions.csv`, `data_result/oecd_consumption_ghg_per_capita.csv`, `data_result/oecd_vs_worldbank_survivor_emissions.csv`
 
@@ -430,7 +436,7 @@ Generated figures are written to `figures/`; generated tabular outputs are writt
 python -m diet_sensitivity.analysis
 ```
 
-Runs the professor-requested diet-composition sensitivity analysis while keeping each country × uptake scenario's total calorie reduction fixed. The baseline model applies the EER-based demand reduction uniformly to every food group; this extension uses FAOSTAT `Food supply (kcal/capita/day)` shares to redistribute the same calorie reduction across food groups before running the existing Hegwood-style rebound equilibrium solver.
+Runs the diet-composition sensitivity analysis while keeping each country × uptake scenario's total calorie reduction fixed. The baseline model applies the EER-based demand reduction uniformly to every food group; this extension uses FAOSTAT `Food supply (kcal/capita/day)` shares to redistribute the same calorie reduction across food groups before running the existing Hegwood-style rebound equilibrium solver.
 
 Scenarios:
 - **`baseline_uniform`** — current model, all food groups reduce uniformly.
@@ -459,7 +465,7 @@ scenarios have none, Lithuania closest at 1.29× and 1.51× respectively.
 python -m diet_sensitivity.combined_analysis
 ```
 
-Runs the reviewer-style stacked conservative case: the `cereal_sweets_up`
+Runs the stacked conservative case: the `cereal_sweets_up`
 diet-composition scenario plus a low carbon-intensity assumption **across all
 food groups** (`Food data/carbon_intensity_p10.csv`), scored against the matching
 P10 survivor basis.
@@ -509,7 +515,7 @@ country-level margin is Poland at **0.56×** in the combined conservative case.
 python -m drug_effect.analysis
 ```
 
-Adds emissions from producing/administering semaglutide treatment itself to the net climate accounting. The implementation follows the professor-specified assumption using the Novo Nordisk Ozempic FlexTouch product-carbon-footprint document, Appendix A Table 2, US market. Ozempic 1.0 mg has annual components of 1.2 kg CO2e for API, 2.1 kg CO2e for device/cartridge, and 0.4 kg CO2e for needle. The API component is scaled to the modeled 2.4 mg dose while device and needle are held constant:
+Adds emissions from producing/administering semaglutide treatment itself to the net climate accounting. The implementation follows the assumption using the Novo Nordisk Ozempic FlexTouch product-carbon-footprint document, Appendix A Table 2, US market. Ozempic 1.0 mg has annual components of 1.2 kg CO2e for API, 2.1 kg CO2e for device/cartridge, and 0.4 kg CO2e for needle. The API component is scaled to the modeled 2.4 mg dose while device and needle are held constant:
 
 ```text
 annual drug footprint = 1.2 * 2.4 + 2.1 + 0.4 = 5.38 kg CO2e/user-year
@@ -708,7 +714,7 @@ That indirection is deliberate. The imputation (regional median by age and sex,
 then global median, then a 0.00001 floor) is a function of `(ISO, age, Sex)`
 alone and does **not** depend on the simulated population, so re-running it on a
 new population would be a no-op. The only script that writes the pickle from
-scratch is `Mortality Model.ipynb`, which is out of the execution path and would
+scratch is `Mortality_Model.ipynb`, which is out of the execution path and would
 restore removed columns and reintroduce the old survivor decline. Joining the
 existing map is both cheaper and safer. Totality is asserted at build time, not
 assumed: 9,072 of 9,072 keys matched, zero NA, zero rows added.
@@ -717,7 +723,7 @@ Prose elsewhere in this file that says `final_df_imputed.pkl` without the `9`
 generally means "the population pickle" generically; where the distinction
 matters it is stated.
 
-Those rates are **imputed**, by cell 5 of `Mortality Model.ipynb`: regional
+Those rates are **imputed**, by cell 5 of `Mortality_Model.ipynb`: regional
 median stratified by age and sex, then the global median for that age–sex cohort,
 then a `0 → 0.00001` floor. That is the procedure the manuscript methods
 describe. Use the lowercase `age` column as the join key. The frame also carries
@@ -726,7 +732,7 @@ the notebook's merge against the 41-country HLD extract, so it is null on exactl
 the countries that extract lacks, and joining on it silently drops them.
 
 > **Reproducibility gap, stated plainly.** The pickle is committed, but the only
-> script that regenerates it is `Mortality Model.ipynb`, which this repository
+> script that regenerates it is `Mortality_Model.ipynb`, which this repository
 > marks superseded and does not run. So the imputation is consumed as a fixed
 > artifact and cannot currently be rebuilt from source. This is a known state,
 > recorded rather than fixed.
@@ -778,7 +784,7 @@ Legacy World Bank territorial CO2 per-capita source used before the OECD replace
 ### `HLD/Mx_1x1/`
 > **Location:** `HLD/Mx_1x1/`
 
-Single-year-of-age, single-calendar-year mortality rate tables from the [Human Life-Table Database](https://www.lifetable.de/). One `.txt` file per country (e.g., `USA.Mx_1x1.txt`). ~61 countries. Required by `Mortality Model.ipynb`.
+Single-year-of-age, single-calendar-year mortality rate tables from the [Human Life-Table Database](https://www.lifetable.de/). One `.txt` file per country (e.g., `USA.Mx_1x1.txt`). ~61 countries. Required by `Mortality_Model.ipynb`.
 
 ### `Lancet/`
 > **Location:** `Lancet/`
@@ -926,7 +932,7 @@ functions taken beforehand, and required exactly `0.0`.
 
 That question is settled, and the snapshot cannot be regenerated because the
 function it captured no longer exists. So `compare_merged.py` and
-`ref_snapshot.pkl` live on the **`seth_bug_fixes` audit branch**, under
+`ref_snapshot.pkl` live on **a separate audit branch**, under
 `outputs/fix3/`, rather than here. They are archived there, not runnable there:
 the merged function they test exists only on this branch.
 
@@ -952,7 +958,7 @@ Recorded deliberately. None of these affects a published number unless stated.
 
 **The simulation is reproducible on this machine but not from a clean clone.** `full_simulation_results9.rds` is the input to every food-emissions figure. `legacy/R_scripts/Data_Cleaning9.8.R` now runs end to end and regenerates it in about 15 minutes, driven entirely by environment variables (`SEMAG_DATA_DIR`, `SEMAG_OUT_RDS`, `SEMAG_COHORT_HEIGHT`, `SEMAG_HEIGHT_LOSS`, `SEMAG_BATCH_SIZE`), and it is deterministic: `GLOBAL_SEED = 43` keyed per stratum, verified bit-identical across repeat runs **and across a change of batch size**.
 
-What is still missing from a clean clone is the *inputs*: the NCD-RisC, UN WPP and World Bank files live under `SEMAG_DATA_DIR` (by default the researcher's OneDrive) and are not in this repository. Anyone re-deriving the population from source data needs those files; they do not need to reconstruct the step.
+What is still missing from a clean clone is the *inputs*: the NCD-RisC, UN WPP and World Bank files live under `SEMAG_DATA_DIR` (set by the researcher) and are not in this repository. Anyone re-deriving the population from source data needs those files; they do not need to reconstruct the step.
 
 **`data_result/oecd_vs_worldbank_survivor_emissions.csv` is not reproducible.**
 It compares OECD demand-based factors against the older World Bank territorial
@@ -965,7 +971,7 @@ would report a uniform 0% change. The committed table is the record.
 **The mortality imputation is not reproducible from a clean clone.**
 `final_df_imputed.pkl` carries the `mortality_rate` column the whole survivor
 side is built on, and the only script that regenerates it is cell 5 of
-`Mortality Model.ipynb` — which this repository marks superseded and does not
+`Mortality_Model.ipynb` — which this repository marks superseded and does not
 run. So the imputation is consumed as a fixed, committed artifact, exactly as the
 simulation above is. Anyone re-deriving mortality from source must redo the
 regional-median → global-median → 1e-5-floor step independently, against the
@@ -1034,7 +1040,7 @@ well; they were confirmed byte-for-byte duplicates of the OECD output — matchi
 the OECD factors in all 84 recorded country-scenarios exactly and the World Bank
 factors in none — and were removed.
 
-**`Mortality Model.ipynb` still writes the wide schema.** It is an alternative
+**`Mortality_Model.ipynb` still writes the wide schema.** It is an alternative
 producer of `mortality model total emissions.csv` and emits all 22 emissions
 columns, so **re-running it would restore the removed columns**. It is not in
 the current execution path — `deterministic_mortality.py` is the maintained
