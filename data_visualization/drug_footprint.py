@@ -1,7 +1,7 @@
 """
 Shared semaglutide drug carbon-footprint helper.
 
-Professor-approved US-market scaling from Ozempic 1.0 mg to 2.4 mg
+US-market scaling from Ozempic 1.0 mg to 2.4 mg
 (Novo Nordisk Ozempic FlexTouch carbon-footprint PDF, Appendix A Table 2):
 
     annual footprint = 1.2 * 2.4 + 2.1 + 0.4 = 5.38 kg CO2e/user-year

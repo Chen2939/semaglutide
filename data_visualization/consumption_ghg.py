@@ -338,7 +338,7 @@ def build_oecd_per_capita_table(
 
 
 def validate_oecd_inputs(per_capita: pd.DataFrame) -> None:
-    """Validate professor's USA check and print coverage."""
+    """Validate against the published USA total and print coverage."""
     usa = per_capita[per_capita["ISO"] == "USA"]
     if usa.empty:
         raise ValueError("USA is missing from OECD per-capita table")

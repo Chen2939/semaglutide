@@ -11,7 +11,7 @@ This module remains the reporting layer for drug emissions and before/after
 comparison. It no longer subtracts drug a second time from already-netted
 break-even outputs.
 
-Drug-footprint assumption follows the professor's instruction using the
+Drug-footprint assumption follows the specified assumption using the
 Novo Nordisk Ozempic FlexTouch carbon-footprint PDF, Appendix A Table 2
 (US market):
 

@@ -2,7 +2,7 @@
 
 No refactor, no commit, no gates. This touches nothing in the pipeline and
 produces no artefact that anything downstream consumes. Everything after step 1
-happens only if Seth says so.
+happens only on an explicit decision to proceed.
 
 THE DEFECT. The hazard ladder assigns 2.76 to all ``bmi >= 40`` with no upper
 bound. Two consequences: a bounded published estimate (top category 40.0-59.9)
@@ -232,7 +232,7 @@ def main() -> int:
     say()
     say("---")
     say()
-    say("**STOP HERE.** Section 2.15 proceeds only on Seth's decision. Nothing "
+    say("**STOP HERE.** Section 2.15 proceeds only on an explicit decision. Nothing "
         "above has been applied to the R ladder or to "
         "`deterministic_mortality.get_raw_bmi_hazard_ratio`.")
 
