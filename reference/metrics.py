@@ -19,23 +19,19 @@ the reference numbers, so what is measured here is computed identically to them.
 Those scripts, and the frozen pre-consolidation comparison that used them, are
 on a separate audit branch.
 
-Status: the references are stale on this branch
------------------------------------------------
-`python -m reference.metrics` currently fails, and that is expected. Two
-committed changes moved the numbers after these snapshots were taken:
+Status: the references pass
+--------------------------
+`python -m reference.metrics` passes on this branch, at exactly 0.0 on all 47
+values. The snapshots have been refreshed twice, most recently for the
+population regeneration.
 
-    6e826a4  Fix aggregate double-count in load_kcal_shares' calorie-share
-             weights
-    be44eb4  Weight oilcrops composite by P&N food-and-waste supply volumes
+Regenerate with `--write` after a deliberate methodological change, in its own
+visible commit recording which numbers moved and why. `ACTIVE_RUN` below names
+which `run` row of reference_headline_numbers.csv is the live target; earlier
+rows are kept for provenance and are not compared against.
 
-The snapshots have deliberately not been regenerated. A survivor-emissions
-change is planned, and refreshing now would mean doing it again straight
-afterwards -- two reference commits describing the same intermediate state. So
-the regeneration is being held and will be done once, after that change lands.
-
-Until then, read a failure here as the known staleness above rather than a new
-regression. See the README section "Reproduction check" for the policy and the
-reasoning.
+The refresh history, and what moved on each one, is in the README section
+"Reproduction check" rather than duplicated here.
 """
 from __future__ import annotations
 

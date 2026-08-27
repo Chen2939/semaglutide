@@ -11,9 +11,8 @@ This module remains the reporting layer for drug emissions and before/after
 comparison. It no longer subtracts drug a second time from already-netted
 break-even outputs.
 
-Drug-footprint assumption follows the specified assumption using the
-Novo Nordisk Ozempic FlexTouch carbon-footprint PDF, Appendix A Table 2
-(US market):
+Drug-footprint assumption follows the Novo Nordisk Ozempic FlexTouch
+product-carbon-footprint document, Appendix A Table 2, US market.
 
     annual footprint = 1.2 * 2.4 + 2.1 + 0.4 = 5.38 kg CO2e/user-year
 

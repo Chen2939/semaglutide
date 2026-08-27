@@ -23,7 +23,7 @@ Two uptake scenarios: **maximum (95%)** and **moderate (50%)** of eligible popul
 
 ```
 semaglutide/
-├── Mortality_Model.ipynb          # Mortality data prep and legacy exploratory diagnostics
+├── Mortality Model.ipynb          # Mortality data prep and legacy exploratory diagnostics
 ├── Price rebound model.ipynb      # Price rebound economics: equilibrium solver, carbon savings by country & food group
 ├── build_carbon_intensity.py      # Builds country-specific carbon intensity from Poore & Nemecek (2018) + FAOSTAT
 ├── requirements.txt               # Python dependencies
@@ -308,7 +308,7 @@ python -m data_visualization.deterministic_mortality
 - Computes person-years saved under both uptake scenarios
 - **Output:** `mortality model total emissions.csv`
 
-`Mortality_Model.ipynb` remains as the exploratory notebook for mortality data preparation and legacy diagnostics, but the deterministic script is the reproducible headline path.
+`Mortality Model.ipynb` remains as the exploratory notebook for mortality data preparation and legacy diagnostics, but the deterministic script is the reproducible headline path.
 
 For manuscript text that needs starting treated users (`Y`), average BMI-driven hazard-ratio reduction, and extra survivors alive at year 10 (`X`), run:
 
@@ -714,7 +714,7 @@ That indirection is deliberate. The imputation (regional median by age and sex,
 then global median, then a 0.00001 floor) is a function of `(ISO, age, Sex)`
 alone and does **not** depend on the simulated population, so re-running it on a
 new population would be a no-op. The only script that writes the pickle from
-scratch is `Mortality_Model.ipynb`, which is out of the execution path and would
+scratch is `Mortality Model.ipynb`, which is out of the execution path and would
 restore removed columns and reintroduce the old survivor decline. Joining the
 existing map is both cheaper and safer. Totality is asserted at build time, not
 assumed: 9,072 of 9,072 keys matched, zero NA, zero rows added.
@@ -723,7 +723,7 @@ Prose elsewhere in this file that says `final_df_imputed.pkl` without the `9`
 generally means "the population pickle" generically; where the distinction
 matters it is stated.
 
-Those rates are **imputed**, by cell 5 of `Mortality_Model.ipynb`: regional
+Those rates are **imputed**, by cell 5 of `Mortality Model.ipynb`: regional
 median stratified by age and sex, then the global median for that age–sex cohort,
 then a `0 → 0.00001` floor. That is the procedure the manuscript methods
 describe. Use the lowercase `age` column as the join key. The frame also carries
@@ -732,7 +732,7 @@ the notebook's merge against the 41-country HLD extract, so it is null on exactl
 the countries that extract lacks, and joining on it silently drops them.
 
 > **Reproducibility gap, stated plainly.** The pickle is committed, but the only
-> script that regenerates it is `Mortality_Model.ipynb`, which this repository
+> script that regenerates it is `Mortality Model.ipynb`, which this repository
 > marks superseded and does not run. So the imputation is consumed as a fixed
 > artifact and cannot currently be rebuilt from source. This is a known state,
 > recorded rather than fixed.
@@ -784,7 +784,7 @@ Legacy World Bank territorial CO2 per-capita source used before the OECD replace
 ### `HLD/Mx_1x1/`
 > **Location:** `HLD/Mx_1x1/`
 
-Single-year-of-age, single-calendar-year mortality rate tables from the [Human Life-Table Database](https://www.lifetable.de/). One `.txt` file per country (e.g., `USA.Mx_1x1.txt`). ~61 countries. Required by `Mortality_Model.ipynb`.
+Single-year-of-age, single-calendar-year mortality rate tables from the [Human Life-Table Database](https://www.lifetable.de/). One `.txt` file per country (e.g., `USA.Mx_1x1.txt`). ~61 countries. Required by `Mortality Model.ipynb`.
 
 ### `Lancet/`
 > **Location:** `Lancet/`
@@ -971,7 +971,7 @@ would report a uniform 0% change. The committed table is the record.
 **The mortality imputation is not reproducible from a clean clone.**
 `final_df_imputed.pkl` carries the `mortality_rate` column the whole survivor
 side is built on, and the only script that regenerates it is cell 5 of
-`Mortality_Model.ipynb` — which this repository marks superseded and does not
+`Mortality Model.ipynb` — which this repository marks superseded and does not
 run. So the imputation is consumed as a fixed, committed artifact, exactly as the
 simulation above is. Anyone re-deriving mortality from source must redo the
 regional-median → global-median → 1e-5-floor step independently, against the
@@ -1040,7 +1040,7 @@ well; they were confirmed byte-for-byte duplicates of the OECD output — matchi
 the OECD factors in all 84 recorded country-scenarios exactly and the World Bank
 factors in none — and were removed.
 
-**`Mortality_Model.ipynb` still writes the wide schema.** It is an alternative
+**`Mortality Model.ipynb` still writes the wide schema.** It is an alternative
 producer of `mortality model total emissions.csv` and emits all 22 emissions
 columns, so **re-running it would restore the removed columns**. It is not in
 the current execution path — `deterministic_mortality.py` is the maintained
