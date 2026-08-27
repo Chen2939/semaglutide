@@ -85,7 +85,7 @@ particular: `data_visualization/` holds the model itself --
 figure scripts it is named for. `diet_sensitivity/scenarios.py` is pure
 data and is imported by the pipeline, so that package is a dependency of
 `data_visualization/` rather than a consumer of it. `code/` holds a
-single R script. The table under "Script -> inputs -> outputs" below is
+single R script. The table under "Script → inputs → outputs" below is
 the reliable guide to what reads and writes what.
 
 There is no `UN/` directory: the UN WPP workbooks are read from wherever they
