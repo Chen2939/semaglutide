@@ -218,13 +218,12 @@ The same `build_us_share.py` run also emits `baseline_food_emissions_mt`, the
 bit-for-bit). It reuses the pipeline's `pn_food_footprint`
 (`sum(initial_eql_quantity * carbon_intensity_t)`) verbatim, summed over the same
 ISO set that feeds `total_mt`, and lets the manuscript state year-1 savings as a
-share of baseline food emissions (0.79% max, 0.42% moderate). See `CHANGES.md`.
+share of baseline food emissions (0.79% max, 0.42% moderate).
 
 Where a caption says "mortality effects excluded", read it as excluding the
 `pi` weighting as well as the survivor-emissions term. That is the wider reading
-and the one these scripts implement; see `CHANGES.md` for the measurement
-showing the choice is immaterial to a *share* while it moves *levels* by about
-0.5%.
+and the one these scripts implement; the choice is immaterial to a *share* while
+it moves *levels* by about 0.5%.
 
 ### Script → inputs → outputs
 
@@ -236,7 +235,7 @@ showing the choice is immaterial to a *share* while it moves *levels* by about
 | `data_visualization/deterministic_mortality.py` | `final_df_imputed9.pkl` | `mortality model total emissions.csv` (person-years only), `data_result/deterministic_mortality_comparison.csv` |
 | `data_visualization/survival_weighting.py` | `final_df_imputed9.pkl` | `data_result/food_shock_survival_weight.csv` |
 | `data_visualization/consumption_ghg.py` | `mortality model total emissions.csv`, `oecd/consumption_ghg_2025.csv`, `$UN_WPP_DIR` both-sexes workbook | `mortality model total emissions_oecd.csv`, `data_result/oecd_consumption_ghg_per_capita.csv` |
-| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results9.parquet` (arrow export of `...9.rds`; reader swapped from `pyreadr` — see CHANGES "parquet bypass"), `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
+| `data_visualization/pipeline.py` | FAOSTAT FBS + CPI, elasticities, mappings, CI file, `child_energy_by_country.xlsx`, `full_simulation_results9.parquet` (arrow export of `...9.rds`; reader swapped from `pyreadr`), `..._oecd.csv`, `data_result/food_shock_survival_weight.csv` | *(library — no outputs)* |
 | `data_visualization/breakeven_analysis.py` | pipeline + `..._oecd.csv` + drug footprint | `data_result/net_emissions_with_drug.csv` |
 | `data_visualization/survivor_manuscript_numbers.py` | `final_df_imputed9.pkl` | `data_result/survivor_manuscript_numbers.csv`, `..._top_countries.csv` |
 | `data_visualization/generate_*_figure.py` | pipeline | `figures/*.png` (+ waterfall CSVs) |
@@ -265,7 +264,12 @@ showing the choice is immaterial to a *share* while it moves *levels* by about
 
 > These R scripts have already been run. The `.rds` outputs are required datasets (see below).
 
-> **The BMI distribution caveat is RESOLVED.** The mixture step used to inflate the population-weighted BMI >= 30 share by 1.57 pp (+5.82% relative, +36% in Japan). It has been replaced by a piecewise-linear CDF through the NCD-RisC cumulative points with a Kitahara class III top band, which reproduces the seven band shares by construction. Measured deviation is now **-0.23 pp**, inside one standard error, with Japan at -0.22 pp and Korea at -0.03 pp. See `diagnostics/reports/phase2_population_gates.md`.
+BMI distributions are constructed by piecewise-linear interpolation of the
+NCD-RisC cumulative band shares, following the OECD SPHeP-NCDs precedent,
+with the top band split at 45/50/55/60 using the class III participant
+composition from Kitahara et al. (2014). The band shares are reproduced by
+construction. The accepted cost is that the implied density is uniform
+within each band and discontinuous at band boundaries.
 
 ### Step 2 — Carbon Intensity Build
 
@@ -312,8 +316,6 @@ Current reconciled manuscript numbers:
 
 - Maximum uptake: average HR reduction `17.21%`, starting treated users `238.8 million`, extra survivors alive at year 10 `2.79 million`, cumulative 10-year person-years saved `14.92 million`
 - Moderate uptake: average HR reduction `17.28%`, starting treated users `126.6 million`, extra survivors alive at year 10 `1.47 million`, cumulative 10-year person-years saved `7.88 million`
-
-> These moved with the regeneration. The pre-regeneration figures were 18.6% / 252.6M / 3.15M / 16.83M and 18.4% / 132.2M / 1.66M / 8.89M. **The 18.6% is not a renumbering** -- the manuscript builds a rhetorical point on SELECT having found the same figure, and that coincidence no longer holds. See `diagnostics/reports/phase5_reconciliation.md`.
 
 These are on the imputed 63-country mortality source and cover all 63 countries.
 Survival weighting the food shock does not touch them — it changes the food side
@@ -684,7 +686,7 @@ included here, and none is read at runtime by the Python analysis.
 
 Full synthetic population output from `Data_Cleaning9.8.R`. 1,890,000 rows: 945,000 simulated individuals, each appearing twice because the two uptake scenarios are bound together, with baseline/treated BMI, caloric intake, demographics, and population weights. Required by both notebooks.
 
-Measured directly off the file: **63 countries**, not ~200 — the R script filters to World Bank 2022 high income (`Income == "H"`) — across 2 sexes and 15 NCD-RisC age groups, giving 1,890 strata of exactly 500 individuals each, and one `weighting` value (`Population / 500`) per stratum. Baseline `bmi` is bit-identical across the two scenarios, so a distributional check must take one scenario only. `final_df_imputed9.pkl` carries the same baseline `bmi` vector bit-for-bit, plus `Age`, `mortality_rate` and `Year`. It is built by `diagnostics/build_population_pickle.py`, which lifts the existing `(ISO, age, Sex) -> mortality_rate` map off the committed pickle rather than re-running the imputation; that imputation does not depend on the simulated population. The save path and the load path are now one `OUT_RDS` constant, read once at each site. They used to be separated by 50 lines and an interactive `setwd()`, and had diverged: measured, **no script on disk has ever written `test/`** except the repo's own copy of the R script, and `test/` does not exist. Three copies of the script and two distinct `.rds` artefacts were found on disk; see `diagnostics/reports/phase0_recon.md` section 2.
+Measured directly off the file: **63 countries**, not ~200 — the R script filters to World Bank 2022 high income (`Income == "H"`) — across 2 sexes and 15 NCD-RisC age groups, giving 1,890 strata of exactly 500 individuals each, and one `weighting` value (`Population / 500`) per stratum. Baseline `bmi` is bit-identical across the two scenarios, so a distributional check must take one scenario only. `final_df_imputed9.pkl` carries the same baseline `bmi` vector bit-for-bit, plus `Age`, `mortality_rate` and `Year`. It is built by `diagnostics/build_population_pickle.py`, which lifts the existing `(ISO, age, Sex) -> mortality_rate` map off the committed pickle rather than re-running the imputation; that imputation does not depend on the simulated population.
 
 ### `final_df_imputed9.pkl` (and `final_df_imputed.pkl`, the baseline)
 > **Location:** project root
@@ -873,8 +875,6 @@ at 40 in every configuration.
 failing its own guard on every run while still writing its CSV. Repinned with the
 snapshots.
 
-See `CHANGES.md` for the per-value table.
-
 `--write` regenerates both snapshots from a fresh pipeline run:
 
 ```bash
@@ -953,18 +953,6 @@ Recorded deliberately. None of these affects a published number unless stated.
 **The simulation is reproducible on this machine but not from a clean clone.** `full_simulation_results9.rds` is the input to every food-emissions figure. `legacy/R_scripts/Data_Cleaning9.8.R` now runs end to end and regenerates it in about 15 minutes, driven entirely by environment variables (`SEMAG_DATA_DIR`, `SEMAG_OUT_RDS`, `SEMAG_COHORT_HEIGHT`, `SEMAG_HEIGHT_LOSS`, `SEMAG_BATCH_SIZE`), and it is deterministic: `GLOBAL_SEED = 43` keyed per stratum, verified bit-identical across repeat runs **and across a change of batch size**.
 
 What is still missing from a clean clone is the *inputs*: the NCD-RisC, UN WPP and World Bank files live under `SEMAG_DATA_DIR` (by default the researcher's OneDrive) and are not in this repository. Anyone re-deriving the population from source data needs those files; they do not need to reconstruct the step.
-
-**The simulated BMI distribution used not to reproduce its NCD-RisC input. FIXED.** `fit_bmi_mixture()` drew skew-normal components at fixed midpoints, concatenated them in the observed proportions, ran a KDE and applied a moving-average smoother. All seven categories deviated 9 to 52 standard errors from zero; the population-weighted BMI >= 30 share was 0.28467 realized against 0.26901 target (**+1.57 pp, +5.82% relative**), with 51 of 63 countries overstating by more than 1.0 pp. The signature was flattening toward uniform: deviation fell near-linearly in the target share (corr -0.684 over 13,230 cells) and crossed zero at **1/7**, so the worst relative cases were the leanest countries -- Japan +36.2%, Korea +35.4%.
-
-It is now a **piecewise-linear CDF** through the NCD-RisC cumulative points, following the OECD SPHeP-NCDs precedent, with the top band split at 45/50/55/60 using the class III participant composition from Kitahara et al. (2014). The seven band shares are correct by construction: gate G1 evaluates the fitted CDF at all ten knots for all 1,890 strata and finds **max deviation 0.000e+00**. Realized deviation on BMI >= 30 is **-0.23 pp** pooled (bar 0.37 pp, 3 SE), Japan -0.22 pp, Korea -0.03 pp, and no country now overstates by more than 1.0 pp.
-
-The known and accepted cost is that the implied density is uniform within each band and discontinuous at band boundaries. That is the cost OECD accepted on the same data for the same reason.
-
-Verified by `diagnostics/reports/phase2_population_gates.md`. The pre-fix measurement is preserved at `diagnostics/reports/bmi_mixture_reproduction_check.md`.
-It needs the NCD-RisC CSVs, which are not in this repository (see `Lancet/` under
-"Required Datasets"); set `LANCET_DIR` to point at them. Which of the four smoothing stages
-contributes what is not isolated, and no remedy has been chosen. The full
-measurement, with the bars declared before it ran, is in `CHANGES.md`.
 
 **`data_result/oecd_vs_worldbank_survivor_emissions.csv` is not reproducible.**
 It compares OECD demand-based factors against the older World Bank territorial
