@@ -194,8 +194,7 @@ def load_inputs() -> pd.DataFrame:
 
 # Ages the modelled population spans, and therefore the range the rate lookup
 # must cover with no holes. Adherers top out at 74, so a horizon beyond 15 years
-# would walk them past 89 and off the end of this table -- see the ceiling note in
-# CHANGES.md before extending it.
+# would walk them past 89 and off the end of this table.
 LOOKUP_AGE_MIN = 18
 LOOKUP_AGE_MAX = 89
 

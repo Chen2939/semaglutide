@@ -17,7 +17,7 @@ fail this check; see the README section "Reproduction check" for what to do then
 Metric definitions are transcribed from the verification scripts that produced
 the reference numbers, so what is measured here is computed identically to them.
 Those scripts, and the frozen pre-consolidation comparison that used them, are
-on the seth_bug_fixes audit branch.
+on a separate audit branch.
 
 Status: the references are stale on this branch
 -----------------------------------------------

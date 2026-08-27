@@ -55,9 +55,9 @@ import pandas as pd
 from .deterministic_mortality import compute_individual_survival_diffs, load_inputs
 from .pipeline import output_path
 
-# Last year with complete mortality coverage for treated patients. See the
-# age-89 ceiling note in CHANGES.md before raising this: it needs more mortality
-# data, not a code change.
+# Last year with complete mortality coverage for treated patients. Note the
+# age-89 ceiling before raising this: it needs more mortality data, not a code
+# change.
 PI_HORIZON = 15
 
 OUTPUT_FILE = "food_shock_survival_weight.csv"
