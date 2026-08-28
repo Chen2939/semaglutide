@@ -1,0 +1,68 @@
+.gitignore:149:diagnostics/reports/
+data_visualization/consumption_ghg.py:341:    """Validate professor's USA check and print coverage."""
+data_visualization/deterministic_mortality.py:198:# CHANGES.md before extending it.
+data_visualization/drug_footprint.py:4:Professor-approved US-market scaling from Ozempic 1.0 mg to 2.4 mg
+data_visualization/survival_weighting.py:59:# age-89 ceiling note in CHANGES.md before raising this: it needs more mortality
+diagnostics/bmi_mixture_reproduction_check.py:49:    r"C:\Users\sethw\OneDrive - University of Waterloo\Semaglutide"
+diagnostics/china_gate1_probe.R:9:UN <- "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data/UN"
+diagnostics/figure_fixes_pass.py:15:Writes: diagnostics/reports/figure_fixes.md   (fixed path, plain ASCII)
+diagnostics/g5_reproducibility.sh:19:REPO="C:/Users/sethw/repos"
+diagnostics/g7_height_independence.py:156:    # diagnosed as such in diagnostics/reports/g7_ulp_diagnosis.md rather than
+diagnostics/g9_hazard_ladder.R:95:  "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data"
+diagnostics/phase0_provenance.R:9:  repo_root   = "C:/Users/sethw/repos/full_simulation_results8.rds",
+diagnostics/phase0_provenance.R:10:  code_n_data = "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data/full_simulation_results8.rds",
+diagnostics/phase0_provenance.R:11:  data_anal   = "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/full_simulation_results8.rds"
+diagnostics/phase1_patch.py:8:P = r"C:\Users\sethw\repos\legacy\R_scripts\Data_Cleaning9.8.R"
+diagnostics/phase1_patch2.py:38:P = r"C:\Users\sethw\repos\legacy\R_scripts\Data_Cleaning9.8.R"
+diagnostics/phase1_patch3.py:21:P = r"C:\Users\sethw\repos\legacy\R_scripts\Data_Cleaning9.8.R"
+diagnostics/readme_patch.py:12:P = r"C:\Users\sethw\repos\README.md"
+diagnostics/readme_patch.py:35:    "-0.22 pp and Korea at -0.03 pp. See `diagnostics/reports/"
+diagnostics/readme_patch.py:59:    "longer holds. See `diagnostics/reports/phase5_reconciliation.md`."
+diagnostics/readme_patch.py:75:    "`diagnostics/reports/phase0_recon.md` section 2."
+diagnostics/readme_patch.py:105:    "researcher's OneDrive) and are not in this repository. Anyone "
+diagnostics/readme_patch.py:148:    "Verified by `diagnostics/reports/phase2_population_gates.md`. The "
+diagnostics/readme_patch.py:150:    "`diagnostics/reports/bmi_mixture_reproduction_check.md`."
+diagnostics/report.py:22:Reports go to diagnostics/reports/<name>.md, which is gitignored: the script is
+diagnostics/rerun_c_rep1.sh:8:REPO="C:/Users/sethw/repos"
+diagnostics/run_full_pass.sh:9:cd /c/Users/sethw/repos || exit 1
+diagnostics/run_phase3.sh:7:REPO="C:/Users/sethw/repos"
+diagnostics/s215_step1_decision.py:5:happens only if Seth says so.
+diagnostics/s215_step1_decision.py:235:    say("**STOP HERE.** Section 2.15 proceeds only on Seth's decision. Nothing "
+diagnostics/verify_ladder_refactor.R:7:# machine (see diagnostics/reports/phase0_recon.md 2.2). So equivalence is
+diagnostics/verify_panel_a_change.py:23:ROOT = Path(r"C:\Users\sethw\repos")
+drug_effect/analysis.py:14:Drug-footprint assumption follows the professor's instruction using the
+FINDINGS_food_baseline.md:8:- Repo: `C:\Users\sethw\repos`. Run Python with `C:\Python314\python.exe`.
+FINDINGS_food_baseline.md:10:  OneDrive; it must be present for the pipeline to run.
+FINDINGS_food_baseline.md:11:- Working branch: `seth`.
+FINDINGS_food_baseline.md:14:- Committed + pushed on `seth` (PR opened): 10-year emissions waterfall edits +
+FINDINGS_food_baseline.md:74:scientific decision for the professor.
+FINDINGS_food_baseline.md:88:## Directional implication (flag for the professor)
+FINDINGS_food_baseline.md:102:5. Present #4 (meat/beef CI) as a sensitivity for the professor to choose, with
+FINDINGS_food_baseline.md:104:6. Commit only after the professor signs off on #4.
+legacy/R_scripts/Data_Cleaning9.7.R:43:bmi_female <- read_csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2024_BMI_female_age_specific_country.csv")
+legacy/R_scripts/Data_Cleaning9.7.R:44:bmi_male <- read_csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2024_BMI_male_age_specific_country.csv")
+legacy/R_scripts/Data_Cleaning9.7.R:53:lancet_col_names <- xl.read.file("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/lancet_column_names.xlsx")
+legacy/R_scripts/Data_Cleaning9.7.R:70:height<-read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2020_height_child_adolescent_country.csv")
+legacy/R_scripts/Data_Cleaning9.7.R:91:worldbank <- xl.read.file("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Worldbank_incomes_cleaned.xlsx")
+legacy/R_scripts/Data_Cleaning9.7.R:108:pop_male <- read_excel("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/UN/WPP2024_POP_F01_2_POPULATION_SINGLE_AGE_MALE.xlsx",
+legacy/R_scripts/Data_Cleaning9.7.R:114:pop_female <- read_excel("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/UN/WPP2024_POP_F01_3_POPULATION_SINGLE_AGE_FEMALE.xlsx",
+legacy/R_scripts/Data_Cleaning9.7.R:207:#diabetes_men <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD-RisC_Lancet_2016_Diabetes_Men_Agespecific_Prevalence_by_Country.csv")
+legacy/R_scripts/Data_Cleaning9.7.R:208:#diabetes_women <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD-RisC_Lancet_2016_Diabetes_Women_Agespecific_Prevalence_by_Country.csv")
+legacy/R_scripts/Data_Cleaning9.7.R:211:diabetes_new <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD_RisC_Lancet_2024_Diabetes_age_specific_countries.csv")
+legacy/R_scripts/Data_Cleaning9.7.R:562:setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis")
+legacy/R_scripts/Data_Cleaning9.7.R:573:setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis")
+legacy/R_scripts/Data_Cleaning9.8.R:40:  "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data"
+legacy/R_scripts/Data_Cleaning9.8.R:60:# Written straight to the repository root. The old OneDrive round-trip is
+legacy/R_scripts/Data_Cleaning9.8.R:69:  "C:/Users/sethw/repos/full_simulation_results9.rds"
+legacy/R_scripts/Data_Cleaning9.8.R:73:DIAG_DIR <- Sys.getenv("SEMAG_DIAG_DIR", "C:/Users/sethw/repos/diagnostics")
+legacy/R_scripts/Data_Cleaning9.8.R:523:#diabetes_men <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD-RisC_Lancet_2016_Diabetes_Men_Agespecific_Prevalence_by_Country.csv")
+legacy/R_scripts/Data_Cleaning9.8.R:524:#diabetes_women <- read.csv("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Lancet/NCD-RisC_Lancet_2016_Diabetes_Women_Agespecific_Prevalence_by_Country.csv")
+legacy/R_scripts/Data_Cleaning9.8.R:713:# diagnostics/reports/bmi_mixture_reproduction_check.md.
+legacy/R_scripts/Data_Cleaning9.8.R:1796:# eer_effects. See diagnostics/reports/phase0_recon.md 5.3.
+legacy/R_scripts/Mortality_model2.R:54:#"C:\Users\sethw\OneDrive - University of Waterloo\Semaglutide\Data Analysis\HLD\Mx_1x1"
+legacy/R_scripts/Semaglutide_Analysis_7.R:20:setwd("C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis")
+Mortality Model.ipynb:463:    "    Replicates seth's R logic to fill missing mortality data:\n",
+reference/metrics.py:20:on the seth_bug_fixes audit branch.
+scripts/china_2050_scope_sensitivity.R:89:UN_DIR <- "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data/UN"
+scripts/china_2050_scope_sensitivity.R:95:LANCET_DIR <- "C:/Users/sethw/OneDrive - University of Waterloo/Semaglutide/Data Analysis/Code and data/Lancet"
+scripts/china_2050_scope_sensitivity.R:101:REPO <- "C:/Users/sethw/repos"
