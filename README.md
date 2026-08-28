@@ -106,6 +106,9 @@ onward reads `mortality model total emissions_oecd.csv`, so that file must exist
 and be current before any analysis script runs. It is committed, so a fresh
 clone can skip steps 1–2 entirely and go straight to step 3.
 
+Step 5 onward runs the pipeline, so the
+[one-time parquet export](#one-time-parquet-export) in Setup must be done first.
+
 ```bash
 # 0. Regenerate the population  (only if the simulation changed)
 Rscript legacy/R_scripts/Data_Cleaning9.8.R
@@ -633,6 +636,23 @@ pip install -r requirements.txt
 
 Requires **Python 3.12+** and the virtual environment activated before running notebooks or scripts.
 
+### One-time parquet export
+
+The pipeline reads the simulated population from a parquet export of
+`full_simulation_results9.rds`. The `.rds` ships with the repository via Git
+LFS; the parquet does not, because it is derived. Generate it once before the
+first run:
+
+```r
+arrow::write_parquet(readRDS("full_simulation_results9.rds"),
+                     "full_simulation_results9.parquet")
+```
+
+Parquet is used rather than reading the `.rds` directly because `pyreadr`'s
+native library is blocked by Smart App Control on some Windows configurations.
+Parquet preserves the float64 columns bit-for-bit, so the equilibrium solve is
+unchanged.
+
 ## External data: three buckets
 
 Every input falls into exactly one of three categories. Only the first is in the
@@ -842,7 +862,10 @@ Together they pin 47 numbers.
 python -m reference.metrics        # from the repository root
 ```
 
-Needs the FAOSTAT bulk downloads in `Food data/` and the committed inputs; it
+Needs the one-time parquet export from [Setup](#one-time-parquet-export) — it
+runs the pipeline, so without `full_simulation_results9.parquet` it fails on the
+first configuration before comparing anything. Needs the FAOSTAT bulk downloads
+in `Food data/` and the committed inputs; it
 does **not** need `UN_WPP_DIR`, since it reads the committed
 `mortality model total emissions_oecd.csv` rather than rebuilding it. Runs the
 pipeline for the four configurations the references cover — no-diet baseline on
